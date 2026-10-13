@@ -1,0 +1,223 @@
+import '@fontsource-variable/inter';
+import '../styles/app.css';
+import { estimate, type Estimate } from '../core/estimate';
+import { DEFAULT_ROOM } from '../core/room';
+import { decodeShare, saveToLibrary } from '../core/storage';
+import { money, rafThrottle } from '../core/util';
+import { Viewer, type ViewName } from '../three/viewer';
+import { arDialog, blueprintDialog, cutDialog, estimateDialog, helpDialog, kitchenWizardDialog, projectsDialog, renderDialog, roomDialog, settingsDialog, shareDialog, toast } from '../ui/dialogs';
+import { clear, h, icon } from '../ui/dom';
+import { renderModules, renderProps } from '../ui/panels';
+import { showModuleContextMenu } from '../ui/contextMenu';
+import { Store } from './store';
+
+const $ = <T extends HTMLElement>(id: string): T => {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`#${id} not found`);
+  return el as T;
+};
+
+async function boot(): Promise<void> {
+  const store = new Store();
+  const app = $('app');
+  let company: { name: string; phone: string } | null = null;
+
+  const token = location.hash.match(/^#v=([\w-]+)$/);
+  if (token) {
+    const r = await decodeShare(token[1], store.settings);
+    if (r) {
+      store.readOnly = true;
+      store.project = r.project;
+      store.selectedId = null;
+      company = r.company;
+      app.classList.add('share');
+      document.title = `${r.project.name} — ${r.company.name || 'Mebel3D'}`;
+    }
+  }
+
+  const stage = $('viewport');
+  let viewer: Viewer;
+  try {
+    viewer = new Viewer(stage, () => store.settings.materials);
+  } catch {
+    stage.append(h('p', { class: 'fatal' }, 'Не удалось запустить 3D: браузер не поддерживает WebGL. Обновите браузер или откройте на другом устройстве.'));
+    return;
+  }
+  viewer.onPick = (id) => store.select(id);
+  viewer.onModuleDrag = (_id, x) => {
+    hud.textContent = `Позиция модуля: X = ${x} мм (пристыкован)`;
+  };
+  viewer.onModuleDragEnd = (id, newX) => {
+    store.commit((p) => {
+      const m = p.modules.find((x) => x.id === id);
+      if (m) m.x = newX;
+    }, 'drag-3d');
+  };
+  viewer.onContextMenu = (moduleId, x, y) => {
+    if (moduleId && !store.readOnly) {
+      showModuleContextMenu(moduleId, x, y, store, viewer);
+    }
+  };
+
+  let est: Estimate = estimate(store.project.modules, store.settings);
+  let lastIds = '';
+  let lastProjectId = '';
+
+  const priceEl = $('price');
+  const nameEl = $<HTMLInputElement>('proj-name');
+  const hud = $('hud');
+  const left = $('left');
+  const right = $('right');
+
+  const undoBtn = h('button', { type: 'button', class: 'ib tb', title: 'Отменить (Ctrl+Z)', 'aria-label': 'Отменить', onClick: () => store.undo() }, icon('undo'));
+  const redoBtn = h('button', { type: 'button', class: 'ib tb', title: 'Повторить (Ctrl+Y)', 'aria-label': 'Повторить', onClick: () => store.redo() }, icon('redo'));
+  const act = (label: string, ic: string, on: () => void, cls = '') =>
+    h('button', { type: 'button', class: 'btn ghost tool ' + cls, onClick: on }, icon(ic, 17), h('span', null, label));
+
+  const actions = $('actions');
+  if (!store.readOnly) {
+    actions.append(
+      undoBtn, redoBtn, h('span', { class: 'sep' }),
+      act('План помещения', 'grid', () => roomDialog(store, viewer), 'accent'),
+      act('Мастер кухни', 'wand', () => kitchenWizardDialog(store, viewer)),
+      act('Чертёж', 'blueprint', () => blueprintDialog(store, viewer)),
+      act('Деталировка', 'list', () => cutDialog(store, est, viewer)),
+      act('Смета', 'calc', () => estimateDialog(store, est, viewer)),
+      act('Проекты', 'folder', () => projectsDialog(store, () => {})),
+      act('Поделиться', 'link', () => shareDialog(store)),
+      act('AR', 'cube', () => arDialog(store, viewer)),
+      act('Рендер', 'camera', () => renderDialog(store, viewer)),
+      h('span', { class: 'sep' }),
+      h('button', { type: 'button', class: 'ib tb', title: 'Настройки цен', 'aria-label': 'Настройки', onClick: () => settingsDialog(store) }, icon('sliders')),
+      h('button', { type: 'button', class: 'ib tb', title: 'Справка', 'aria-label': 'Справка', onClick: () => helpDialog() }, icon('info')));
+  } else {
+    actions.append(act('Посмотреть в AR', 'cube', () => arDialog(store, viewer), 'accent'));
+    if (company?.phone) {
+      const tel = company.phone.replace(/[^\d+]/g, '');
+      actions.append(h('a', { class: 'btn primary tool', href: `tel:${tel}` }, `Позвонить: ${company.phone}`));
+    }
+    nameEl.readOnly = true;
+  }
+
+  // панель видов
+  const views: [ViewName, string][] = [['iso', '3D'], ['front', 'Спереди'], ['top', 'Сверху'], ['side', 'Сбоку']];
+  const vt = $('viewtools');
+  const openBtn = h('button', { type: 'button', class: 'vt-b open', 'aria-pressed': 'false', onClick: () => {
+    viewer.setOpen(!viewer.isOpen());
+    updateOpenBtn();
+  } }, icon('door', 16), h('span', null, 'Открыть двери'));
+
+  const updateOpenBtn = () => {
+    const open = viewer.isOpen();
+    openBtn.setAttribute('aria-pressed', String(open));
+    openBtn.classList.toggle('on', open);
+    const span = openBtn.querySelector('span');
+    if (span) span.textContent = open ? 'Закрыть двери' : 'Открыть двери';
+  };
+  viewer.onAnimChange = updateOpenBtn;
+
+  const dimBtn = h('button', {
+    type: 'button',
+    class: 'vt-b dim',
+    'aria-pressed': 'false',
+    title: 'Показать габаритные размеры и привязки модулей в 3D',
+    onClick: () => {
+      const active = viewer.toggleDimensions();
+      dimBtn.setAttribute('aria-pressed', String(active));
+      dimBtn.classList.toggle('on', active);
+    },
+  }, icon('blueprint', 16), h('span', null, 'Размеры 3D'));
+
+  vt.append(...views.map(([v, t]) => h('button', { type: 'button', class: 'vt-b', onClick: () => viewer.frame(v) }, t)), dimBtn, openBtn);
+
+  const refreshChrome = () => {
+    undoBtn.disabled = !store.canUndo();
+    redoBtn.disabled = !store.canRedo();
+    priceEl.textContent = money(est.total);
+    if (document.activeElement !== nameEl) nameEl.value = store.project.name;
+    const m = store.selected;
+    const mods = store.project.modules;
+    const roomW = store.project.room?.w ?? DEFAULT_ROOM.w;
+    let runLen = 0;
+    if (mods.length > 0) {
+      const minX = Math.min(...mods.map((x) => x.x));
+      const maxX = Math.max(...mods.map((x) => x.x + x.w));
+      runLen = maxX - minX;
+    }
+    const overflow = runLen > roomW;
+    const overWarn = overflow ? ` · [ВНИМАНИЕ: ряд (${runLen} мм) шире стены (${roomW} мм)!]` : '';
+    hud.textContent = m
+      ? `${m.name} · ${m.w}×${m.h}×${m.d} мм (X: ${m.x})${overWarn}`
+      : `${mods.length} мод. · Ряд кухни: ${runLen} мм / комната: ${roomW} мм${overWarn}`;
+  };
+
+  const renderPanels = () => {
+    if (store.readOnly) return;
+    renderModules(left, store, est);
+    renderProps(right, store);
+  };
+
+  const full = rafThrottle(() => {
+    est = estimate(store.project.modules, store.settings);
+    viewer.update(store.project.modules);
+    viewer.updateRoom(store.project.room ?? DEFAULT_ROOM);
+    const ids = store.project.modules.map((m) => m.id).join(',');
+    const grew = store.project.modules.length > lastIds.split(',').filter(Boolean).length;
+    if (store.project.id !== lastProjectId || (grew && ids !== lastIds)) viewer.frame('iso', lastProjectId !== '');
+    lastIds = ids;
+    lastProjectId = store.project.id;
+    viewer.setSelected(store.selectedId);
+    renderPanels();
+    refreshChrome();
+  });
+
+  store.subscribe((c) => {
+    if (c === 'select') {
+      viewer.setSelected(store.selectedId);
+      renderPanels();
+      refreshChrome();
+      if (store.selectedId && window.matchMedia('(max-width: 900px)').matches === false) return;
+    } else full();
+  });
+
+  nameEl.addEventListener('input', () => store.commit((p) => { p.name = nameEl.value.slice(0, 80); }, 'pname'));
+  nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') nameEl.blur(); });
+
+  store.onStorageError = (failed) => { if (failed) toast('Не удалось сохранить: нет места в браузере. Экспортируйте проект в файл.', 'err'); };
+
+  // горячие клавиши
+  window.addEventListener('keydown', (e) => {
+    const t = e.target as HTMLElement;
+    if (t.matches('input, textarea, select')) return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); store.undo(); }
+    else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); store.redo(); }
+    else if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); if (saveToLibrary(store.project, store.settings)) toast('Проект сохранён'); }
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && store.selectedId && !store.readOnly) { e.preventDefault(); store.remove(store.selectedId); }
+    else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && store.selectedId && !store.readOnly) {
+      e.preventDefault();
+      const step = e.shiftKey ? 100 : 10;
+      const dx = e.key === 'ArrowLeft' ? -step : step;
+      store.commit((p) => {
+        const sel = p.modules.find((x) => x.id === store.selectedId);
+        if (sel) sel.x = Math.round(sel.x + dx);
+      }, 'move-key');
+    }
+  });
+
+  // мобильные вкладки
+  const tabs = $('tabbar');
+  const tabDefs: [string, string][] = [['left', 'Модули'], ['3d', '3D'], ['right', 'Параметры']];
+  clear(tabs);
+  tabs.append(...tabDefs.map(([k, t]) => h('button', { type: 'button', class: 'tab' + (k === '3d' ? ' on' : ''), 'data-tab': k, onClick: () => {
+    app.dataset.tab = k;
+    tabs.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', (b as HTMLElement).dataset.tab === k));
+    requestAnimationFrame(() => viewer.invalidate());
+  } }, t)));
+  app.dataset.tab = '3d';
+  if (store.readOnly) tabs.hidden = true;
+
+  full();
+}
+
+boot();
