@@ -126,7 +126,8 @@ export class Viewer {
   private moduleGroups = new Map<string, Group>();
   private currentRoom: RoomConfig | null = null;
   private dimGroup = new Group();
-  private showDimensions = false;
+  private showDimensions = true;
+  private dblClickToOpen = false;
   private wallMode: 'solid' | 'ghost' | 'hidden' = 'solid';
 
   get room(): RoomConfig | null {
@@ -248,6 +249,7 @@ export class Viewer {
 
     el.addEventListener('pointerup', (e) => this.handleUp(e));
     el.addEventListener('dblclick', (e) => {
+      if (!this.dblClickToOpen && !e.altKey) return;
       const r = el.getBoundingClientRect();
       const ndc = new Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       this.raycaster.setFromCamera(ndc, this.camera);
@@ -464,6 +466,30 @@ export class Viewer {
     return this.anims.some((a) => a.target === 1 || a.t > 0.4);
   }
 
+  setOpenRatio(ratio: number): void {
+    const target = Math.max(0, Math.min(1, ratio));
+    for (const ref of this.anims) {
+      ref.target = target;
+    }
+    this.lastTick = performance.now();
+    this.schedule();
+    this.onAnimChange();
+  }
+
+  getOpenRatio(): number {
+    if (this.anims.length === 0) return 0;
+    const sum = this.anims.reduce((acc, a) => acc + a.target, 0);
+    return sum / this.anims.length;
+  }
+
+  setDblClickToOpen(val: boolean): void {
+    this.dblClickToOpen = val;
+  }
+
+  isDblClickToOpen(): boolean {
+    return this.dblClickToOpen;
+  }
+
   toggleDimensions(): boolean {
     this.showDimensions = !this.showDimensions;
     this.updateDimensions();
@@ -644,7 +670,8 @@ export class Viewer {
 
   private updateDimensions(): void {
     this.clearDimensions();
-    if (!this.showDimensions || this.currentModules.length === 0) return;
+    if (this.currentModules.length === 0) return;
+    if (!this.showDimensions && !this.selectedId) return;
 
     const segments: [Vector3, Vector3][] = [];
     const color = 0x2563eb;
@@ -684,7 +711,19 @@ export class Viewer {
       const spD = makeTextSprite(`Г: ${selMod.d} мм`, '#38bdf8');
       spD.position.set(xr + 0.05, y0 + 0.04, (z0 + z1) / 2);
       this.dimGroup.add(spD);
-    } else {
+
+      // Lift dimension (if elevated off the floor)
+      if (selMod.lift > 0) {
+        const xl = x0 - 0.06;
+        segments.push([new Vector3(xl, 0, z1), new Vector3(xl, y0, z1)]);
+        segments.push([new Vector3(xl - 0.03, 0, z1), new Vector3(xl + 0.03, 0, z1)]);
+        segments.push([new Vector3(xl - 0.03, y0, z1), new Vector3(xl + 0.03, y0, z1)]);
+        const liftLbl = selMod.kind === 'wall' || selMod.lift >= 200 ? `Подвес: ${selMod.lift} мм` : `Цоколь: ${selMod.lift} мм`;
+        const spL = makeTextSprite(liftLbl, '#f59e0b');
+        spL.position.set(xl - 0.07, y0 / 2, z1);
+        this.dimGroup.add(spL);
+      }
+    } else if (this.showDimensions) {
       for (const m of this.currentModules) {
         const mx0 = m.x * MM;
         const mx1 = (m.x + m.w) * MM;
@@ -699,19 +738,20 @@ export class Viewer {
       }
     }
 
-    // 2. Kitchen run overall width line
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let maxD = 600;
-    for (const m of this.currentModules) {
-      if (m.x < minX) minX = m.x;
-      if (m.x + m.w > maxX) maxX = m.x + m.w;
-      if (m.d > maxD) maxD = m.d;
-    }
-    if (minX < maxX) {
-      const rx0 = minX * MM;
-      const rx1 = maxX * MM;
-      const ry = 0.015;
+    // 2. Kitchen / furniture run overall width line
+    if (this.showDimensions) {
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let maxD = 600;
+      for (const m of this.currentModules) {
+        if (m.x < minX) minX = m.x;
+        if (m.x + m.w > maxX) maxX = m.x + m.w;
+        if (m.d > maxD) maxD = m.d;
+      }
+      if (minX < maxX) {
+        const rx0 = minX * MM;
+        const rx1 = maxX * MM;
+        const ry = 0.015;
       const rz = (maxD + 120) * MM;
       segments.push([new Vector3(rx0, ry, rz), new Vector3(rx1, ry, rz)]);
       segments.push([new Vector3(rx0, ry, rz - 0.04), new Vector3(rx0, ry, rz + 0.04)]);
@@ -722,6 +762,7 @@ export class Viewer {
       const spRun = makeTextSprite(`Итого L = ${totalW} мм${isOver ? ' (!)' : ''}`, isOver ? '#ef4444' : '#10b981');
       spRun.position.set((rx0 + rx1) / 2, ry + 0.04, rz);
       this.dimGroup.add(spRun);
+    }
     }
 
     if (segments.length > 0) {

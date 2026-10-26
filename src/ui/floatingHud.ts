@@ -11,7 +11,7 @@ export interface FloatingHud {
  * Плавающий виджет «Быстрые размеры» (в стиле Qdesign/Базис),
  * отображаемый прямо в верхней части 3D-сцены над выбранным модулем.
  */
-export function createFloatingHud(container: HTMLElement, store: Store, _viewer: Viewer): FloatingHud {
+export function createFloatingHud(container: HTMLElement, store: Store, viewer: Viewer): FloatingHud {
   const root = h('div', { class: 'hud-float', style: 'display:none;' });
   container.appendChild(root);
 
@@ -204,6 +204,35 @@ export function createFloatingHud(container: HTMLElement, store: Store, _viewer:
       ),
     );
     card.append(plinthRow);
+
+    // Фасады и ящики
+    const hasFac = m.doorMode !== 'none' || m.sections.some((s) => (s.drawers ?? 0) > 0 || s.door);
+    if (hasFac) {
+      const facRow = h('div', { class: 'hud-row' },
+        h('span', { class: 'hud-row-label' }, 'Фасады'),
+        h('div', { class: 'hud-facade-btns' },
+          h('button', {
+            type: 'button',
+            class: 'hud-fac-btn',
+            title: 'Закрыть фасады и ящики',
+            onClick: () => viewer.setOpenRatio(0),
+          }, '0% Закр.'),
+          h('button', {
+            type: 'button',
+            class: 'hud-fac-btn',
+            title: 'Приоткрыть на 50% для осмотра полок',
+            onClick: () => viewer.setOpenRatio(0.5),
+          }, '50%'),
+          h('button', {
+            type: 'button',
+            class: 'hud-fac-btn',
+            title: 'Открыть настежь на 100%',
+            onClick: () => viewer.setOpenRatio(1),
+          }, '100% Откр.'),
+        ),
+      );
+      card.append(facRow);
+    }
 
     // Действия с модулем (Дублировать, Удалить)
     const actRow = h('div', { class: 'hud-actions' },

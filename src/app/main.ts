@@ -130,8 +130,8 @@ async function boot(): Promise<void> {
 
   const dimBtn = h('button', {
     type: 'button',
-    class: 'vt-b dim',
-    'aria-pressed': 'false',
+    class: 'vt-b dim on',
+    'aria-pressed': 'true',
     title: 'Показать габаритные размеры и привязки модулей в 3D',
     onClick: () => {
       const active = viewer.toggleDimensions();
