@@ -127,7 +127,6 @@ export class Viewer {
   private currentRoom: RoomConfig | null = null;
   private dimGroup = new Group();
   private showDimensions = true;
-  private dblClickToOpen = false;
   private wallMode: 'solid' | 'ghost' | 'hidden' = 'solid';
 
   get room(): RoomConfig | null {
@@ -249,7 +248,7 @@ export class Viewer {
 
     el.addEventListener('pointerup', (e) => this.handleUp(e));
     el.addEventListener('dblclick', (e) => {
-      if (!this.dblClickToOpen && !e.altKey) return;
+      if (this.isDragging) return;
       const r = el.getBoundingClientRect();
       const ndc = new Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       this.raycaster.setFromCamera(ndc, this.camera);
@@ -480,14 +479,6 @@ export class Viewer {
     if (this.anims.length === 0) return 0;
     const sum = this.anims.reduce((acc, a) => acc + a.target, 0);
     return sum / this.anims.length;
-  }
-
-  setDblClickToOpen(val: boolean): void {
-    this.dblClickToOpen = val;
-  }
-
-  isDblClickToOpen(): boolean {
-    return this.dblClickToOpen;
   }
 
   toggleDimensions(): boolean {

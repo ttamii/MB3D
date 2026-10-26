@@ -599,26 +599,6 @@ model-viewer.mv { width: 100%; height: min(60dvh, 560px); background: radial-gra
   padding: 0 4px;
   font-weight: 500;
 }
-.hud-facade-btns {
-  display: flex;
-  gap: 4px;
-}
-.hud-fac-btn {
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  border-radius: 6px;
-  padding: 3px 7px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.12s;
-}
-.hud-fac-btn:hover {
-  background: #eff6ff;
-  border-color: #93c5fd;
-  color: #2563eb;
-}
 .hud-row-check {
   display: flex;
   align-items: center;
