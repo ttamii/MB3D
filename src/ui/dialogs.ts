@@ -2,7 +2,7 @@ import { estimate, type Estimate, cutListCsv } from '../core/estimate';
 import { buildModule } from '../core/geometry';
 import { computeModuleDrilling } from '../core/drilling';
 import { renderAssemblyBlueprintSvg, renderFacadeDrillingSvg, renderSidePanelDrillingSvg } from '../core/blueprint';
-import { generateKitchenLayout } from '../core/kitchenWizard';
+import { planKitchen } from '../core/kitchenWizard';
 import { DEFAULT_ROOM, renderRoomPlanSvg, type RoomConfig } from '../core/room';
 import type { Settings } from '../core/types';
 import { downloadBlob, fileName, fmtNum, money } from '../core/util';
@@ -435,7 +435,8 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
   const corpusMats = s.materials.filter((m) => m.kind === 'sheet');
   const topMats = s.materials.filter((m) => m.kind === 'top');
 
-  let wallLength = 3000;
+  const room = store.project.room ?? DEFAULT_ROOM;
+  let wallLength = Math.min(6000, Math.max(1600, Math.round(room.w / 50) * 50));
   let tiers: 2 | 3 = 3;
   let facadeMat = facadeMats.find((m) => m.id === 'm-ral1015')?.id ?? facadeMats[0]?.id ?? 'eg-w1000';
   let corpusMat = corpusMats.find((m) => m.id === 'eg-w1000')?.id ?? corpusMats[0]?.id ?? 'eg-w1000';
@@ -575,7 +576,7 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
   d.body.append(container);
 
   const applyKitchen = () => {
-    const modules = generateKitchenLayout({
+    const { modules, notes } = planKitchen({
       wallLength,
       tiers,
       facadeMat,
@@ -584,7 +585,12 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
       plinthColor,
       millingMix,
       layoutVariant,
-    });
+    }, room);
+
+    if (!modules.length) {
+      toast(notes[notes.length - 1] ?? 'Не удалось разместить кухню', 'err');
+      return;
+    }
 
     store.commit((p) => {
       p.modules = modules;
@@ -592,7 +598,8 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
 
     if (modules[0]) store.select(modules[0].id);
     viewer.frame('iso');
-    toast(`Кухня сформирована: создано ${modules.length} модулей.`);
+    toast(`Кухня собрана: ${modules.length} модулей.`);
+    notes.slice(0, 3).forEach((n) => toast(n));
     d.close();
   };
 

@@ -230,6 +230,14 @@ export class Viewer {
     });
 
     el.addEventListener('pointerup', (e) => this.handleUp(e));
+    el.addEventListener('dblclick', (e) => {
+      const r = el.getBoundingClientRect();
+      const ndc = new Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      this.raycaster.setFromCamera(ndc, this.camera);
+      const hit = this.raycaster.intersectObjects(this.pickables, false)[0];
+      const animKey = hit?.object.userData.animKey as string | undefined;
+      if (animKey) this.toggleAnim(animKey);
+    });
 
     el.addEventListener('pointermove', (e) => {
       if (this.dragCandidate) {
@@ -291,7 +299,7 @@ export class Viewer {
       this.raycaster.setFromCamera(ndc, this.camera);
       const hit = this.raycaster.intersectObjects(this.pickables, false)[0];
       if (hit && hit.object.userData.animKey) {
-        el.style.cursor = 'pointer';
+        el.style.cursor = 'grab';
       } else if (hit) {
         el.style.cursor = 'grab';
       } else {
@@ -774,15 +782,7 @@ export class Viewer {
     const ndc = new Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
     const hit = this.raycaster.intersectObjects(this.pickables, false)[0];
-    if (hit) {
-      const animKey = hit.object.userData.animKey as string | undefined;
-      if (animKey) {
-        this.toggleAnim(animKey);
-      }
-      this.onPick((hit.object.userData.moduleId as string | undefined) ?? null);
-    } else {
-      this.onPick(null);
-    }
+    this.onPick(hit ? ((hit.object.userData.moduleId as string | undefined) ?? null) : null);
   }
 
   updateRoom(room: RoomConfig): void {

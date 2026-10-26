@@ -121,5 +121,33 @@ for (const len of [1600, 2200, 2400, 3000, 3600, 4200, 6000]) for (const variant
   ok(Number.isFinite(est.total) && est.total > 0, `${tag}: смета NaN/0`);
 }
 
+group('Мастер кухни в комнате: окна, двери, потолок, наложения');
+{
+  const rooms = [
+    { name: 'окно сзади', room: { ...DEFAULT_ROOM, windows: [{ id: 'w', wall: 'back' as const, x: 1250, w: 1200, h: 1400, lift: 900 }], doors: [] } },
+    { name: 'дверь сзади', room: { ...DEFAULT_ROOM, windows: [], doors: [{ id: 'd', wall: 'back' as const, x: 2000, w: 900, h: 2100, swing: 'in' as const }] } },
+    { name: 'дверь слева у угла', room: { ...DEFAULT_ROOM, windows: [], doors: [{ id: 'd', wall: 'left' as const, x: 100, w: 800, h: 2100, swing: 'in' as const }] } },
+    { name: 'потолок 2500', room: { ...DEFAULT_ROOM, h: 2500, windows: [], doors: [] } },
+    { name: 'комната 3000', room: { ...DEFAULT_ROOM, w: 3000, windows: [], doors: [] } },
+  ];
+  for (const { name, room } of rooms) for (const variant of [0, 1, 2]) for (const tiers of [2, 3] as const) {
+    const tag = `${name} v=${variant} t=${tiers}`;
+    const mods = generateKitchenLayout({ wallLength: room.w, tiers, facadeMat: 'm-ral1015', corpusMat: 'eg-w1000', topMat: 'top-f812', plinthColor: 'facade', millingMix: 'trend', layoutVariant: variant }, room);
+    ok(mods.length > 0, `${tag}: кухня не построена`);
+    mods.forEach((m) => {
+      ok(m.x >= 0 && m.x + m.w <= room.w, `${tag}: ${m.name} выходит за стену (${m.x}+${m.w})`);
+      ok(m.lift + m.h <= room.h, `${tag}: ${m.name} выше потолка (${m.lift + m.h} > ${room.h})`);
+      room.windows.forEach((w) => ok(!(m.x < w.x + w.w && m.x + m.w > w.x && m.lift < w.lift + w.h && m.lift + m.h > w.lift), `${tag}: ${m.name} пересекает окно`));
+      room.doors.filter((d) => d.wall === 'back').forEach((d) => ok(!(m.x < d.x + d.w && m.x + m.w > d.x), `${tag}: ${m.name} закрывает дверь`));
+      room.doors.filter((d) => d.wall === 'left').forEach((d) => ok(m.x >= d.w, `${tag}: ${m.name} перекрывает левую дверь`));
+    });
+    for (let i = 0; i < mods.length; i++) for (let j = i + 1; j < mods.length; j++) {
+      const a = mods[i], b = mods[j];
+      const overlap = a.x < b.x + b.w - 1 && a.x + a.w > b.x + 1 && a.lift < b.lift + b.h - 1 && a.lift + a.h > b.lift + 1;
+      ok(!overlap, `${tag}: ${a.name} пересекается с ${b.name}`);
+    }
+  }
+}
+
 console.log(failed ? `\n${failed} проверок не пройдено` : '\nВсе проверки пройдены');
 process.exit(failed ? 1 : 0);
