@@ -16,6 +16,21 @@ export function createFloatingHud(container: HTMLElement, store: Store, viewer: 
   container.appendChild(root);
 
   let isCollapsed = false;
+  let customPos: { x: number; y: number } | null = null;
+  let dragStart: { mouseX: number; mouseY: number; elemX: number; elemY: number } | null = null;
+  let didDrag = false;
+
+  const applyPosition = () => {
+    if (customPos) {
+      root.style.left = `${customPos.x}px`;
+      root.style.top = `${customPos.y}px`;
+      root.style.transform = 'none';
+    } else {
+      root.style.left = '50%';
+      root.style.top = '58px';
+      root.style.transform = 'translateX(-50%)';
+    }
+  };
 
   const render = () => {
     clear(root);
@@ -27,27 +42,77 @@ export function createFloatingHud(container: HTMLElement, store: Store, viewer: 
     }
 
     root.style.display = 'flex';
+    applyPosition();
     const modIndex = store.project.modules.findIndex((x) => x.id === m.id);
 
-    // 1. Верхний бейдж с крупными размерами
-    const badge = h('div', {
-      class: 'hud-badge',
-      onClick: () => {
+    // 1. Верхний бейдж с крупными размерами и ручкой перетаскивания
+    const collapseBtn = h('button', {
+      type: 'button',
+      class: 'hud-collapse-btn',
+      title: isCollapsed ? 'Развернуть параметры' : 'Свернуть параметры',
+      onClick: (e: Event) => {
+        e.stopPropagation();
         isCollapsed = !isCollapsed;
         render();
       },
+    }, isCollapsed ? '▼' : '▲');
+
+    const badge = h('div', {
+      class: 'hud-badge',
+      title: 'Потяните для перемещения виджета, клик — свернуть/развернуть',
     },
       h('div', { class: 'hud-badge-tag' }, String(modIndex + 1)),
       h('div', { class: 'hud-badge-info' },
         h('span', { class: 'hud-badge-name' }, m.name),
         h('b', { class: 'hud-badge-dims' }, `${m.w} × ${m.h} × ${m.d} мм`),
       ),
-      h('button', {
-        type: 'button',
-        class: 'hud-collapse-btn',
-        title: isCollapsed ? 'Развернуть параметры' : 'Свернуть параметры',
-      }, isCollapsed ? '▼' : '▲'),
+      collapseBtn,
     );
+
+    badge.addEventListener('pointerdown', (e: PointerEvent) => {
+      if ((e.target as HTMLElement).closest('.hud-collapse-btn')) return;
+      badge.setPointerCapture(e.pointerId);
+      const rect = root.getBoundingClientRect();
+      const parentRect = container.getBoundingClientRect();
+      dragStart = {
+        mouseX: e.clientX,
+        mouseY: e.clientY,
+        elemX: rect.left - parentRect.left,
+        elemY: rect.top - parentRect.top,
+      };
+      didDrag = false;
+    });
+
+    badge.addEventListener('pointermove', (e: PointerEvent) => {
+      if (!dragStart) return;
+      const dx = e.clientX - dragStart.mouseX;
+      const dy = e.clientY - dragStart.mouseY;
+      if (!didDrag && Math.hypot(dx, dy) > 4) {
+        didDrag = true;
+      }
+      if (didDrag) {
+        const parentRect = container.getBoundingClientRect();
+        const rootRect = root.getBoundingClientRect();
+        const newX = Math.max(8, Math.min(parentRect.width - rootRect.width - 8, dragStart.elemX + dx));
+        const newY = Math.max(8, Math.min(parentRect.height - rootRect.height - 8, dragStart.elemY + dy));
+        customPos = { x: newX, y: newY };
+        applyPosition();
+      }
+    });
+
+    const finishDrag = (e: PointerEvent) => {
+      if (!dragStart) return;
+      try { badge.releasePointerCapture(e.pointerId); } catch {}
+      if (!didDrag) {
+        isCollapsed = !isCollapsed;
+        render();
+      }
+      dragStart = null;
+      didDrag = false;
+    };
+
+    badge.addEventListener('pointerup', finishDrag);
+    badge.addEventListener('pointercancel', finishDrag);
 
     root.append(badge);
 

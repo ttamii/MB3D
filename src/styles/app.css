@@ -457,7 +457,7 @@ model-viewer.mv { width: 100%; height: min(60dvh, 560px); background: radial-gra
 /* ——— плавающий виджет «Быстрые размеры» (Qdesign style) ——— */
 .hud-float {
   position: absolute;
-  top: 14px;
+  top: 58px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 50;
@@ -478,12 +478,14 @@ model-viewer.mv { width: 100%; height: min(60dvh, 560px); background: radial-gra
   border-radius: 20px;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(10px);
-  cursor: pointer;
-  transition: transform 0.15s, background 0.15s;
+  cursor: grab;
+  transition: background 0.15s;
 }
 .hud-badge:hover {
   background: #0f172a;
-  transform: translateY(-1px);
+}
+.hud-badge:active {
+  cursor: grabbing;
 }
 .hud-badge-tag {
   background: #f97316;
