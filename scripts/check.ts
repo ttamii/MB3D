@@ -121,6 +121,16 @@ for (const len of [1600, 2200, 2400, 3000, 3600, 4200, 6000]) for (const variant
   ok(Number.isFinite(est.total) && est.total > 0, `${tag}: смета NaN/0`);
 }
 
+group('Составные пресеты: модули не пересекаются');
+for (const p of PRESETS.filter((x) => x.group)) {
+  const mods = p.group!();
+  for (let i = 0; i < mods.length; i++) for (let j = i + 1; j < mods.length; j++) {
+    const a = mods[i], b = mods[j];
+    const overlap = a.x < b.x + b.w - 1 && a.x + a.w > b.x + 1 && a.lift < b.lift + b.h - 1 && a.lift + a.h > b.lift + 1;
+    ok(!overlap, `${p.label}: ${a.name} пересекается с ${b.name}`);
+  }
+}
+
 group('Мастер кухни в комнате: окна, двери, потолок, наложения');
 {
   const rooms = [

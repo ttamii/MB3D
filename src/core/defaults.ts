@@ -201,7 +201,40 @@ export interface Preset {
   label: string;
   hint: string;
   make: () => Module;
+  /** Составное изделие: модули с x относительно начала группы (make возвращает первый). */
+  group?: () => Module[];
 }
+
+export interface PresetGroup {
+  id: string;
+  label: string;
+  ids: string[];
+}
+
+const bookcase = (x: number): Module =>
+  base('tall', 'Стеллаж открытый', {
+    x, w: 400, h: 2200, d: 350, plinth: 60, doorMode: 'none', handles: false,
+    sections: [sec({ shelves: 5, door: false })],
+  });
+
+const tvStand = (x: number, w: number): Module =>
+  base('base', 'Тумба под ТВ', {
+    x, w, h: 450, d: 400, plinth: 60, doorMode: 'hinged', drawerH: 170, handles: false,
+    sections: [sec({ shelves: 1 }), sec({ drawers: 2, door: false }), sec({ shelves: 1 })],
+  });
+
+const tvZone = (): Module[] => [
+  bookcase(0),
+  tvStand(400, 1800),
+  base('wall', 'Полка над ТВ', { x: 400, w: 1800, h: 300, d: 300, lift: 1500, doorMode: 'none', handles: false, sections: [sec({ shelves: 0, door: false })] }),
+  bookcase(2200),
+];
+
+export const PRESET_GROUPS: PresetGroup[] = [
+  { id: 'kitchen', label: 'Кухня', ids: ['base', 'base-drawers', 'sink', 'oven', 'cargo', 'filler', 'wall', 'dish-dryer', 'mezzanine', 'corner', 'cornerWall', 'tall'] },
+  { id: 'living', label: 'Гостиная и ТВ-зона', ids: ['tv-zone', 'tv-stand', 'tv-hanging', 'bookcase', 'dresser'] },
+  { id: 'storage', label: 'Шкафы и прихожая', ids: ['wardrobe-sliding', 'wardrobe-hinged', 'hall-wardrobe', 'shoe', 'bedside'] },
+];
 
 export const PRESETS: Preset[] = [
   {
@@ -290,6 +323,71 @@ export const PRESETS: Preset[] = [
       base('wardrobe', 'Распашной шкаф', {
         w: 1200, h: 2200, d: 560, plinth: 80, drawerH: 220, matFacade: 'pm-u702', matCorpus: 'eg-w1000',
         sections: [sec({ rod: true, shelves: 1 }), sec({ shelves: 4, drawers: 2 })],
+      }),
+  },
+  {
+    id: 'tv-zone',
+    label: 'ТВ-зона целиком',
+    hint: '2600 мм: два стеллажа, тумба и полка',
+    make: () => tvZone()[0],
+    group: tvZone,
+  },
+  {
+    id: 'tv-stand',
+    label: 'Тумба под ТВ',
+    hint: '1800 × 450, дверцы и ящики',
+    make: () => tvStand(0, 1800),
+  },
+  {
+    id: 'tv-hanging',
+    label: 'Тумба подвесная',
+    hint: '1800 × 350, на высоте 200 мм',
+    make: () =>
+      base('wall', 'Тумба подвесная', {
+        w: 1800, h: 350, d: 400, lift: 200, drawerH: 280, handles: false,
+        sections: [sec({ shelves: 0 }), sec({ drawers: 1, door: false }), sec({ shelves: 0 })],
+      }),
+  },
+  {
+    id: 'bookcase',
+    label: 'Стеллаж открытый',
+    hint: '400 × 2200, 5 полок',
+    make: () => bookcase(0),
+  },
+  {
+    id: 'dresser',
+    label: 'Комод',
+    hint: '1000 × 900, 4 ящика',
+    make: () =>
+      base('base', 'Комод', {
+        w: 1000, h: 900, d: 450, plinth: 60, doorMode: 'none', drawerH: 200, handles: true,
+        sections: [sec({ drawers: 4, door: false })],
+      }),
+  },
+  {
+    id: 'hall-wardrobe',
+    label: 'Шкаф в прихожую',
+    hint: '1000 × 2200 × 400, штанга и полки',
+    make: () =>
+      base('wardrobe', 'Шкаф в прихожую', {
+        w: 1000, h: 2200, d: 400, plinth: 60, matCorpus: 'eg-w1000', matFacade: 'pm-u702',
+        sections: [sec({ rod: true, shelves: 1 }), sec({ shelves: 5 })],
+      }),
+  },
+  {
+    id: 'shoe',
+    label: 'Обувница',
+    hint: '800 × 1000 × 320, 4 полки',
+    make: () => base('base', 'Обувница', { w: 800, h: 1000, d: 320, plinth: 60, sections: [sec({ shelves: 4 }), sec({ shelves: 4 })] }),
+  },
+  {
+    id: 'bedside',
+    label: 'Тумба прикроватная',
+    hint: '450 × 450 × 400, 2 ящика',
+    make: () =>
+      base('base', 'Тумба прикроватная', {
+        w: 450, h: 450, d: 400, plinth: 50, doorMode: 'none', drawerH: 170,
+        sections: [sec({ drawers: 2, door: false })],
       }),
   },
   {

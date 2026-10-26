@@ -123,7 +123,8 @@ export class Store {
   addPreset(id: string): void {
     const preset = PRESETS.find((p) => p.id === id);
     if (!preset) return;
-    const m = preset.make();
+    const items = preset.group ? preset.group() : [preset.make()];
+    const m = items[0];
     // ставим справа от последнего модуля того же яруса
     let x = 0;
     for (const o of this.project.modules) {
@@ -132,8 +133,8 @@ export class Store {
         : (!isWall(o.kind) && (m.kind === 'tall' ? o.kind === 'tall' : o.kind !== 'tall'));
       if (sameTier) x = Math.max(x, o.x + buildModule(o).width);
     }
-    m.x = x;
-    this.commit((p) => p.modules.push(m));
+    items.forEach((it) => { it.x += x; });
+    this.commit((p) => p.modules.push(...items));
     this.select(m.id);
   }
 
