@@ -1,6 +1,6 @@
 import {
   ACESFilmicToneMapping, AmbientLight, Box3, Box3Helper, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight,
-  EdgesGeometry, Group, HemisphereLight, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, MathUtils, PCFSoftShadowMap,
+  EdgesGeometry, GridHelper, Group, HemisphereLight, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, MathUtils, PCFSoftShadowMap,
   PerspectiveCamera, Plane, PlaneGeometry, PMREMGenerator, Raycaster, Scene, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -127,9 +127,26 @@ export class Viewer {
   private currentRoom: RoomConfig | null = null;
   private dimGroup = new Group();
   private showDimensions = false;
+  private wallMode: 'solid' | 'ghost' | 'hidden' = 'solid';
 
   get room(): RoomConfig | null {
     return this.currentRoom;
+  }
+
+  getWallMode(): 'solid' | 'ghost' | 'hidden' {
+    return this.wallMode;
+  }
+
+  setWallMode(mode: 'solid' | 'ghost' | 'hidden'): void {
+    this.wallMode = mode;
+    if (this.currentRoom) this.updateRoom(this.currentRoom);
+    this.invalidate();
+  }
+
+  toggleWallMode(): 'solid' | 'ghost' | 'hidden' {
+    const next = this.wallMode === 'solid' ? 'ghost' : this.wallMode === 'ghost' ? 'hidden' : 'solid';
+    this.setWallMode(next);
+    return next;
   }
 
   private currentModules: Module[] = [];
@@ -790,7 +807,7 @@ export class Viewer {
     while (this.roomGroup.children.length > 0) {
       const obj = this.roomGroup.children[0];
       this.roomGroup.remove(obj);
-      if (obj instanceof Mesh) obj.geometry.dispose();
+      if (obj instanceof Mesh || obj instanceof LineSegments) obj.geometry.dispose();
     }
     this.roomMats.forEach((m) => m.dispose());
 
@@ -799,27 +816,68 @@ export class Viewer {
     const H = room.h * MM;
     const T = 0.12;
 
-    const wallMat = new MeshStandardMaterial({ color: '#f8fafc', roughness: 0.95 });
-    const trimMat = new MeshStandardMaterial({ color: '#ffffff', roughness: 0.8 });
-    const glassMat = new MeshStandardMaterial({ color: '#bae6fd', roughness: 0.1, transparent: true, opacity: 0.45 });
-    const floorMat = new MeshStandardMaterial({ color: '#e2d9cc', roughness: 0.85 });
-    this.roomMats = [wallMat, trimMat, glassMat, floorMat];
+    const isGhost = this.wallMode === 'ghost';
+    const isHidden = this.wallMode === 'hidden';
+
+    // 1. Пол помещения (дизайнерский светлый оттенок)
+    const floorMat = new MeshStandardMaterial({ color: '#f1f5f9', roughness: 0.88 });
+    this.roomMats = [floorMat];
 
     const roomFloor = new Mesh(new BoxGeometry(W, 0.02, D), floorMat);
     roomFloor.position.set(W / 2, -0.01, D / 2);
     roomFloor.receiveShadow = true;
     this.roomGroup.add(roomFloor);
 
+    // 2. CAD-разметка пола шагом 500 мм
+    const gridDivs = Math.max(2, Math.round(Math.max(W, D) / 0.5));
+    const grid = new GridHelper(Math.max(W, D), gridDivs, 0x94a3b8, 0xe2e8f0);
+    grid.position.set(W / 2, 0.002, D / 2);
+    this.roomGroup.add(grid);
+
+    if (isHidden) {
+      this.wall.visible = false;
+      this.floor.visible = false;
+      if (this.showDimensions) this.updateDimensions();
+      this.invalidate();
+      return;
+    }
+
+    // 3. Материалы стен
+    const wallColor = isGhost ? '#cbd5e1' : '#ffffff';
+    const wallMat = new MeshStandardMaterial({
+      color: wallColor,
+      roughness: 0.95,
+      transparent: isGhost,
+      opacity: isGhost ? 0.22 : 1.0,
+      depthWrite: !isGhost,
+    });
+    const trimMat = new MeshStandardMaterial({
+      color: '#ffffff',
+      roughness: 0.8,
+      transparent: isGhost,
+      opacity: isGhost ? 0.35 : 1.0,
+    });
+    const glassMat = new MeshStandardMaterial({
+      color: '#bae6fd',
+      roughness: 0.1,
+      transparent: true,
+      opacity: 0.45,
+    });
+    this.roomMats.push(wallMat, trimMat, glassMat);
+
     type Opening = { a0: number; a1: number; y0: number; y1: number; glass: boolean };
     const EPS = 0.01;
 
-    /**
-     * Строит одну стену из блоков вокруг любого числа проёмов (окна и двери).
-     * axis 'x': стена вдоль X (задняя), толщина по Z; axis 'z': стена вдоль Z (боковая), толщина по X.
-     * off — координата плоскости стены (центр толщины).
-     */
-    const buildWall = (axis: 'x' | 'z', span: number, off: number, openings: Opening[]): void => {
-      const put = (a0: number, a1: number, y0: number, y1: number, mat: MeshStandardMaterial = wallMat, thick = T, shift = 0): Mesh | null => {
+    const buildWall = (
+      axis: 'x' | 'z',
+      span: number,
+      off: number,
+      openings: Opening[],
+      maxHeight = H,
+      wallThick = T,
+      matOverride?: MeshStandardMaterial,
+    ): void => {
+      const put = (a0: number, a1: number, y0: number, y1: number, mat: MeshStandardMaterial = matOverride ?? wallMat, thick = wallThick, shift = 0): Mesh | null => {
         const len = a1 - a0;
         const hgt = y1 - y0;
         if (len < EPS || hgt < EPS) return null;
@@ -830,35 +888,33 @@ export class Viewer {
         const c = a0 + len / 2;
         if (axis === 'x') mesh.position.set(c, y0 + hgt / 2, off + shift);
         else mesh.position.set(off + shift, y0 + hgt / 2, c);
-        mesh.receiveShadow = mat === wallMat || mat === trimMat;
+        mesh.receiveShadow = !isGhost && (mat === wallMat || mat === trimMat);
         this.roomGroup.add(mesh);
         return mesh;
       };
 
       const sorted = openings
-        .map((o) => ({ ...o, a0: Math.max(0, o.a0), a1: Math.min(span, o.a1), y1: Math.min(H, o.y1) }))
+        .map((o) => ({ ...o, a0: Math.max(0, o.a0), a1: Math.min(span, o.a1), y1: Math.min(maxHeight, o.y1) }))
         .filter((o) => o.a1 - o.a0 > EPS)
         .sort((p, q) => p.a0 - q.a0);
 
-      // перекрывающиеся проёмы сдвигаем, чтобы не рисовать стену «внахлёст»
       let cursor = 0;
       for (const o of sorted) {
         o.a0 = Math.max(o.a0, cursor);
         if (o.a1 - o.a0 < EPS) continue;
-        put(cursor, o.a0, 0, H);                 // глухой простенок до проёма
-        put(o.a0, o.a1, 0, o.y0);                // под окном
-        put(o.a0, o.a1, o.y1, H);                // над проёмом
+        put(cursor, o.a0, 0, maxHeight);
+        put(o.a0, o.a1, 0, o.y0);
+        put(o.a0, o.a1, o.y1, maxHeight);
         if (o.glass) {
           const ga = o.a0 + 0.03;
           const gb = o.a1 - 0.03;
           put(ga, gb, o.y0 + 0.03, o.y1 - 0.03, glassMat, 0.01);
-          // подоконник: выступает внутрь помещения
           const sillShift = axis === 'x' ? 0.04 : (off < W / 2 ? 0.04 : -0.04);
-          put(o.a0 - 0.05, o.a1 + 0.05, o.y0, o.y0 + 0.04, trimMat, T + 0.08, sillShift);
+          put(o.a0 - 0.05, o.a1 + 0.05, o.y0, o.y0 + 0.04, trimMat, wallThick + 0.08, sillShift);
         }
         cursor = o.a1;
       }
-      put(cursor, span, 0, H);
+      put(cursor, span, 0, maxHeight);
     };
 
     const collect = (wall: 'back' | 'left' | 'right'): Opening[] => [
@@ -870,9 +926,29 @@ export class Viewer {
       })),
     ];
 
+    // Задняя стена (вдоль X)
     buildWall('x', W, -T / 2, collect('back'));
+
+    // Левая стена (вдоль Z)
     buildWall('z', D, -T / 2, collect('left'));
-    buildWall('z', D, W + T / 2, collect('right'));
+
+    // Правая стена: архитектурный срез (cutaway), не блокирующий камеру в 3D
+    const rightOpenings = collect('right');
+    if (rightOpenings.length > 0 || isGhost) {
+      const rightWallMat = new MeshStandardMaterial({
+        color: '#cbd5e1',
+        roughness: 0.95,
+        transparent: true,
+        opacity: isGhost ? 0.22 : 0.35,
+        depthWrite: false,
+      });
+      this.roomMats.push(rightWallMat);
+      buildWall('z', D, W + T / 2, rightOpenings, H, T, rightWallMat);
+    } else {
+      const curbMat = new MeshStandardMaterial({ color: '#e2e8f0', roughness: 0.9 });
+      this.roomMats.push(curbMat);
+      buildWall('z', D, W + T / 2, [], 0.08, T, curbMat);
+    }
 
     this.wall.visible = false;
     this.floor.visible = false;

@@ -3,6 +3,7 @@ import { buildModule } from '../core/geometry';
 import { computeModuleDrilling } from '../core/drilling';
 import { renderAssemblyBlueprintSvg, renderFacadeDrillingSvg, renderSidePanelDrillingSvg } from '../core/blueprint';
 import { planKitchen } from '../core/kitchenWizard';
+import { parseFurniturePrompt } from '../core/aiConstructor';
 import { computeNesting, renderSheetSvg, DEFAULT_SHEET_FORMATS } from '../core/nesting';
 import { DEFAULT_ROOM, renderRoomPlanSvg, type RoomConfig } from '../core/room';
 import type { Settings } from '../core/types';
@@ -1309,4 +1310,128 @@ export function roomDialog(store: Store, viewer: Viewer): void {
     }, 'Применить к 3D-комнате'),
   );
 }
+
+// ——— AI Конструктор мебели по текстовому описанию ———
+
+export function aiConstructorDialog(store: Store, viewer: Viewer): void {
+  const d = openDialog('AI Конструктор мебели', { wide: true });
+  let currentPrompt = 'Шкаф-купе 2400х1800х600 в прихожую с зеркалом, 2 штангами и 4 ящиками';
+
+  const container = h('div', { class: 'ai-body', style: 'display:flex; flex-direction:column; gap:16px;' });
+
+  const renderContent = () => {
+    clear(container);
+
+    const desc = h('div', { style: 'background:rgba(79,70,229,0.08); border-left:4px solid var(--accent); padding:10px 14px; border-radius:6px; font-size:13px; line-height:1.5; color:#1e293b;' },
+      h('b', null, 'Умный ИИ-генератор мебели: '),
+      'Опишите изделие естественным языком. Система распознает габариты, тип открывания (купе, распашной, подвесной), наполнение (ящики, штанги, полки), цвета плит и фурнитуру, генерируя готовую 3D-модель для производства.',
+    );
+
+    const quickChips = [
+      'Шкаф-купе 2400×1800 с зеркалом и ящиками',
+      'Подвесная тумба ТВ 1800мм на 2 ящика',
+      'Комод 1000×900 на 4 ящика графит',
+      'Стеллаж для книг 800×2200 с полками',
+      'Обувница в прихожую 800×1000',
+    ];
+
+    const chipsWrap = h('div', { style: 'display:flex; flex-wrap:wrap; gap:6px;' },
+      ...quickChips.map((txt) =>
+        h('button', {
+          type: 'button',
+          class: 'btn sm ghost',
+          style: 'font-size:12px;',
+          onClick: () => {
+            currentPrompt = txt;
+            renderContent();
+          },
+        }, txt)
+      ),
+    );
+
+    const textInput = h('textarea', {
+      style: 'width:100%; min-height:85px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-family:inherit; font-size:13.5px; resize:vertical; outline:none;',
+      placeholder: 'Опишите мебель, например: Шкаф 2-дверный 1400х2300х580 с зеркалом, штангой и 3 ящиками в цвете кашемир',
+      value: currentPrompt,
+      onInput: (e: Event) => {
+        currentPrompt = (e.target as HTMLTextAreaElement).value;
+        updatePreview();
+      },
+    });
+
+    const previewCard = h('div', {
+      style: 'background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:12px 16px;',
+    });
+
+    const updatePreview = () => {
+      clear(previewCard);
+      const res = parseFurniturePrompt(currentPrompt);
+      const titleEl = h('div', { style: 'font-size:15px; font-weight:700; color:var(--ink); margin-bottom:4px;' }, res.title);
+      const descEl = h('div', { style: 'font-size:13px; color:var(--ink-2); margin-bottom:10px;' }, res.description);
+      const tagsWrap = h('div', { style: 'display:flex; flex-wrap:wrap; gap:6px;' },
+        ...res.features.map((f) =>
+          h('span', { style: 'display:inline-block; padding:3px 9px; border-radius:6px; background:#ffffff; border:1px solid var(--line); font-size:11.5px; font-weight:600; color:var(--accent);' }, f)
+        ),
+      );
+      previewCard.append(titleEl, descEl, tagsWrap);
+    };
+
+    updatePreview();
+
+    container.append(
+      desc,
+      h('div', { class: 'grp' },
+        h('h3', null, 'Быстрые примеры:'),
+        chipsWrap,
+      ),
+      h('div', { class: 'grp' },
+        h('h3', null, 'Текстовый запрос:'),
+        textInput,
+      ),
+      h('div', { class: 'grp' },
+        h('h3', null, 'Результат анализа и распознавания:'),
+        previewCard,
+      ),
+    );
+  };
+
+  renderContent();
+  d.body.append(container);
+
+  d.foot.append(
+    h('button', {
+      class: 'btn ghost',
+      onClick: () => {
+        const res = parseFurniturePrompt(currentPrompt);
+        store.commit((p) => {
+          p.modules = [res.module];
+        }, 'ai-replace');
+        store.select(res.module.id);
+        viewer.frame('iso');
+        toast(`Заменено: ${res.module.name}`);
+        d.close();
+      },
+    }, 'Заменить проект'),
+    h('button', {
+      class: 'btn primary',
+      style: 'font-weight:700;',
+      onClick: () => {
+        const res = parseFurniturePrompt(currentPrompt);
+        const mods = store.project.modules;
+        if (mods.length > 0) {
+          const last = mods[mods.length - 1];
+          res.module.x = last.x + last.w;
+        }
+        store.commit((p) => {
+          p.modules.push(res.module);
+        }, 'ai-add');
+        store.select(res.module.id);
+        viewer.frame('iso');
+        toast(`Добавлен: ${res.module.name}`);
+        d.close();
+      },
+    }, 'Добавить модуль в 3D'),
+  );
+}
+
 

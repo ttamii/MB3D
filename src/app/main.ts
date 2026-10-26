@@ -5,8 +5,9 @@ import { DEFAULT_ROOM } from '../core/room';
 import { decodeShare, saveToLibrary } from '../core/storage';
 import { money, rafThrottle } from '../core/util';
 import { Viewer, type ViewName } from '../three/viewer';
-import { arDialog, blueprintDialog, cutDialog, estimateDialog, helpDialog, kitchenWizardDialog, projectsDialog, renderDialog, roomDialog, settingsDialog, shareDialog, toast } from '../ui/dialogs';
+import { aiConstructorDialog, arDialog, blueprintDialog, cutDialog, estimateDialog, helpDialog, kitchenWizardDialog, projectsDialog, renderDialog, roomDialog, settingsDialog, shareDialog, toast } from '../ui/dialogs';
 import { clear, h, icon } from '../ui/dom';
+import { createFloatingHud } from '../ui/floatingHud';
 import { renderModules, renderProps } from '../ui/panels';
 import { showModuleContextMenu } from '../ui/contextMenu';
 import { Store } from './store';
@@ -35,12 +36,12 @@ async function boot(): Promise<void> {
     }
   }
 
-  const stage = $('viewport');
+  const viewport = $('viewport');
   let viewer: Viewer;
   try {
-    viewer = new Viewer(stage, () => store.settings.materials);
+    viewer = new Viewer(viewport, () => store.settings.materials);
   } catch {
-    stage.append(h('p', { class: 'fatal' }, 'Не удалось запустить 3D: браузер не поддерживает WebGL. Обновите браузер или откройте на другом устройстве.'));
+    viewport.append(h('p', { class: 'fatal' }, 'Не удалось запустить 3D: браузер не поддерживает WebGL. Обновите браузер или откройте на другом устройстве.'));
     return;
   }
   viewer.onPick = (id) => store.select(id);
@@ -68,6 +69,9 @@ async function boot(): Promise<void> {
   const hud = $('hud');
   const left = $('left');
   const right = $('right');
+  const stage = $('stage');
+
+  const floatingHud = createFloatingHud(stage, store, viewer);
 
   const undoBtn = h('button', { type: 'button', class: 'ib tb', title: 'Отменить (Ctrl+Z)', 'aria-label': 'Отменить', onClick: () => store.undo() }, icon('undo'));
   const redoBtn = h('button', { type: 'button', class: 'ib tb', title: 'Повторить (Ctrl+Y)', 'aria-label': 'Повторить', onClick: () => store.redo() }, icon('redo'));
@@ -78,15 +82,23 @@ async function boot(): Promise<void> {
   if (!store.readOnly) {
     actions.append(
       undoBtn, redoBtn, h('span', { class: 'sep' }),
-      act('План помещения', 'grid', () => roomDialog(store, viewer), 'accent'),
+      act('Стены', 'grid', () => {
+        const mode = viewer.toggleWallMode();
+        toast(mode === 'solid' ? 'Стены: 3D-модель (срезы)' : mode === 'ghost' ? 'Стены: Прозрачные (Ghost)' : 'Стены: Скрыты');
+      }),
+      act('План комнаты', 'layers', () => roomDialog(store, viewer)),
+      h('span', { class: 'sep' }),
+      act('AI Конструктор', 'wand', () => aiConstructorDialog(store, viewer), 'accent'),
       act('Мастер кухни', 'wand', () => kitchenWizardDialog(store, viewer)),
+      h('span', { class: 'sep' }),
       act('Чертёж', 'blueprint', () => blueprintDialog(store, viewer)),
-      act('Деталировка', 'list', () => cutDialog(store, est, viewer)),
+      act('Раскрой', 'list', () => cutDialog(store, est, viewer)),
       act('Смета', 'calc', () => estimateDialog(store, est, viewer)),
+      h('span', { class: 'sep' }),
+      act('Рендер', 'camera', () => renderDialog(store, viewer)),
+      act('AR', 'cube', () => arDialog(store, viewer)),
       act('Проекты', 'folder', () => projectsDialog(store, () => {})),
       act('Поделиться', 'link', () => shareDialog(store)),
-      act('AR', 'cube', () => arDialog(store, viewer)),
-      act('Рендер', 'camera', () => renderDialog(store, viewer)),
       h('span', { class: 'sep' }),
       h('button', { type: 'button', class: 'ib tb', title: 'Настройки цен', 'aria-label': 'Настройки', onClick: () => settingsDialog(store) }, icon('sliders')),
       h('button', { type: 'button', class: 'ib tb', title: 'Справка', 'aria-label': 'Справка', onClick: () => helpDialog() }, icon('info')));
@@ -134,6 +146,7 @@ async function boot(): Promise<void> {
     undoBtn.disabled = !store.canUndo();
     redoBtn.disabled = !store.canRedo();
     priceEl.textContent = money(est.total);
+    floatingHud.update();
     if (document.activeElement !== nameEl) nameEl.value = store.project.name;
     const m = store.selected;
     const mods = store.project.modules;

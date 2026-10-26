@@ -215,5 +215,31 @@ group('Карты раскроя (Базис-Раскрой): 2D-гильоти�
   }
 }
 
+// 8. AI Конструктор: парсинг и генерация мебели
+group('AI Конструктор: NLP-парсинг запросов и геометрия');
+{
+  const { parseFurniturePrompt } = await import('../src/core/aiConstructor');
+
+  const res1 = parseFurniturePrompt('Шкаф-купе 2400х1800х600 в прихожую с зеркалом, 2 штангами и 4 ящиками');
+  ok(res1.module.kind === 'wardrobe', 'тип не wardrobe');
+  ok(res1.module.doorMode === 'sliding', 'двери не sliding');
+  ok(res1.module.w === 1800 && res1.module.h === 2400 && res1.module.d === 600, `размеры не 1800x2400x600 (${res1.module.w}x${res1.module.h}x${res1.module.d})`);
+  ok(res1.module.mirror === true, 'зеркало не включено');
+  ok(res1.module.sections.some((s) => s.drawers > 0), 'ящики отсутствуют');
+  bounds(normalizeModule(res1.module, mats)).forEach((e) => ok(false, `AI res1: ${e}`));
+
+  const res2 = parseFurniturePrompt('Подвесная тумба ТВ 1800мм на 2 ящика');
+  ok(res2.module.kind === 'base', 'тип не base');
+  ok(res2.module.w === 1800, 'w != 1800');
+  ok(res2.module.lift > 0 && res2.module.plinth === 0, 'не подвесная');
+  bounds(normalizeModule(res2.module, mats)).forEach((e) => ok(false, `AI res2: ${e}`));
+
+  const res3 = parseFurniturePrompt('Комод 1000х900х450 на 4 ящика в цвете графит');
+  ok(res3.module.w === 1000 && res3.module.h === 900 && res3.module.d === 450, 'размеры комода некорректны');
+  ok(res3.module.matFacade === 'eg-u999', 'цвет графит не определен');
+  ok(res3.module.sections[0].drawers === 4, 'ящиков не 4');
+  bounds(normalizeModule(res3.module, mats)).forEach((e) => ok(false, `AI res3: ${e}`));
+}
+
 console.log(failed ? `\n${failed} проверок не пройдено` : '\nВсе проверки пройдены');
 process.exit(failed ? 1 : 0);
