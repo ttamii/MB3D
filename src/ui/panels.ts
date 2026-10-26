@@ -1,4 +1,4 @@
-import { KIND_LABEL, LIMITS, PRESETS, isCorner, isWall } from '../core/defaults';
+import { KIND_LABEL, LIMITS, PRESETS, PRESET_GROUPS, isCorner, isWall } from '../core/defaults';
 import type { Estimate } from '../core/estimate';
 import { buildModule } from '../core/geometry';
 import type { DoorMode, MatKind, Module, Section } from '../core/types';
@@ -83,6 +83,8 @@ function selectField(
 
 // ——— список модулей ———
 
+const openGroups = new Set<string>(['kitchen']);
+
 export function renderModules(root: HTMLElement, store: Store, est: Estimate): void {
   const keepScroll = root.scrollTop;
   clear(root);
@@ -132,11 +134,18 @@ export function renderModules(root: HTMLElement, store: Store, est: Estimate): v
   const head = h('div', { class: 'sec-h' }, h('h2', null, 'Модули'),
     h('button', { type: 'button', class: 'btn sm ghost', disabled: mods.length < 2, onClick: () => store.autoLayout(), title: 'Расставить нижние и верхние модули подряд, без зазоров' }, icon('rows', 15), 'В ряд'));
 
-  const lib = h('div', { class: 'lib' },
-    h('h2', null, 'Добавить в проект'),
-    h('div', { class: 'lib-grid' },
-      ...PRESETS.map((p) => h('button', { type: 'button', class: 'lib-b', onClick: () => store.addPreset(p.id) },
-        h('span', { class: 'lib-ic' }, icon('plus', 14)), h('b', null, p.label), h('small', null, p.hint)))));
+  const groupSections = PRESET_GROUPS.map((g) => {
+    const items = g.ids.map((id) => PRESETS.find((p) => p.id === id)).filter((p): p is (typeof PRESETS)[number] => !!p);
+    const det = h('details', { class: 'lib-group' },
+      h('summary', null, g.label, h('small', null, String(items.length))),
+      h('div', { class: 'lib-grid' },
+        ...items.map((p) => h('button', { type: 'button', class: 'lib-b', onClick: () => store.addPreset(p.id) },
+          h('span', { class: 'lib-ic' }, icon('plus', 14)), h('b', null, p.label), h('small', null, p.hint)))));
+    if (openGroups.has(g.id)) det.setAttribute('open', '');
+    det.addEventListener('toggle', () => { if ((det as HTMLDetailsElement).open) openGroups.add(g.id); else openGroups.delete(g.id); });
+    return det;
+  });
+  const lib = h('div', { class: 'lib' }, h('h2', null, 'Добавить в проект'), ...groupSections);
 
   root.append(head, mods.length ? list : h('p', { class: 'empty' }, 'Проект пуст. Добавьте первый модуль из библиотеки ниже.'), lib);
   root.scrollTop = keepScroll;
@@ -248,7 +257,6 @@ export function renderProps(root: HTMLElement, store: Store): void {
       wall ? numField('Высота от пола', 'lift', m.lift, LIMITS.lift, (v) => set((t) => { t.lift = v; }, 'lift'))
         : numField('Цоколь', 'plinth', m.plinth, LIMITS.plinth, (v) => set((t) => { t.plinth = v; }, 'plinth')),
       numField('Позиция X (вдоль стены)', 'x', m.x, LIMITS.x, (v) => set((t) => { t.x = v; }, 'x')),
-      segmented('Толщина ЛДСП', [[16, '16 мм'], [18, '18 мм']] as [number, string][], m.t, (v) => set((t) => { t.t = v === 18 ? 18 : 16; })),
     );
 
     const snapActions = h('div', { class: 'grp', style: 'padding-top:8px;' },
@@ -269,7 +277,17 @@ export function renderProps(root: HTMLElement, store: Store): void {
       ),
     );
 
-    contentArea.append(nameField, dimsGrid, toggle('Зеркально (отразить по горизонтали)', 'mirror', m.mirror, (v) => set((t) => { t.mirror = v; })), snapActions);
+    const advanced = h('details', { class: 'more' },
+      h('summary', null, 'Дополнительно'),
+      h('div', { style: 'display:flex; flex-direction:column; gap:10px; padding-top:8px;' },
+        segmented('Толщина ЛДСП', [[16, '16 мм'], [18, '18 мм']] as [number, string][], m.t, (v) => set((t) => { t.t = v === 18 ? 18 : 16; })),
+        toggle('Зеркально (отразить по горизонтали)', 'mirror', m.mirror, (v) => set((t) => { t.mirror = v; })),
+        snapActions,
+      ),
+    );
+    if (m.t !== 16 || m.mirror) advanced.setAttribute('open', '');
+
+    contentArea.append(nameField, dimsGrid, advanced);
 
   } else if (activePropTab === 'secs') {
     // Вкладка 2: Внутреннее наполнение
