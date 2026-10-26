@@ -40,14 +40,14 @@ export const DEFAULT_ROOM: RoomConfig = {
   ],
 };
 
-/** Генерирует векторный 2D-план помещения (вид сверху с цепочками размеров), как в Qdesign */
+/** Генерирует векторный 2D-план помещения (вид сверху с цепочками размеров), как в Qdesign / CAD */
 export function renderRoomPlanSvg(
   room: RoomConfig,
   modules: Module[] = [],
   selectedId?: string,
 ): string {
   const { w: W, d: D, wallThickness: WT } = room;
-  const pad = 120; // отступ под размерные линии
+  const pad = 130; // отступ под размерные цепочки и надписи
   const viewBoxW = W + WT * 2 + pad * 2;
   const viewBoxH = D + WT * 2 + pad * 2;
 
@@ -58,34 +58,60 @@ export function renderRoomPlanSvg(
   const lines: string[] = [];
   const texts: string[] = [];
 
-  // Вспомогательная функция для размерной линии
-  const dimH = (x1: number, x2: number, y: number, text: string) => {
+  const dimH = (x1: number, x2: number, y: number, text: string, highlight = false) => {
+    if (x2 - x1 < 10) return;
+    const mx = (x1 + x2) / 2;
     lines.push(
-      `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="#64748b" stroke-width="1.5"/>`,
-      `<line x1="${x1}" y1="${y - 8}" x2="${x1}" y2="${y + 8}" stroke="#64748b" stroke-width="1.5"/>`,
-      `<line x1="${x2}" y1="${y - 8}" x2="${x2}" y2="${y + 8}" stroke="#64748b" stroke-width="1.5"/>`,
+      `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${highlight ? '#0284c7' : '#64748b'}" stroke-width="${highlight ? '2' : '1.5'}"/>`,
+      `<line x1="${x1}" y1="${y - 8}" x2="${x1}" y2="${y + 8}" stroke="${highlight ? '#0284c7' : '#64748b'}" stroke-width="${highlight ? '2' : '1.5'}"/>`,
+      `<line x1="${x2}" y1="${y - 8}" x2="${x2}" y2="${y + 8}" stroke="${highlight ? '#0284c7' : '#64748b'}" stroke-width="${highlight ? '2' : '1.5'}"/>`,
     );
-    texts.push(
-      `<text x="${(x1 + x2) / 2}" y="${y - 5}" font-family="Inter, sans-serif" font-size="16" font-weight="600" fill="#475569" text-anchor="middle">${text}</text>`,
-    );
+    if (highlight) {
+      const bw = Math.max(46, text.length * 10 + 12);
+      texts.push(
+        `<rect x="${mx - bw / 2}" y="${y - 18}" width="${bw}" height="16" rx="4" fill="#0284c7"/>`,
+        `<text x="${mx}" y="${y - 6}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">${text}</text>`,
+      );
+    } else {
+      texts.push(
+        `<text x="${mx}" y="${y - 5}" font-family="Inter, sans-serif" font-size="14" font-weight="600" fill="#475569" text-anchor="middle">${text}</text>`,
+      );
+    }
   };
 
-  const dimV = (x: number, y1: number, y2: number, text: string) => {
+  const dimV = (x: number, y1: number, y2: number, text: string, highlight = false) => {
+    if (y2 - y1 < 10) return;
+    const my = (y1 + y2) / 2;
     lines.push(
-      `<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" stroke="#64748b" stroke-width="1.5"/>`,
-      `<line x1="${x - 8}" y1="${y1}" x2="${x + 8}" y2="${y1}" stroke="#64748b" stroke-width="1.5"/>`,
-      `<line x1="${x - 8}" y1="${y2}" x2="${x + 8}" y2="${y2}" stroke="#64748b" stroke-width="1.5"/>`,
+      `<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" stroke="${highlight ? '#0284c7' : '#64748b'}" stroke-width="${highlight ? '2' : '1.5'}"/>`,
+      `<line x1="${x - 8}" y1="${y1}" x2="${x + 8}" y2="${y1}" stroke="${highlight ? '#0284c7' : '#64748b'}" stroke-width="${highlight ? '2' : '1.5'}"/>`,
+      `<line x1="${x - 8}" y1="${y2}" x2="${x + 8}" y2="${y2}" stroke="${highlight ? '#0284c7' : '#64748b'}" stroke-width="${highlight ? '2' : '1.5'}"/>`,
     );
-    texts.push(
-      `<text x="${x - 8}" y="${(y1 + y2) / 2 + 5}" font-family="Inter, sans-serif" font-size="16" font-weight="600" fill="#475569" text-anchor="end">${text}</text>`,
-    );
+    if (highlight) {
+      const bw = Math.max(46, text.length * 10 + 12);
+      texts.push(
+        `<rect x="${x - bw - 4}" y="${my - 9}" width="${bw}" height="18" rx="4" fill="#0284c7"/>`,
+        `<text x="${x - bw / 2 - 4}" y="${my + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">${text}</text>`,
+      );
+    } else {
+      texts.push(
+        `<text x="${x - 8}" y="${my + 5}" font-family="Inter, sans-serif" font-size="14" font-weight="600" fill="#475569" text-anchor="end">${text}</text>`,
+      );
+    }
   };
 
-  // Размеры стен снаружи
-  dimH(rx0, rx0 + W, ry0 - 45, `${W}`);
-  dimV(rx0 - 45, ry0, ry0 + D, `${D}`);
-  dimH(rx0, rx0 + W, ry0 + D + 45, `${W}`);
-  dimV(rx0 + W + 45, ry0, ry0 + D, `${D}`);
+  // Внешние габаритные размеры стен
+  dimH(rx0, rx0 + W, ry0 - 55, `${W} мм`);
+  dimV(rx0 - 55, ry0, ry0 + D, `${D} мм`);
+  dimH(rx0, rx0 + W, ry0 + D + 55, `${W} мм`);
+  dimV(rx0 + W + 55, ry0, ry0 + D, `${D} мм`);
+
+  // Надписи стен
+  texts.push(
+    `<text x="${rx0 + W / 2}" y="${ry0 - WT - 25}" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#64748b" text-anchor="middle" letter-spacing="1">ЗАДНЯЯ СТЕНА (${W} мм)</text>`,
+    `<text x="${rx0 - WT - 35}" y="${ry0 + D / 2}" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#64748b" text-anchor="middle" transform="rotate(-90 ${rx0 - WT - 35} ${ry0 + D / 2})" letter-spacing="1">ЛЕВАЯ СТЕНА (${D} мм)</text>`,
+    `<text x="${rx0 + W + WT + 35}" y="${ry0 + D / 2}" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#64748b" text-anchor="middle" transform="rotate(90 ${rx0 + W + WT + 35} ${ry0 + D / 2})" letter-spacing="1">ПРАВАЯ СТЕНА (${D} мм)</text>`,
+  );
 
   // Окна на стенах
   const winShapes: string[] = [];
@@ -94,44 +120,44 @@ export function renderRoomPlanSvg(
     if (win.wall === 'back') {
       const wx0 = rx0 + win.x;
       winShapes.push(`
-        <g class="plan-interactive" data-type="window" data-id="${win.id}" style="cursor: ew-resize;">
-          <rect x="${wx0}" y="${ry0 - WT}" width="${win.w}" height="${WT}" fill="${isSel ? '#fef08a' : '#fef9c3'}" stroke="${isSel ? '#eab308' : '#ca8a04'}" stroke-width="${isSel ? '3' : '2'}"/>
+        <g class="plan-interactive" data-type="window" data-id="${win.id}" style="cursor: grab;">
+          <rect x="${wx0}" y="${ry0 - WT}" width="${win.w}" height="${WT}" fill="${isSel ? '#fef08a' : '#fef9c3'}" stroke="${isSel ? '#0284c7' : '#ca8a04'}" stroke-width="${isSel ? '3' : '2'}"/>
           <line x1="${wx0}" y1="${ry0 - WT / 2}" x2="${wx0 + win.w}" y2="${ry0 - WT / 2}" stroke="#ca8a04" stroke-width="2"/>
           <line x1="${wx0}" y1="${ry0 - WT * 0.75}" x2="${wx0 + win.w}" y2="${ry0 - WT * 0.75}" stroke="#ca8a04" stroke-width="1.5"/>
           <line x1="${wx0}" y1="${ry0 - WT * 0.25}" x2="${wx0 + win.w}" y2="${ry0 - WT * 0.25}" stroke="#ca8a04" stroke-width="1.5"/>
-          <circle cx="${wx0 + win.w / 2}" cy="${ry0 - WT / 2}" r="16" fill="${isSel ? 'rgba(239, 68, 68, 0.2)' : 'none'}" stroke="#ef4444" stroke-width="2.5"/>
-          <text x="${wx0 + win.w / 2}" y="${ry0 - WT / 2 + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#ef4444" text-anchor="middle" pointer-events="none">↔</text>
+          <circle cx="${wx0 + win.w / 2}" cy="${ry0 - WT / 2}" r="17" fill="${isSel ? '#0284c7' : '#ffffff'}" stroke="${isSel ? '#0369a1' : '#ca8a04'}" stroke-width="2"/>
+          <text x="${wx0 + win.w / 2}" y="${ry0 - WT / 2 + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="${isSel ? '#ffffff' : '#ca8a04'}" text-anchor="middle" pointer-events="none">OKHO</text>
         </g>
       `);
-      dimH(rx0, wx0, ry0 - 18, `${win.x}`);
-      dimH(wx0, wx0 + win.w, ry0 - 18, `${win.w}`);
-      dimH(wx0 + win.w, rx0 + W, ry0 - 18, `${W - win.x - win.w}`);
+      dimH(rx0, wx0, ry0 - 20, `${win.x}`, isSel);
+      dimH(wx0, wx0 + win.w, ry0 - 20, `${win.w}`, isSel);
+      dimH(wx0 + win.w, rx0 + W, ry0 - 20, `${W - win.x - win.w}`, isSel);
     } else if (win.wall === 'left') {
       const wy0 = ry0 + win.x;
       winShapes.push(`
-        <g class="plan-interactive" data-type="window" data-id="${win.id}" style="cursor: ns-resize;">
-          <rect x="${rx0 - WT}" y="${wy0}" width="${WT}" height="${win.w}" fill="${isSel ? '#fef08a' : '#fef9c3'}" stroke="${isSel ? '#eab308' : '#ca8a04'}" stroke-width="${isSel ? '3' : '2'}"/>
+        <g class="plan-interactive" data-type="window" data-id="${win.id}" style="cursor: grab;">
+          <rect x="${rx0 - WT}" y="${wy0}" width="${WT}" height="${win.w}" fill="${isSel ? '#fef08a' : '#fef9c3'}" stroke="${isSel ? '#0284c7' : '#ca8a04'}" stroke-width="${isSel ? '3' : '2'}"/>
           <line x1="${rx0 - WT / 2}" y1="${wy0}" x2="${rx0 - WT / 2}" y2="${wy0 + win.w}" stroke="#ca8a04" stroke-width="2"/>
-          <circle cx="${rx0 - WT / 2}" cy="${wy0 + win.w / 2}" r="15" fill="${isSel ? 'rgba(239, 68, 68, 0.2)' : 'none'}" stroke="#ef4444" stroke-width="2.5"/>
-          <text x="${rx0 - WT / 2}" y="${wy0 + win.w / 2 + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#ef4444" text-anchor="middle" pointer-events="none">↕</text>
+          <circle cx="${rx0 - WT / 2}" cy="${wy0 + win.w / 2}" r="17" fill="${isSel ? '#0284c7' : '#ffffff'}" stroke="${isSel ? '#0369a1' : '#ca8a04'}" stroke-width="2"/>
+          <text x="${rx0 - WT / 2}" y="${wy0 + win.w / 2 + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="${isSel ? '#ffffff' : '#ca8a04'}" text-anchor="middle" pointer-events="none">OKHO</text>
         </g>
       `);
-      dimV(rx0 - 18, ry0, wy0, `${win.x}`);
-      dimV(rx0 - 18, wy0, wy0 + win.w, `${win.w}`);
-      dimV(rx0 - 18, wy0 + win.w, ry0 + D, `${D - win.x - win.w}`);
+      dimV(rx0 - 20, ry0, wy0, `${win.x}`, isSel);
+      dimV(rx0 - 20, wy0, wy0 + win.w, `${win.w}`, isSel);
+      dimV(rx0 - 20, wy0 + win.w, ry0 + D, `${D - win.x - win.w}`, isSel);
     } else if (win.wall === 'right') {
       const wy0 = ry0 + win.x;
       winShapes.push(`
-        <g class="plan-interactive" data-type="window" data-id="${win.id}" style="cursor: ns-resize;">
-          <rect x="${rx0 + W}" y="${wy0}" width="${WT}" height="${win.w}" fill="${isSel ? '#fef08a' : '#fef9c3'}" stroke="${isSel ? '#eab308' : '#ca8a04'}" stroke-width="${isSel ? '3' : '2'}"/>
+        <g class="plan-interactive" data-type="window" data-id="${win.id}" style="cursor: grab;">
+          <rect x="${rx0 + W}" y="${wy0}" width="${WT}" height="${win.w}" fill="${isSel ? '#fef08a' : '#fef9c3'}" stroke="${isSel ? '#0284c7' : '#ca8a04'}" stroke-width="${isSel ? '3' : '2'}"/>
           <line x1="${rx0 + W + WT / 2}" y1="${wy0}" x2="${rx0 + W + WT / 2}" y2="${wy0 + win.w}" stroke="#ca8a04" stroke-width="2"/>
-          <circle cx="${rx0 + W + WT / 2}" cy="${wy0 + win.w / 2}" r="15" fill="${isSel ? 'rgba(239, 68, 68, 0.2)' : 'none'}" stroke="#ef4444" stroke-width="2.5"/>
-          <text x="${rx0 + W + WT / 2}" y="${wy0 + win.w / 2 + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#ef4444" text-anchor="middle" pointer-events="none">↕</text>
+          <circle cx="${rx0 + W + WT / 2}" cy="${wy0 + win.w / 2}" r="17" fill="${isSel ? '#0284c7' : '#ffffff'}" stroke="${isSel ? '#0369a1' : '#ca8a04'}" stroke-width="2"/>
+          <text x="${rx0 + W + WT / 2}" y="${wy0 + win.w / 2 + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="${isSel ? '#ffffff' : '#ca8a04'}" text-anchor="middle" pointer-events="none">OKHO</text>
         </g>
       `);
-      dimV(rx0 + W + 18, ry0, wy0, `${win.x}`);
-      dimV(rx0 + W + 18, wy0, wy0 + win.w, `${win.w}`);
-      dimV(rx0 + W + 18, wy0 + win.w, ry0 + D, `${D - win.x - win.w}`);
+      dimV(rx0 + W + 20, ry0, wy0, `${win.x}`, isSel);
+      dimV(rx0 + W + 20, wy0, wy0 + win.w, `${win.w}`, isSel);
+      dimV(rx0 + W + 20, wy0 + win.w, ry0 + D, `${D - win.x - win.w}`, isSel);
     }
   });
 
@@ -139,48 +165,59 @@ export function renderRoomPlanSvg(
   const doorShapes: string[] = [];
   room.doors.forEach((door) => {
     const isSel = door.id === selectedId;
+    const isOut = door.swing === 'out';
+
     if (door.wall === 'left') {
       const dy0 = ry0 + door.x;
+      const leafX = isOut ? rx0 - WT - door.w * 0.707 : rx0 + door.w * 0.707;
+      const leafY = dy0 + door.w * 0.293;
+      const arcSweep = isOut ? '0' : '1';
       doorShapes.push(`
-        <g class="plan-interactive" data-type="door" data-id="${door.id}" style="cursor: ns-resize;">
-          <rect x="${rx0 - WT}" y="${dy0}" width="${WT}" height="${door.w}" fill="#ffffff" stroke="${isSel ? '#3b82f6' : '#64748b'}" stroke-width="${isSel ? '3' : '1.5'}"/>
-          <line x1="${rx0}" y1="${dy0}" x2="${rx0 + door.w * 0.7}" y2="${dy0 - door.w * 0.7}" stroke="#0f172a" stroke-width="3"/>
-          <path d="M ${rx0} ${dy0 + door.w} A ${door.w} ${door.w} 0 0 1 ${rx0 + door.w * 0.7} ${dy0 - door.w * 0.7 + door.w}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="4 4"/>
-          <circle cx="${rx0 - WT / 2}" cy="${dy0 + door.w / 2}" r="15" fill="${isSel ? 'rgba(59, 130, 246, 0.2)' : 'none'}" stroke="#3b82f6" stroke-width="2"/>
-          <text x="${rx0 - WT / 2}" y="${dy0 + door.w / 2 + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#3b82f6" text-anchor="middle" pointer-events="none">↕</text>
+        <g class="plan-interactive" data-type="door" data-id="${door.id}" style="cursor: grab;">
+          <rect x="${rx0 - WT}" y="${dy0}" width="${WT}" height="${door.w}" fill="#ffffff" stroke="${isSel ? '#0284c7' : '#475569'}" stroke-width="${isSel ? '3' : '1.5'}"/>
+          <line x1="${isOut ? rx0 - WT : rx0}" y1="${dy0}" x2="${leafX}" y2="${leafY}" stroke="#0f172a" stroke-width="3"/>
+          <path d="M ${isOut ? rx0 - WT : rx0} ${dy0 + door.w} A ${door.w} ${door.w} 0 0 ${arcSweep} ${leafX} ${leafY}" fill="none" stroke="#64748b" stroke-width="1.8" stroke-dasharray="4 4"/>
+          <circle cx="${rx0 - WT / 2}" cy="${dy0 + door.w / 2}" r="17" fill="${isSel ? '#0284c7' : '#ffffff'}" stroke="${isSel ? '#0369a1' : '#3b82f6'}" stroke-width="2"/>
+          <text x="${rx0 - WT / 2}" y="${dy0 + door.w / 2 + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="${isSel ? '#ffffff' : '#3b82f6'}" text-anchor="middle" pointer-events="none">ДВЕРЬ</text>
         </g>
       `);
-      dimV(rx0 - 18, ry0, dy0, `${door.x}`);
-      dimV(rx0 - 18, dy0, dy0 + door.w, `${door.w}`);
-      dimV(rx0 - 18, dy0 + door.w, ry0 + D, `${D - door.x - door.w}`);
+      dimV(rx0 - 20, ry0, dy0, `${door.x}`, isSel);
+      dimV(rx0 - 20, dy0, dy0 + door.w, `${door.w}`, isSel);
+      dimV(rx0 - 20, dy0 + door.w, ry0 + D, `${D - door.x - door.w}`, isSel);
     } else if (door.wall === 'right') {
       const dy0 = ry0 + door.x;
+      const leafX = isOut ? rx0 + W + WT + door.w * 0.707 : rx0 + W - door.w * 0.707;
+      const leafY = dy0 + door.w * 0.293;
+      const arcSweep = isOut ? '1' : '0';
       doorShapes.push(`
-        <g class="plan-interactive" data-type="door" data-id="${door.id}" style="cursor: ns-resize;">
-          <rect x="${rx0 + W}" y="${dy0}" width="${WT}" height="${door.w}" fill="#ffffff" stroke="${isSel ? '#3b82f6' : '#64748b'}" stroke-width="${isSel ? '3' : '1.5'}"/>
-          <line x1="${rx0 + W}" y1="${dy0}" x2="${rx0 + W - door.w * 0.7}" y2="${dy0 - door.w * 0.7}" stroke="#0f172a" stroke-width="3"/>
-          <path d="M ${rx0 + W} ${dy0 + door.w} A ${door.w} ${door.w} 0 0 0 ${rx0 + W - door.w * 0.7} ${dy0 - door.w * 0.7 + door.w}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="4 4"/>
-          <circle cx="${rx0 + W + WT / 2}" cy="${dy0 + door.w / 2}" r="15" fill="${isSel ? 'rgba(59, 130, 246, 0.2)' : 'none'}" stroke="#3b82f6" stroke-width="2"/>
-          <text x="${rx0 + W + WT / 2}" y="${dy0 + door.w / 2 + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#3b82f6" text-anchor="middle" pointer-events="none">↕</text>
+        <g class="plan-interactive" data-type="door" data-id="${door.id}" style="cursor: grab;">
+          <rect x="${rx0 + W}" y="${dy0}" width="${WT}" height="${door.w}" fill="#ffffff" stroke="${isSel ? '#0284c7' : '#475569'}" stroke-width="${isSel ? '3' : '1.5'}"/>
+          <line x1="${isOut ? rx0 + W + WT : rx0 + W}" y1="${dy0}" x2="${leafX}" y2="${leafY}" stroke="#0f172a" stroke-width="3"/>
+          <path d="M ${isOut ? rx0 + W + WT : rx0 + W} ${dy0 + door.w} A ${door.w} ${door.w} 0 0 ${arcSweep} ${leafX} ${leafY}" fill="none" stroke="#64748b" stroke-width="1.8" stroke-dasharray="4 4"/>
+          <circle cx="${rx0 + W + WT / 2}" cy="${dy0 + door.w / 2}" r="17" fill="${isSel ? '#0284c7' : '#ffffff'}" stroke="${isSel ? '#0369a1' : '#3b82f6'}" stroke-width="2"/>
+          <text x="${rx0 + W + WT / 2}" y="${dy0 + door.w / 2 + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="${isSel ? '#ffffff' : '#3b82f6'}" text-anchor="middle" pointer-events="none">ДВЕРЬ</text>
         </g>
       `);
-      dimV(rx0 + W + 18, ry0, dy0, `${door.x}`);
-      dimV(rx0 + W + 18, dy0, dy0 + door.w, `${door.w}`);
-      dimV(rx0 + W + 18, dy0 + door.w, ry0 + D, `${D - door.x - door.w}`);
+      dimV(rx0 + W + 20, ry0, dy0, `${door.x}`, isSel);
+      dimV(rx0 + W + 20, dy0, dy0 + door.w, `${door.w}`, isSel);
+      dimV(rx0 + W + 20, dy0 + door.w, ry0 + D, `${D - door.x - door.w}`, isSel);
     } else if (door.wall === 'back') {
       const dx0 = rx0 + door.x;
+      const leafX = dx0 + door.w * 0.293;
+      const leafY = isOut ? ry0 - WT - door.w * 0.707 : ry0 + door.w * 0.707;
+      const arcSweep = isOut ? '0' : '1';
       doorShapes.push(`
-        <g class="plan-interactive" data-type="door" data-id="${door.id}" style="cursor: ew-resize;">
-          <rect x="${dx0}" y="${ry0 - WT}" width="${door.w}" height="${WT}" fill="#ffffff" stroke="${isSel ? '#3b82f6' : '#64748b'}" stroke-width="${isSel ? '3' : '1.5'}"/>
-          <line x1="${dx0}" y1="${ry0}" x2="${dx0 + door.w * 0.7}" y2="${ry0 + door.w * 0.7}" stroke="#0f172a" stroke-width="3"/>
-          <path d="M ${dx0 + door.w} ${ry0} A ${door.w} ${door.w} 0 0 1 ${dx0 + door.w * 0.7} ${ry0 + door.w * 0.7}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="4 4"/>
-          <circle cx="${dx0 + door.w / 2}" cy="${ry0 - WT / 2}" r="15" fill="${isSel ? 'rgba(59, 130, 246, 0.2)' : 'none'}" stroke="#3b82f6" stroke-width="2"/>
-          <text x="${dx0 + door.w / 2}" y="${ry0 - WT / 2 + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#3b82f6" text-anchor="middle" pointer-events="none">↔</text>
+        <g class="plan-interactive" data-type="door" data-id="${door.id}" style="cursor: grab;">
+          <rect x="${dx0}" y="${ry0 - WT}" width="${door.w}" height="${WT}" fill="#ffffff" stroke="${isSel ? '#0284c7' : '#475569'}" stroke-width="${isSel ? '3' : '1.5'}"/>
+          <line x1="${dx0}" y1="${isOut ? ry0 - WT : ry0}" x2="${leafX}" y2="${leafY}" stroke="#0f172a" stroke-width="3"/>
+          <path d="M ${dx0 + door.w} ${isOut ? ry0 - WT : ry0} A ${door.w} ${door.w} 0 0 ${arcSweep} ${leafX} ${leafY}" fill="none" stroke="#64748b" stroke-width="1.8" stroke-dasharray="4 4"/>
+          <circle cx="${dx0 + door.w / 2}" cy="${ry0 - WT / 2}" r="17" fill="${isSel ? '#0284c7' : '#ffffff'}" stroke="${isSel ? '#0369a1' : '#3b82f6'}" stroke-width="2"/>
+          <text x="${dx0 + door.w / 2}" y="${ry0 - WT / 2 + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="${isSel ? '#ffffff' : '#3b82f6'}" text-anchor="middle" pointer-events="none">ДВЕРЬ</text>
         </g>
       `);
-      dimH(rx0, dx0, ry0 - 18, `${door.x}`);
-      dimH(dx0, dx0 + door.w, ry0 - 18, `${door.w}`);
-      dimH(dx0 + door.w, rx0 + W, ry0 - 18, `${W - door.x - door.w}`);
+      dimH(rx0, dx0, ry0 - 20, `${door.x}`, isSel);
+      dimH(dx0, dx0 + door.w, ry0 - 20, `${door.w}`, isSel);
+      dimH(dx0 + door.w, rx0 + W, ry0 - 20, `${W - door.x - door.w}`, isSel);
     }
   });
 
@@ -201,13 +238,14 @@ export function renderRoomPlanSvg(
   // Маркер масштабирования комнаты за угол (как в CAD)
   const cornerHandle = `
     <g class="plan-interactive" data-type="corner" style="cursor: nwse-resize;">
-      <circle cx="${rx0 + W}" cy="${ry0 + D}" r="14" fill="#ffffff" stroke="#0ea5e9" stroke-width="3"/>
-      <circle cx="${rx0 + W}" cy="${ry0 + D}" r="6" fill="#0ea5e9"/>
+      <circle cx="${rx0 + W}" cy="${ry0 + D}" r="22" fill="#ffffff" stroke="#0284c7" stroke-width="3"/>
+      <circle cx="${rx0 + W}" cy="${ry0 + D}" r="8" fill="#0284c7"/>
+      <text x="${rx0 + W + 14}" y="${ry0 + D + 18}" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#0284c7">Размер</text>
     </g>
   `;
 
   return `
-    <svg viewBox="0 0 ${viewBoxW} ${viewBoxH}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 ${viewBoxW} ${viewBoxH}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="user-select:none;">
       <defs>
         <!-- Сетка пола -->
         <pattern id="gridPattern" width="100" height="100" patternUnits="userSpaceOnUse">

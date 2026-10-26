@@ -626,15 +626,46 @@ export function roomDialog(store: Store, viewer: Viewer): void {
   const renderContent = () => {
     clear(container);
 
-    // Панель пресетов
+    const addWindow = () => {
+      if (room.windows.length >= 6) {
+        toast('Максимум 6 окон в комнате', 'err');
+        return;
+      }
+      const newWin = { id: `w-${Date.now()}`, wall: 'back' as const, x: Math.round(room.w / 2 - 600), w: 1200, h: 1400, lift: 900 };
+      room.windows.push(newWin);
+      selectedKind = 'window';
+      selectedId = newWin.id;
+      renderContent();
+      viewer.updateRoom(room);
+      toast('Окно добавлено. Перетащите его мышкой на любую стену.');
+    };
+
+    const addDoor = () => {
+      if (room.doors.length >= 6) {
+        toast('Максимум 6 дверей в комнате', 'err');
+        return;
+      }
+      const newDoor = { id: `d-${Date.now()}`, wall: 'left' as const, x: Math.max(50, Math.min(room.d - 850, 700)), w: 800, h: 2100, swing: 'in' as const };
+      room.doors.push(newDoor);
+      selectedKind = 'door';
+      selectedId = newDoor.id;
+      renderContent();
+      viewer.updateRoom(room);
+      toast('Дверь добавлена. Перетащите её мышкой на любую стену.');
+    };
+
+    // Панель быстрого управления и пресетов
     const topBar = h('div', { style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;' },
-      h('div', { style: 'display:flex; align-items:center; gap:6px; flex-wrap:wrap;' },
-        h('span', { class: 'hint', style: 'font-weight:600;' }, 'Перетаскивайте окно, дверь и угол комнаты прямо курсором на плане:'),
+      h('div', { style: 'display:flex; align-items:center; gap:8px; flex-wrap:wrap;' },
+        h('button', { class: 'btn primary sm', onClick: addWindow }, '+ Окно'),
+        h('button', { class: 'btn primary sm', onClick: addDoor }, '+ Дверь'),
+        h('span', { class: 'hint', style: 'font-size:12px;' }, 'Тяните проём мышкой на любую стену · Del — удалить · Пробел — открывание'),
       ),
-      h('div', { style: 'display:flex; gap:6px;' },
-        h('button', { class: 'btn sm ghost', onClick: () => { room.w = 4500; room.d = 3000; room.h = 2700; selectedKind = 'room'; renderContent(); } }, '4500 × 3000 (схема)'),
-        h('button', { class: 'btn sm ghost', onClick: () => { room.w = 3600; room.d = 2600; room.h = 2600; selectedKind = 'room'; renderContent(); } }, '3600 × 2600'),
-        h('button', { class: 'btn sm ghost', onClick: () => { room.w = 3000; room.d = 2400; room.h = 2500; selectedKind = 'room'; renderContent(); } }, '3000 × 2400'),
+      h('div', { style: 'display:flex; align-items:center; gap:6px;' },
+        h('span', { class: 'hint', style: 'font-size:12px;' }, 'Пресеты:'),
+        h('button', { class: 'btn sm ghost', onClick: () => { room.w = 4500; room.d = 3000; room.h = 2700; selectedKind = 'room'; renderContent(); viewer.updateRoom(room); } }, '4500 × 3000'),
+        h('button', { class: 'btn sm ghost', onClick: () => { room.w = 3600; room.d = 2600; room.h = 2600; selectedKind = 'room'; renderContent(); viewer.updateRoom(room); } }, '3600 × 2600'),
+        h('button', { class: 'btn sm ghost', onClick: () => { room.w = 3000; room.d = 2400; room.h = 2500; selectedKind = 'room'; renderContent(); viewer.updateRoom(room); } }, '3000 × 2400'),
       ),
     );
 
@@ -642,27 +673,14 @@ export function roomDialog(store: Store, viewer: Viewer): void {
     const planWrap = h('div', { class: 'room-plan-box' });
     planWrap.innerHTML = renderRoomPlanSvg(room, store.project.modules, selectedId);
 
-    // Интерактивное перетаскивание на чертеже мышкой (Drag & Drop окон, дверей и угла комнаты)
+    // Интерактивное перетаскивание на чертеже мышкой (Drag & Drop окон, дверей и угла комнаты с привязкой ко всем стенам)
     let dragInfo: {
       type: 'window' | 'door' | 'corner';
       id?: string;
-      startX: number;
-      startY: number;
-      origX: number;
-      origY: number;
-      scale: number;
     } | null = null;
 
     planWrap.addEventListener('pointerdown', (e: PointerEvent) => {
       const target = (e.target as Element).closest<SVGElement>('.plan-interactive');
-      const svg = planWrap.querySelector('svg');
-      if (!svg) return;
-
-      const rect = svg.getBoundingClientRect();
-      const pad = 120;
-      const viewBoxW = room.w + room.wallThickness * 2 + pad * 2;
-      const scale = viewBoxW / rect.width;
-
       if (!target) {
         selectedKind = 'room';
         selectedId = undefined;
@@ -676,34 +694,7 @@ export function roomDialog(store: Store, viewer: Viewer): void {
       selectedKind = type === 'corner' ? 'room' : type;
       selectedId = id;
 
-      let origX = 0;
-      let origY = 0;
-      if (type === 'window') {
-        const win = room.windows.find((w) => w.id === id);
-        if (win) {
-          origX = win.x;
-          origY = win.x;
-        }
-      } else if (type === 'door') {
-        const door = room.doors.find((d) => d.id === id);
-        if (door) {
-          origX = door.x;
-          origY = door.x;
-        }
-      } else if (type === 'corner') {
-        origX = room.w;
-        origY = room.d;
-      }
-
-      dragInfo = {
-        type,
-        id,
-        startX: e.clientX,
-        startY: e.clientY,
-        origX,
-        origY,
-        scale,
-      };
+      dragInfo = { type, id };
 
       renderBar();
       planWrap.innerHTML = renderRoomPlanSvg(room, store.project.modules, selectedId);
@@ -712,40 +703,102 @@ export function roomDialog(store: Store, viewer: Viewer): void {
 
     planWrap.addEventListener('pointermove', (e: PointerEvent) => {
       if (!dragInfo) return;
-      const dxMm = (e.clientX - dragInfo.startX) * dragInfo.scale;
-      const dyMm = (e.clientY - dragInfo.startY) * dragInfo.scale;
+      const svg = planWrap.querySelector('svg');
+      if (!svg) return;
+
+      const rect = svg.getBoundingClientRect();
+      const pad = 130;
+      const WT = room.wallThickness;
+      const viewBoxW = room.w + WT * 2 + pad * 2;
+      const viewBoxH = room.d + WT * 2 + pad * 2;
+      const scaleX = viewBoxW / rect.width;
+      const scaleY = viewBoxH / rect.height;
+
+      const svgX = (e.clientX - rect.left) * scaleX;
+      const svgY = (e.clientY - rect.top) * scaleY;
+      const roomX = svgX - (pad + WT);
+      const roomY = svgY - (pad + WT);
 
       if (dragInfo.type === 'window') {
         const win = room.windows.find((w) => w.id === dragInfo?.id);
         if (win) {
-          if (win.wall === 'back') {
-            const raw = dragInfo.origX + dxMm;
+          // Вычисляем расстояние до 3-х стен: задняя (Y=0), левая (X=0), правая (X=W)
+          const dBack = Math.abs(roomY);
+          const dLeft = Math.abs(roomX);
+          const dRight = Math.abs(roomX - room.w);
+
+          let closestWall: 'back' | 'left' | 'right' = 'back';
+          let minDist = dBack;
+          if (dLeft < minDist) {
+            closestWall = 'left';
+            minDist = dLeft;
+          }
+          if (dRight < minDist) {
+            closestWall = 'right';
+            minDist = dRight;
+          }
+
+          win.wall = closestWall;
+          if (closestWall === 'back') {
+            const raw = roomX - win.w / 2;
             win.x = Math.max(50, Math.min(room.w - win.w - 50, Math.round(raw / 25) * 25));
           } else {
-            const raw = dragInfo.origY + dyMm;
+            const raw = roomY - win.w / 2;
             win.x = Math.max(50, Math.min(room.d - win.w - 50, Math.round(raw / 25) * 25));
           }
+
           planWrap.innerHTML = renderRoomPlanSvg(room, store.project.modules, selectedId);
           updateBarInputs();
+          viewer.updateRoom(room);
         }
       } else if (dragInfo.type === 'door') {
         const door = room.doors.find((d) => d.id === dragInfo?.id);
         if (door) {
-          if (door.wall === 'back') {
-            const raw = dragInfo.origX + dxMm;
+          const dBack = Math.abs(roomY);
+          const dLeft = Math.abs(roomX);
+          const dRight = Math.abs(roomX - room.w);
+
+          let closestWall: 'back' | 'left' | 'right' = 'left';
+          let minDist = dLeft;
+          if (dBack < minDist) {
+            closestWall = 'back';
+            minDist = dBack;
+          }
+          if (dRight < minDist) {
+            closestWall = 'right';
+            minDist = dRight;
+          }
+
+          door.wall = closestWall;
+          if (closestWall === 'back') {
+            const raw = roomX - door.w / 2;
             door.x = Math.max(50, Math.min(room.w - door.w - 50, Math.round(raw / 25) * 25));
           } else {
-            const raw = dragInfo.origY + dyMm;
+            const raw = roomY - door.w / 2;
             door.x = Math.max(50, Math.min(room.d - door.w - 50, Math.round(raw / 25) * 25));
           }
+
           planWrap.innerHTML = renderRoomPlanSvg(room, store.project.modules, selectedId);
           updateBarInputs();
+          viewer.updateRoom(room);
         }
       } else if (dragInfo.type === 'corner') {
-        room.w = Math.max(1800, Math.min(12000, Math.round((dragInfo.origX + dxMm) / 50) * 50));
-        room.d = Math.max(1800, Math.min(12000, Math.round((dragInfo.origY + dyMm) / 50) * 50));
+        room.w = Math.max(1800, Math.min(12000, Math.round(roomX / 50) * 50));
+        room.d = Math.max(1800, Math.min(12000, Math.round(roomY / 50) * 50));
+
+        // Ограничиваем существующие проёмы под новые размеры стен
+        for (const w of room.windows) {
+          const max = w.wall === 'back' ? room.w : room.d;
+          w.x = Math.max(50, Math.min(max - w.w - 50, w.x));
+        }
+        for (const d of room.doors) {
+          const max = d.wall === 'back' ? room.w : room.d;
+          d.x = Math.max(50, Math.min(max - d.w - 50, d.x));
+        }
+
         planWrap.innerHTML = renderRoomPlanSvg(room, store.project.modules, selectedId);
         updateBarInputs();
+        viewer.updateRoom(room);
       }
     });
 
@@ -753,6 +806,7 @@ export function roomDialog(store: Store, viewer: Viewer): void {
       if (dragInfo) {
         dragInfo = null;
         renderBar();
+        viewer.updateRoom(room);
       }
     };
     planWrap.addEventListener('pointerup', onPointerEnd);
@@ -787,6 +841,7 @@ export function roomDialog(store: Store, viewer: Viewer): void {
                 win.x = Math.max(50, Math.min(curMax - win.w - 50, win.x));
                 planWrap.innerHTML = renderRoomPlanSvg(room, store.project.modules, selectedId);
                 renderBar();
+                viewer.updateRoom(room);
               },
             },
               h('option', { value: 'back', selected: win.wall === 'back' }, 'Задняя'),
@@ -803,6 +858,7 @@ export function roomDialog(store: Store, viewer: Viewer): void {
                 const curMax = win.wall === 'back' ? room.w : room.d;
                 win.x = Math.max(50, Math.min(curMax - win.w - 50, win.x));
                 planWrap.innerHTML = renderRoomPlanSvg(room, store.project.modules, selectedId);
+                viewer.updateRoom(room);
               },
             }),
           ),
@@ -812,6 +868,7 @@ export function roomDialog(store: Store, viewer: Viewer): void {
               type: 'number', step: 50, min: 400, max: 2500, value: String(win.h), id: 'rb-win-h',
               onInput: (e: Event) => {
                 win.h = Number((e.target as HTMLInputElement).value);
+                viewer.updateRoom(room);
               },
             }),
           ),
@@ -821,6 +878,7 @@ export function roomDialog(store: Store, viewer: Viewer): void {
               type: 'number', step: 50, min: 0, max: 1500, value: String(win.lift), id: 'rb-win-lift',
               onInput: (e: Event) => {
                 win.lift = Number((e.target as HTMLInputElement).value);
+                viewer.updateRoom(room);
               },
             }),
           ),
@@ -831,6 +889,7 @@ export function roomDialog(store: Store, viewer: Viewer): void {
               onInput: (e: Event) => {
                 win.x = Number((e.target as HTMLInputElement).value);
                 planWrap.innerHTML = renderRoomPlanSvg(room, store.project.modules, selectedId);
+                viewer.updateRoom(room);
               },
             }),
           ),
@@ -845,8 +904,9 @@ export function roomDialog(store: Store, viewer: Viewer): void {
             selectedKind = 'room';
             selectedId = undefined;
             renderContent();
+            viewer.updateRoom(room);
           },
-        }, 'Удалить элемент');
+        }, 'Удалить окно (Del)');
 
         barWrap.append(fields, delBtn);
       } else if (selectedKind === 'door') {
@@ -872,6 +932,7 @@ export function roomDialog(store: Store, viewer: Viewer): void {
                 door.x = Math.max(50, Math.min(curMax - door.w - 50, door.x));
                 planWrap.innerHTML = renderRoomPlanSvg(room, store.project.modules, selectedId);
                 renderBar();
+                viewer.updateRoom(room);
               },
             },
               h('option', { value: 'left', selected: door.wall === 'left' }, 'Левая'),
@@ -888,6 +949,7 @@ export function roomDialog(store: Store, viewer: Viewer): void {
                 const curMax = door.wall === 'back' ? room.w : room.d;
                 door.x = Math.max(50, Math.min(curMax - door.w - 50, door.x));
                 planWrap.innerHTML = renderRoomPlanSvg(room, store.project.modules, selectedId);
+                viewer.updateRoom(room);
               },
             }),
           ),
@@ -897,6 +959,7 @@ export function roomDialog(store: Store, viewer: Viewer): void {
               type: 'number', step: 50, min: 1800, max: 2500, value: String(door.h), id: 'rb-door-h',
               onInput: (e: Event) => {
                 door.h = Number((e.target as HTMLInputElement).value);
+                viewer.updateRoom(room);
               },
             }),
           ),
@@ -907,15 +970,18 @@ export function roomDialog(store: Store, viewer: Viewer): void {
               onInput: (e: Event) => {
                 door.x = Number((e.target as HTMLInputElement).value);
                 planWrap.innerHTML = renderRoomPlanSvg(room, store.project.modules, selectedId);
+                viewer.updateRoom(room);
               },
             }),
           ),
           h('label', { class: 'room-bar-fld' },
             h('span', null, 'Открывание'),
             h('select', {
+              id: 'rb-door-swing',
               onChange: (e: Event) => {
                 door.swing = (e.target as HTMLSelectElement).value as any;
                 planWrap.innerHTML = renderRoomPlanSvg(room, store.project.modules, selectedId);
+                viewer.updateRoom(room);
               },
             },
               h('option', { value: 'in', selected: door.swing === 'in' }, 'Внутрь'),
@@ -933,8 +999,9 @@ export function roomDialog(store: Store, viewer: Viewer): void {
             selectedKind = 'room';
             selectedId = undefined;
             renderContent();
+            viewer.updateRoom(room);
           },
-        }, 'Удалить элемент');
+        }, 'Удалить дверь (Del)');
 
         barWrap.append(fields, delBtn);
       } else {
@@ -948,6 +1015,7 @@ export function roomDialog(store: Store, viewer: Viewer): void {
               onInput: (e: Event) => {
                 room.w = Number((e.target as HTMLInputElement).value);
                 planWrap.innerHTML = renderRoomPlanSvg(room, store.project.modules, selectedId);
+                viewer.updateRoom(room);
               },
             }),
           ),
@@ -958,6 +1026,7 @@ export function roomDialog(store: Store, viewer: Viewer): void {
               onInput: (e: Event) => {
                 room.d = Number((e.target as HTMLInputElement).value);
                 planWrap.innerHTML = renderRoomPlanSvg(room, store.project.modules, selectedId);
+                viewer.updateRoom(room);
               },
             }),
           ),
@@ -967,34 +1036,15 @@ export function roomDialog(store: Store, viewer: Viewer): void {
               type: 'number', step: 50, min: 2000, max: 4000, value: String(room.h), id: 'rb-room-h',
               onInput: (e: Event) => {
                 room.h = Number((e.target as HTMLInputElement).value);
+                viewer.updateRoom(room);
               },
             }),
           ),
         );
 
         const addBtns = h('div', { style: 'display:flex; gap:6px;' },
-          room.windows.length < 4 ? h('button', {
-            type: 'button',
-            class: 'btn primary sm',
-            onClick: () => {
-              const newWin = { id: `w-${Date.now()}`, wall: 'back' as const, x: Math.round(room.w / 2 - 600), w: 1200, h: 1400, lift: 900 };
-              room.windows.push(newWin);
-              selectedKind = 'window';
-              selectedId = newWin.id;
-              renderContent();
-            },
-          }, 'Добавить окно') : null,
-          room.doors.length < 4 ? h('button', {
-            type: 'button',
-            class: 'btn primary sm',
-            onClick: () => {
-              const newDoor = { id: `d-${Date.now()}`, wall: 'left' as const, x: 700, w: 800, h: 2100, swing: 'in' as const };
-              room.doors.push(newDoor);
-              selectedKind = 'door';
-              selectedId = newDoor.id;
-              renderContent();
-            },
-          }, 'Добавить дверь') : null,
+          h('button', { type: 'button', class: 'btn primary sm', onClick: addWindow }, '+ Добавить окно'),
+          h('button', { type: 'button', class: 'btn primary sm', onClick: addDoor }, '+ Добавить дверь'),
         );
 
         barWrap.append(fields, addBtns);
@@ -1006,13 +1056,23 @@ export function roomDialog(store: Store, viewer: Viewer): void {
         const win = room.windows.find((w) => w.id === selectedId);
         if (win) {
           const el = document.getElementById('rb-win-x') as HTMLInputElement | null;
-          if (el) el.value = String(win.x);
+          if (el) {
+            el.value = String(win.x);
+            el.max = String((win.wall === 'back' ? room.w : room.d) - win.w - 50);
+          }
+          const elWall = document.getElementById('rb-win-wall') as HTMLSelectElement | null;
+          if (elWall && elWall.value !== win.wall) elWall.value = win.wall;
         }
       } else if (selectedKind === 'door') {
         const door = room.doors.find((d) => d.id === selectedId);
         if (door) {
           const el = document.getElementById('rb-door-x') as HTMLInputElement | null;
-          if (el) el.value = String(door.x);
+          if (el) {
+            el.value = String(door.x);
+            el.max = String((door.wall === 'back' ? room.w : room.d) - door.w - 50);
+          }
+          const elWall = document.getElementById('rb-door-wall') as HTMLSelectElement | null;
+          if (elWall && elWall.value !== door.wall) elWall.value = door.wall;
         }
       } else if (selectedKind === 'room') {
         const rw = document.getElementById('rb-room-w') as HTMLInputElement | null;
@@ -1026,11 +1086,73 @@ export function roomDialog(store: Store, viewer: Viewer): void {
     container.append(topBar, planWrap, barWrap);
   };
 
+  // Горячие клавиши для плана: Del - удаление, Пробел - сменить открывание двери, стрелки - смещение
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (selectedKind === 'window' && selectedId) {
+        room.windows = room.windows.filter((w) => w.id !== selectedId);
+        selectedKind = 'room';
+        selectedId = undefined;
+        renderContent();
+        viewer.updateRoom(room);
+        toast('Окно удалено');
+      } else if (selectedKind === 'door' && selectedId) {
+        room.doors = room.doors.filter((d) => d.id !== selectedId);
+        selectedKind = 'room';
+        selectedId = undefined;
+        renderContent();
+        viewer.updateRoom(room);
+        toast('Дверь удалена');
+      }
+    } else if (e.key === ' ' || e.code === 'Space') {
+      if (selectedKind === 'door' && selectedId) {
+        e.preventDefault();
+        const door = room.doors.find((d) => d.id === selectedId);
+        if (door) {
+          door.swing = door.swing === 'in' ? 'out' : 'in';
+          renderContent();
+          viewer.updateRoom(room);
+        }
+      }
+    } else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+      const delta = (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -25 : 25;
+      if (selectedKind === 'window' && selectedId) {
+        const win = room.windows.find((w) => w.id === selectedId);
+        if (win) {
+          e.preventDefault();
+          const max = win.wall === 'back' ? room.w : room.d;
+          win.x = Math.max(50, Math.min(max - win.w - 50, win.x + delta));
+          renderContent();
+          viewer.updateRoom(room);
+        }
+      } else if (selectedKind === 'door' && selectedId) {
+        const door = room.doors.find((d) => d.id === selectedId);
+        if (door) {
+          e.preventDefault();
+          const max = door.wall === 'back' ? room.w : room.d;
+          door.x = Math.max(50, Math.min(max - door.w - 50, door.x + delta));
+          renderContent();
+          viewer.updateRoom(room);
+        }
+      }
+    }
+  };
+  d.el.addEventListener('keydown', onKeyDown);
+
   renderContent();
   d.body.append(container);
 
   d.foot.append(
-    h('button', { class: 'btn ghost', onClick: () => d.close() }, 'Отмена'),
+    h('button', {
+      class: 'btn ghost',
+      onClick: () => {
+        // Восстанавливаем исходную 3D-комнату при отмене
+        viewer.updateRoom(store.project.room ?? DEFAULT_ROOM);
+        d.close();
+      },
+    }, 'Отмена'),
     h('button', {
       class: 'btn primary',
       style: 'font-weight:700;',

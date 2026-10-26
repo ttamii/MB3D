@@ -19,10 +19,10 @@ export function showModuleContextMenu(
   if (!m) return;
 
   const menu = h('div', { class: 'ctx-menu' });
-  menu.style.left = `${Math.min(window.innerWidth - 240, Math.max(10, x))}px`;
-  menu.style.top = `${Math.min(window.innerHeight - 380, Math.max(10, y))}px`;
+  menu.style.left = `${Math.min(window.innerWidth - 260, Math.max(10, x))}px`;
+  menu.style.top = `${Math.min(window.innerHeight - 440, Math.max(10, y))}px`;
 
-  const head = h('div', { class: 'ctx-head' }, `${m.name} · ${m.w}×${m.h} мм`);
+  const head = h('div', { class: 'ctx-head' }, `${m.name} · ${m.w}×${m.h}×${m.d} мм`);
 
   const item = (label: string, ic: string, onClick: () => void, kbd?: string, danger?: boolean) => {
     const el = h('button', {
@@ -41,10 +41,111 @@ export function showModuleContextMenu(
     return el;
   };
 
+  const pill = (label: string, active: boolean, onClick: () => void) => {
+    return h('button', {
+      type: 'button',
+      class: `ctx-pill${active ? ' active' : ''}`,
+      onClick: (e: MouseEvent) => {
+        e.stopPropagation();
+        onClick();
+        hideContextMenu();
+      },
+    }, label);
+  };
+
   const isOpen = viewer.isOpen();
+  const currentShelves = m.sections.reduce((sum, s) => sum + s.shelves, 0);
+
+  // Быстрый выбор ширины модуля
+  const widthRow = h('div', { class: 'ctx-row' },
+    h('span', { class: 'ctx-row-label' }, 'Ширина:'),
+    h('div', { class: 'ctx-pills' },
+      ...[400, 450, 600, 800].map((w) =>
+        pill(`${w}`, m.w === w, () => {
+          store.commit((p) => {
+            const target = p.modules.find((item) => item.id === moduleId);
+            if (target) target.w = w;
+          }, 'resize-w');
+        })
+      ),
+    ),
+  );
+
+  // Управление полками (- / +)
+  const shelvesRow = h('div', { class: 'ctx-row' },
+    h('span', { class: 'ctx-row-label' }, `Полок: ${currentShelves}`),
+    h('div', { class: 'ctx-pills' },
+      pill('- 1', currentShelves === 0, () => {
+        store.commit((p) => {
+          const target = p.modules.find((item) => item.id === moduleId);
+          if (target && target.sections[0] && target.sections[0].shelves > 0) {
+            target.sections[0].shelves -= 1;
+          }
+        }, 'shelves-dec');
+      }),
+      pill('+ 1', false, () => {
+        store.commit((p) => {
+          const target = p.modules.find((item) => item.id === moduleId);
+          if (target && target.sections[0] && target.sections[0].shelves < 8) {
+            target.sections[0].shelves += 1;
+          }
+        }, 'shelves-inc');
+      }),
+    ),
+  );
+
+  // Фрезеровка фасадов
+  const curMilling = m.milling ?? 'modern';
+  const millingRow = h('div', { class: 'ctx-row' },
+    h('span', { class: 'ctx-row-label' }, 'Фасад:'),
+    h('div', { class: 'ctx-pills' },
+      pill('Гладкий', curMilling === 'modern', () => {
+        store.commit((p) => {
+          const target = p.modules.find((item) => item.id === moduleId);
+          if (target) target.milling = 'modern';
+        }, 'milling-modern');
+      }),
+      pill('Рамка', curMilling === 'frame', () => {
+        store.commit((p) => {
+          const target = p.modules.find((item) => item.id === moduleId);
+          if (target) target.milling = 'frame';
+        }, 'milling-frame');
+      }),
+      pill('Рельеф', curMilling === 'ribbed', () => {
+        store.commit((p) => {
+          const target = p.modules.find((item) => item.id === moduleId);
+          if (target) target.milling = 'ribbed';
+        }, 'milling-ribbed');
+      }),
+    ),
+  );
+
+  // Ручки / Push-to-open
+  const handlesRow = h('div', { class: 'ctx-row' },
+    h('span', { class: 'ctx-row-label' }, 'Ручки:'),
+    h('div', { class: 'ctx-pills' },
+      pill('Ручка 128', m.handles, () => {
+        store.commit((p) => {
+          const target = p.modules.find((item) => item.id === moduleId);
+          if (target) target.handles = true;
+        }, 'handles-on');
+      }),
+      pill('Push-to-open', !m.handles, () => {
+        store.commit((p) => {
+          const target = p.modules.find((item) => item.id === moduleId);
+          if (target) target.handles = false;
+        }, 'handles-off');
+      }),
+    ),
+  );
 
   menu.append(
     head,
+    widthRow,
+    shelvesRow,
+    millingRow,
+    handlesRow,
+    h('div', { class: 'ctx-sep' }),
     item(isOpen ? 'Закрыть дверцы' : 'Открыть дверцы', 'door', () => {
       viewer.setOpen(!isOpen);
     }),
