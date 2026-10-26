@@ -241,5 +241,23 @@ group('AI Конструктор: NLP-парсинг запросов и гео�
   bounds(normalizeModule(res3.module, mats)).forEach((e) => ok(false, `AI res3: ${e}`));
 }
 
+// 9. Распашные двери: геометрия и открывание от центра
+group('Распашные двери: геометрия и открывание от центра');
+{
+  const p = PRESETS.find((x) => x.id === 'wardrobe-hinged')!;
+  const m = p.make();
+  const built = buildModule(m);
+  const doors = built.parts.filter((pt) => pt.anim?.type === 'door' && pt.mat === 'facade');
+  ok(doors.length === 2, `Ожидалось 2 двери, получено ${doors.length}`);
+
+  const leftDoor = doors[0];
+  const rightDoor = doors[1];
+  ok(leftDoor.anim?.pivot && leftDoor.anim.pivot[0] < 50, `Левая дверь pivot не слева (${leftDoor.anim?.pivot?.[0]})`);
+  ok((leftDoor.anim?.ang ?? 0) < 0, `Левая дверь должна распахиваться влево (ang < 0, получено ${leftDoor.anim?.ang})`);
+
+  ok(rightDoor.anim?.pivot && rightDoor.anim.pivot[0] > 1150, `Правая дверь pivot не справа (${rightDoor.anim?.pivot?.[0]})`);
+  ok((rightDoor.anim?.ang ?? 0) > 0, `Правая дверь должна распахиваться вправо (ang > 0, получено ${rightDoor.anim?.ang})`);
+}
+
 console.log(failed ? `\n${failed} проверок не пройдено` : '\nВсе проверки пройдены');
 process.exit(failed ? 1 : 0);

@@ -329,7 +329,14 @@ function rectCabinet(b: Builder, m: Module): void {
           const a = fx0 + k * (dw + gap);
           let hinge: 'left' | 'right';
           if (nDoors === 1) {
-            const desired: 'left' | 'right' = m.hinge ?? (m.x <= 20 ? 'right' : 'left');
+            let desired: 'left' | 'right';
+            if (n > 1) {
+              // В многосекционных шкафах и тумбах створки распахиваются от центра наружу:
+              // левая секция — влево, правая — вправо
+              desired = i < n / 2 ? 'left' : 'right';
+            } else {
+              desired = m.hinge ?? 'left';
+            }
             hinge = m.mirror ? (desired === 'left' ? 'right' : 'left') : desired;
           } else {
             hinge = k === 0 ? 'left' : 'right';

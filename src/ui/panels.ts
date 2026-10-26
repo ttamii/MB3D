@@ -370,13 +370,19 @@ export function renderProps(root: HTMLElement, store: Store): void {
       segmented('Тип дверей', doorOpts, m.doorMode, (v) => set((t) => { t.doorMode = v; })),
     ];
     if (m.doorMode === 'hinged') {
-      const curHinge = m.hinge ?? (m.x <= 20 ? 'right' : 'left');
-      facadeNodes.push(
-        segmented('Сторона петель (открывание)', [
-          ['left', 'Слева (ручка справа)'],
-          ['right', 'Справа (ручка слева)'],
-        ], curHinge, (v) => set((t) => { t.hinge = v as 'left' | 'right'; })),
-      );
+      if (m.sections.length === 1) {
+        const curHinge = m.hinge ?? 'left';
+        facadeNodes.push(
+          segmented('Сторона петель (открывание)', [
+            ['left', 'Слева (ручка справа)'],
+            ['right', 'Справа (ручка слева)'],
+          ], curHinge, (v) => set((t) => { t.hinge = v as 'left' | 'right'; })),
+        );
+      } else {
+        facadeNodes.push(
+          toggle('Отзеркалить открывание дверей', 'mirror', m.mirror, (v) => set((t) => { t.mirror = v; })),
+        );
+      }
     }
     if (m.doorMode === 'sliding') facadeNodes.push(stepper('Количество дверей купе', 'slide', m.slidingCount, LIMITS.sliding, (v) => set((t) => { t.slidingCount = v; })));
     if (!corner && m.sections.some((s) => s.drawers > 0)) facadeNodes.push(numField('Высота фасада ящика', 'drh', m.drawerH, LIMITS.drawerH, (v) => set((t) => { t.drawerH = v; }, 'drh')));

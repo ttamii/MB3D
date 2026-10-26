@@ -150,19 +150,30 @@ export function showModuleContextMenu(
       viewer.setOpen(!isOpen);
     }),
     ...(m.doorMode === 'hinged' ? [
-      item(
-        (m.hinge ?? (m.x <= 20 ? 'right' : 'left')) === 'right' ? 'Петли слева (ручка справа)' : 'Петли справа (ручка слева)',
-        'sliders',
-        () => {
-          store.commit((p) => {
-            const target = p.modules.find((item) => item.id === moduleId);
-            if (target) {
-              const cur = target.hinge ?? (target.x <= 20 ? 'right' : 'left');
-              target.hinge = cur === 'right' ? 'left' : 'right';
-            }
-          }, 'toggle-hinge');
-        },
-      ),
+      m.sections.length === 1
+        ? item(
+            (m.hinge ?? 'left') === 'right' ? 'Петли слева (ручка справа)' : 'Петли справа (ручка слева)',
+            'sliders',
+            () => {
+              store.commit((p) => {
+                const target = p.modules.find((item) => item.id === moduleId);
+                if (target) {
+                  const cur = target.hinge ?? 'left';
+                  target.hinge = cur === 'right' ? 'left' : 'right';
+                }
+              }, 'toggle-hinge');
+            },
+          )
+        : item(
+            m.mirror ? 'Сбросить зеркальность дверей' : 'Отзеркалить открывание дверей',
+            'sliders',
+            () => {
+              store.commit((p) => {
+                const target = p.modules.find((item) => item.id === moduleId);
+                if (target) target.mirror = !target.mirror;
+              }, 'toggle-mirror');
+            },
+          ),
     ] : []),
     item('Сделать модулем мойки', 'check', () => {
       store.commit((p) => {
