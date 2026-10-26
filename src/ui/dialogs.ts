@@ -3,6 +3,7 @@ import { buildModule } from '../core/geometry';
 import { computeModuleDrilling } from '../core/drilling';
 import { renderAssemblyBlueprintSvg, renderFacadeDrillingSvg, renderSidePanelDrillingSvg } from '../core/blueprint';
 import { planKitchen } from '../core/kitchenWizard';
+import { computeNesting, renderSheetSvg, DEFAULT_SHEET_FORMATS } from '../core/nesting';
 import { DEFAULT_ROOM, renderRoomPlanSvg, type RoomConfig } from '../core/room';
 import type { Settings } from '../core/types';
 import { downloadBlob, fileName, fmtNum, money } from '../core/util';
@@ -88,23 +89,140 @@ export function estimateDialog(store: Store, est: Estimate, viewer: Viewer): voi
 // ——— деталировка ———
 
 export function cutDialog(store: Store, est: Estimate, viewer: Viewer): void {
-  const d = openDialog('Деталировка для цеха', { wide: true });
+  const d = openDialog('Деталировка и карты раскроя (Базис-Раскрой)', { wide: true });
   const rows = [...est.cut].sort((a, b) => a.matName.localeCompare(b.matName, 'ru') || b.l - a.l);
   const pieces = rows.reduce((s, r) => s + r.qty, 0);
 
-  d.body.append(
-    h('p', { class: 'hint' }, `${rows.length} позиций · ${pieces} деталей. Размеры в мм: длина × ширина × толщина. Для станка скачайте CSV.`),
-    h('div', { class: 'scroll-x' },
-      h('table', { class: 'tbl dense' },
-        h('thead', null, h('tr', null, ...['№', 'Модуль', 'Деталь', 'Длина', 'Ширина', 'Т', 'Шт', 'Материал', 'Кромка, мм'].map((t, i) => h('th', { class: i >= 3 && i !== 7 ? 'r' : '' }, t)))),
-        h('tbody', null, ...rows.map((r, i) => h('tr', null,
-          h('td', null, String(i + 1)), h('td', null, r.moduleName), h('td', null, r.name),
-          h('td', { class: 'r' }, String(r.l)), h('td', { class: 'r' }, String(r.w)), h('td', { class: 'r' }, String(r.t)),
-          h('td', { class: 'r' }, String(r.qty)), h('td', null, r.matName), h('td', { class: 'r' }, String(Math.round(r.edgeMm)))))))));
+  let activeTab: 'cut' | 'nesting' = 'cut';
+  let sheetFormatIndex = 0;
+  let activeSheetIndex = 0;
+
+  const container = h('div', { class: 'cut-container', style: 'display:flex; flex-direction:column; gap:12px;' });
+
+  const renderContent = () => {
+    clear(container);
+
+    const tabsBar = h('div', { style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:6px;' },
+      h('div', { style: 'display:flex; gap:6px;' },
+        h('button', {
+          type: 'button',
+          class: 'seg-b' + (activeTab === 'cut' ? ' on' : ''),
+          onClick: () => { activeTab = 'cut'; renderContent(); },
+        }, '1. Спецификация деталей'),
+        h('button', {
+          type: 'button',
+          class: 'seg-b' + (activeTab === 'nesting' ? ' on' : ''),
+          onClick: () => { activeTab = 'nesting'; renderContent(); },
+        }, '2. Карта раскроя плит'),
+      ),
+      activeTab === 'nesting' ? h('div', { style: 'display:flex; align-items:center; gap:8px;' },
+        h('span', { style: 'font-size:12.5px; font-weight:600; color:var(--muted);' }, 'Формат плиты:'),
+        h('select', {
+          style: 'padding:5px 10px; border-radius:6px; border:1px solid var(--line); background:var(--card); font-size:12.5px; font-weight:600; color:var(--text);',
+          onChange: (e: Event) => {
+            sheetFormatIndex = Number((e.target as HTMLSelectElement).value);
+            activeSheetIndex = 0;
+            renderContent();
+          },
+        }, ...DEFAULT_SHEET_FORMATS.map((fmt, idx) =>
+          h('option', { value: String(idx), selected: idx === sheetFormatIndex }, fmt.name)
+        )),
+      ) : null,
+    );
+
+    container.append(tabsBar);
+
+    if (activeTab === 'cut') {
+      container.append(
+        h('p', { class: 'hint' }, `${rows.length} позиций · ${pieces} деталей. Размеры в мм: длина × ширина × толщина. Для ЧПУ/станка скачайте CSV.`),
+        h('div', { class: 'scroll-x' },
+          h('table', { class: 'tbl dense' },
+            h('thead', null, h('tr', null, ...['№', 'Модуль', 'Деталь', 'Длина', 'Ширина', 'Т', 'Шт', 'Материал', 'Кромка, мм'].map((t, i) => h('th', { class: i >= 3 && i !== 7 ? 'r' : '' }, t)))),
+            h('tbody', null, ...rows.map((r, i) => h('tr', null,
+              h('td', null, String(i + 1)), h('td', null, r.moduleName), h('td', null, r.name),
+              h('td', { class: 'r' }, String(r.l)), h('td', { class: 'r' }, String(r.w)), h('td', { class: 'r' }, String(r.t)),
+              h('td', { class: 'r' }, String(r.qty)), h('td', null, r.matName), h('td', { class: 'r' }, String(Math.round(r.edgeMm))))))))
+      );
+    } else {
+      const format = DEFAULT_SHEET_FORMATS[sheetFormatIndex] ?? DEFAULT_SHEET_FORMATS[0];
+      const nesting = computeNesting(rows, store.settings.materials, format);
+
+      if (!nesting.sheets.length) {
+        container.append(h('p', { class: 'empty' }, 'Нет плитных деталей для раскроя.'));
+        return;
+      }
+
+      if (activeSheetIndex >= nesting.sheets.length) activeSheetIndex = 0;
+      const curSheet = nesting.sheets[activeSheetIndex];
+
+      const statsBar = h('div', {
+        style: 'display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; padding:10px 14px; background:var(--panel-2); border:1px solid var(--line); border-radius:10px;',
+      },
+        h('div', null,
+          h('div', { style: 'font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600;' }, 'Всего листов'),
+          h('div', { style: 'font-size:16px; font-weight:700; color:var(--ink);' }, `${nesting.totalSheets} шт`),
+        ),
+        h('div', null,
+          h('div', { style: 'font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600;' }, 'КУМ гарнитура'),
+          h('div', { style: 'font-size:16px; font-weight:700; color:var(--accent);' }, `${nesting.overallEfficiencyPercent}%`),
+        ),
+        h('div', null,
+          h('div', { style: 'font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600;' }, 'КУМ этого листа'),
+          h('div', { style: 'font-size:16px; font-weight:700; color:var(--ok);' }, `${curSheet.efficiencyPercent}%`),
+        ),
+        h('div', null,
+          h('div', { style: 'font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600;' }, 'Деталей на листе'),
+          h('div', { style: 'font-size:16px; font-weight:700; color:var(--ink);' }, `${curSheet.parts.length} из ${nesting.totalPartsCount}`),
+        ),
+      );
+
+      const sheetPills = h('div', { style: 'display:flex; flex-wrap:wrap; gap:6px; margin:4px 0;' },
+        ...nesting.sheets.map((s, idx) =>
+          h('button', {
+            type: 'button',
+            class: `btn sm ${idx === activeSheetIndex ? 'primary' : 'ghost'}`,
+            onClick: () => { activeSheetIndex = idx; renderContent(); },
+          }, `Лист ${s.sheetIndex}: ${s.matName} (${s.efficiencyPercent}%)`)
+        ),
+      );
+
+      const svgBox = h('div', {
+        style: 'border:1px solid var(--line); border-radius:10px; padding:8px; background:#ffffff; overflow:auto; max-height:480px; display:flex; justify-content:center;',
+      });
+      svgBox.innerHTML = renderSheetSvg(curSheet);
+
+      const sheetPartsTable = h('div', { class: 'scroll-x', style: 'margin-top:4px;' },
+        h('table', { class: 'tbl dense' },
+          h('thead', null, h('tr', null, h('th', null, '№ на карте'), h('th', null, 'Модуль'), h('th', null, 'Деталь'), h('th', { class: 'r' }, 'Длина'), h('th', { class: 'r' }, 'Ширина'), h('th', null, 'Поворот'), h('th', { class: 'r' }, 'Кромка, мм'))),
+          h('tbody', null, ...curSheet.parts.map((p, i) => h('tr', null,
+            h('td', { style: 'font-weight:700; color:var(--accent);' }, String(i + 1)),
+            h('td', null, p.row.moduleName),
+            h('td', null, p.row.name),
+            h('td', { class: 'r' }, String(p.w)),
+            h('td', { class: 'r' }, String(p.h)),
+            h('td', null, p.rotated ? '90°' : '0°'),
+            h('td', { class: 'r' }, String(Math.round(p.row.edgeMm))),
+          ))),
+        ),
+      );
+
+      container.append(
+        statsBar,
+        sheetPills,
+        h('p', { class: 'hint' }, `Опил по периметру: ${format.margin} мм · Толщина пилы: ${format.kerf} мм · Синий пунктир: кромление.`),
+        svgBox,
+        sheetPartsTable,
+      );
+    }
+  };
+
+  renderContent();
+  d.body.append(container);
 
   d.foot.append(
-    btn('Скачать CSV', 'primary', () => downloadBlob(new Blob([cutListCsv(rows)], { type: 'text/csv;charset=utf-8' }), `${fileName(store.project.name)}-detalirovka.csv`), 'download'),
-    btn('Печать / PDF', 'ghost', () => { d.close(); printDoc('cut', store, est, viewer); }, 'printer'));
+    btn('Скачать CSV для распила', 'primary', () => downloadBlob(new Blob([cutListCsv(rows)], { type: 'text/csv;charset=utf-8' }), `${fileName(store.project.name)}-detalirovka.csv`), 'download'),
+    btn('Печать / Экспорт PDF', 'ghost', () => { d.close(); printDoc('cut', store, est, viewer); }, 'printer'),
+  );
 }
 
 // ——— сборочный чертёж и карта присадки ———
@@ -444,6 +562,7 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
   let plinthColor: 'facade' | 'corpus' = 'facade';
   let millingMix: 'trend' | 'modern' | 'frame' | 'ribbed' = 'trend';
   let layoutVariant = 0; // 0: пенал слева, 1: пенал справа, 2: без пенала
+  let shape: 'linear' | 'corner-left' = 'linear';
 
   const container = h('div', { class: 'wizard-body', style: 'display:flex; flex-direction:column; gap:16px;' });
 
@@ -569,7 +688,22 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
       ),
     );
 
-    container.append(desc, wallLenWrap, tiersWrap, millingWrap, matsWrap, layoutWrap);
+    // Форма гарнитура
+    const shapeWrap = h('div', { class: 'grp' },
+      h('h3', null, '6. Форма гарнитура'),
+      h('div', { class: 'btn-bar' },
+        h('button', {
+          class: `btn sm ${shape === 'linear' ? 'primary' : 'ghost'}`,
+          onClick: () => { shape = 'linear'; renderContent(); },
+        }, 'Прямая (вдоль стены)'),
+        h('button', {
+          class: `btn sm ${shape === 'corner-left' ? 'primary' : 'ghost'}`,
+          onClick: () => { shape = 'corner-left'; renderContent(); },
+        }, 'Угловая (Г-образная, угол слева 900×900)'),
+      ),
+    );
+
+    container.append(desc, wallLenWrap, shapeWrap, tiersWrap, millingWrap, matsWrap, layoutWrap);
   };
 
   renderContent();
@@ -585,6 +719,7 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
       plinthColor,
       millingMix,
       layoutVariant,
+      shape,
     }, room);
 
     if (!modules.length) {

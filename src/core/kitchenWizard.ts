@@ -10,7 +10,8 @@ export interface KitchenWizardOptions {
   topMat: string;     // id столешницы
   plinthColor: 'facade' | 'corpus';
   millingMix: 'trend' | 'modern' | 'frame' | 'ribbed'; // 'trend' = внизу рамка, вверху модерн, антресоль рифлёная
-  layoutVariant: number; // 0: пенал слева, 1: пенал справа, 2: без пенала
+  layoutVariant: number; // 0: пенал слева (при прямой) / справа (при угловой), 1: пенал справа, 2: без пенала
+  shape?: 'linear' | 'corner-left'; // Форма гарнитура: Прямая или Угловая Г-образная
 }
 
 export interface KitchenPlan {
@@ -113,13 +114,137 @@ export function planKitchen(opts: KitchenWizardOptions, room?: RoomConfig): Kitc
     matFacade: facadeMat, matBack: 'b-white', matTop: topMat,
   };
 
-  // Пенал: у начала первого участка (вариант 0) или у конца последнего (вариант 1)
+  const isCorner = opts.shape === 'corner-left';
+  if (isCorner) {
+    if (room && room.d < 1100) {
+      notes.push('Глубина комнаты меньше 1100 мм: угловой модуль выступает на 900 мм.');
+    }
+    const leftDoor = room?.doors.find((d) => d.wall === 'left' && d.x < 950);
+    if (leftDoor) {
+      notes.push('Дверь на левой стене рядом с углом может блокироваться шкафом.');
+    }
+  }
+
+  // Пенал: у начала первого участка (вариант 0 при прямой) или у конца последнего (вариант 1)
   const work: Seg[] = segs.map((s) => ({ ...s }));
+
+  if (isCorner) {
+    const s0 = work[0];
+    if (s0 && s0.x1 - s0.x0 >= 1500) {
+      const cx = s0.x0;
+      modules.push({
+        ...common,
+        id: uid(),
+        name: 'Угловой нижний шкаф (900×900)',
+        kind: 'corner',
+        x: cx,
+        w: 900,
+        h: BASE_H,
+        d: 560,
+        plinth: 100,
+        lift: 0,
+        sections: [sec({ shelves: 1, door: true })],
+        doorMode: 'hinged',
+        drawerH: 200,
+        handles: true,
+        countertop: true,
+        milling: bottomMilling,
+        plinthColor,
+      });
+
+      if (wallsOk) {
+        if (!hitsWindow(cx, cx + 600, WALL_LIFT, WALL_LIFT + upperH)) {
+          modules.push({
+            id: uid(),
+            name: 'Угловой верхний шкаф (600×600)',
+            kind: 'cornerWall',
+            x: cx,
+            w: 600,
+            h: upperH,
+            d: 320,
+            plinth: 0,
+            lift: WALL_LIFT,
+            sections: [sec({ shelves: 2, door: true })],
+            doorMode: 'hinged',
+            handles: true,
+            countertop: false,
+            milling: upperMilling,
+            ...common,
+          });
+        }
+        if (!hitsWindow(cx + 600, cx + 900, WALL_LIFT, WALL_LIFT + upperH)) {
+          modules.push({
+            id: uid(),
+            name: 'Верхний шкаф 300 мм',
+            kind: 'wall',
+            x: cx + 600,
+            w: 300,
+            h: upperH,
+            d: 320,
+            plinth: 0,
+            lift: WALL_LIFT,
+            sections: [sec({ shelves: 2, door: true })],
+            doorMode: 'hinged',
+            handles: true,
+            countertop: false,
+            milling: upperMilling,
+            ...common,
+          });
+        }
+      }
+
+      if (useMezz) {
+        if (!hitsWindow(cx, cx + 600, mezzLift, topY)) {
+          modules.push({
+            id: uid(),
+            name: 'Антресоль над углом (push-to-open)',
+            kind: 'wall',
+            x: cx,
+            w: 600,
+            h: mezzH,
+            d: 560,
+            plinth: 0,
+            lift: mezzLift,
+            sections: [sec({ shelves: 0, door: true })],
+            doorMode: 'hinged',
+            handles: false,
+            countertop: false,
+            milling: mezzMilling,
+            ...common,
+          });
+        }
+        if (!hitsWindow(cx + 600, cx + 900, mezzLift, topY)) {
+          modules.push({
+            id: uid(),
+            name: 'Антресоль 300 мм (push-to-open)',
+            kind: 'wall',
+            x: cx + 600,
+            w: 300,
+            h: mezzH,
+            d: 560,
+            plinth: 0,
+            lift: mezzLift,
+            sections: [sec({ shelves: 0, door: true })],
+            doorMode: 'hinged',
+            handles: false,
+            countertop: false,
+            milling: mezzMilling,
+            ...common,
+          });
+        }
+      }
+
+      s0.x0 += 900;
+    } else {
+      notes.push('Длины стены недостаточно для углового шкафа (требуется от 1500 мм), построена прямая кухня.');
+    }
+  }
+
   if (layoutVariant !== 2) {
-    const idx = layoutVariant === 0 ? 0 : work.length - 1;
+    const atLeft = !isCorner && layoutVariant === 0;
+    const idx = atLeft ? 0 : work.length - 1;
     const s = work[idx];
-    if (s.x1 - s.x0 >= 2200) {
-      const atLeft = layoutVariant === 0;
+    if (s && s.x1 - s.x0 >= (isCorner ? 1200 : 2200)) {
       const tx = atLeft ? s.x0 : s.x1 - TALL_W;
       if (hitsWindow(tx, tx + TALL_W, 0, tallH)) {
         notes.push('Пенал не поставлен: на этом месте окно.');

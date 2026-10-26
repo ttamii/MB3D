@@ -159,5 +159,61 @@ group('Мастер кухни в комнате: окна, двери, пото
   }
 }
 
+// 6. Угловая кухня
+group('Мастер кухни: угловая кухня (Г-образная)');
+for (const len of [2400, 3000, 3600]) for (const variant of [0, 1, 2]) for (const tiers of [2, 3] as const) {
+  const tag = `Corner L=${len} v=${variant} t=${tiers}`;
+  const mods = generateKitchenLayout({
+    wallLength: len, tiers, facadeMat: 'm-ral1015', corpusMat: 'eg-w1000', topMat: 'top-f812',
+    plinthColor: 'facade', millingMix: 'trend', layoutVariant: variant, shape: 'corner-left',
+  });
+  const cornerBase = mods.find((m) => m.kind === 'corner');
+  ok(!!cornerBase && cornerBase.x === 0 && cornerBase.w === 900, `${tag}: угловой нижний шкаф 900мм отсутствует в x=0`);
+  const cornerUpper = mods.find((m) => m.kind === 'cornerWall');
+  ok(!!cornerUpper && cornerUpper.x === 0 && cornerUpper.w === 600, `${tag}: угловой верхний шкаф 600мм отсутствует в x=0`);
+  const upper300 = mods.find((m) => m.kind === 'wall' && m.x === 600 && m.w === 300 && m.lift === 1450);
+  ok(!!upper300, `${tag}: вставка 300мм на x=600 отсутствует`);
+
+  // Проверяем наложения между модулями
+  for (let i = 0; i < mods.length; i++) for (let j = i + 1; j < mods.length; j++) {
+    const a = mods[i], b = mods[j];
+    const overlap = a.x < b.x + b.w - 1 && a.x + a.w > b.x + 1 && a.lift < b.lift + b.h - 1 && a.lift + a.h > b.lift + 1;
+    ok(!overlap, `${tag}: ${a.name} пересекается с ${b.name}`);
+  }
+}
+
+// 7. Карты раскроя (Базис-Раскрой)
+group('Карты раскроя (Базис-Раскрой): 2D-гильотинная укладка');
+{
+  const testMods = generateKitchenLayout({
+    wallLength: 3000, tiers: 3, facadeMat: 'm-ral1015', corpusMat: 'eg-w1000', topMat: 'top-f812',
+    plinthColor: 'facade', millingMix: 'trend', layoutVariant: 1,
+  });
+  const est = estimate(testMods, DEFAULT_SETTINGS);
+  ok(est.cut.length > 0, 'деталировка пуста');
+
+  const { computeNesting, renderSheetSvg, DEFAULT_SHEET_FORMATS } = await import('../src/core/nesting');
+  for (const fmt of DEFAULT_SHEET_FORMATS) {
+    const res = computeNesting(est.cut, mats, fmt);
+    ok(res.totalSheets > 0, `${fmt.name}: листов 0`);
+    ok(res.totalPartsCount > 0, `${fmt.name}: деталей 0`);
+    ok(res.overallEfficiencyPercent > 50 && res.overallEfficiencyPercent <= 100, `${fmt.name}: КУМ некорректен ${res.overallEfficiencyPercent}%`);
+
+    res.sheets.forEach((sheet) => {
+      ok(sheet.parts.length > 0, `Лист ${sheet.sheetIndex}: нет деталей`);
+      ok(sheet.efficiencyPercent > 0 && sheet.efficiencyPercent <= 100, `Лист ${sheet.sheetIndex}: КУМ ${sheet.efficiencyPercent}%`);
+      const svg = renderSheetSvg(sheet);
+      ok(svg.includes('<svg') && svg.includes('</svg>'), `Лист ${sheet.sheetIndex}: SVG не сформирован`);
+
+      sheet.parts.forEach((p) => {
+        ok(p.x >= fmt.margin, `${p.row.name}: x < margin (${p.x})`);
+        ok(p.y >= fmt.margin, `${p.row.name}: y < margin (${p.y})`);
+        ok(p.x + p.w <= fmt.w - fmt.margin + 0.1, `${p.row.name}: x+w > sheetW`);
+        ok(p.y + p.h <= fmt.h - fmt.margin + 0.1, `${p.row.name}: y+h > sheetH`);
+      });
+    });
+  }
+}
+
 console.log(failed ? `\n${failed} проверок не пройдено` : '\nВсе проверки пройдены');
 process.exit(failed ? 1 : 0);
