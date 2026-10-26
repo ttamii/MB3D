@@ -287,6 +287,13 @@ export function renderSidePanelDrillingSvg(side: SidePanelDrilling): string {
       return `
         <circle cx="${cx}" cy="${cy}" r="2.5" fill="#bae6fd" stroke="#0284c7" stroke-width="1.2" />
       `;
+    } else if (hole.type === 'drawer-rail') {
+      return `
+        <g class="hole-rail">
+          <circle cx="${cx}" cy="${cy}" r="3" fill="#a7f3d0" stroke="#059669" stroke-width="1.4" />
+          <line x1="${cx - 2}" y1="${cy}" x2="${cx + 2}" y2="${cy}" stroke="#059669" stroke-width="0.9" />
+        </g>
+      `;
     }
     return `<circle cx="${cx}" cy="${cy}" r="2" fill="#64748b" />`;
   }).join('');
@@ -304,15 +311,18 @@ export function renderSidePanelDrillingSvg(side: SidePanelDrilling): string {
       ${holesSvg}
 
       <!-- Легенда обозначений отверстий -->
-      <g transform="translate(${margin}, ${H - 26})">
+      <g transform="translate(${margin - 10}, ${H - 26})">
         <circle cx="0" cy="0" r="4" fill="#fef08a" stroke="#ca8a04" stroke-width="1.4" />
         <text x="8" y="3.5" font-family="Inter, sans-serif" font-size="9" fill="#334155">Конфирмат 7×50</text>
 
-        <circle cx="110" cy="0" r="3" fill="#fbcfe8" stroke="#db2777" stroke-width="1.2" />
-        <text x="118" y="3.5" font-family="Inter, sans-serif" font-size="9" fill="#334155">Планка петли Ø5</text>
+        <circle cx="95" cy="0" r="3" fill="#fbcfe8" stroke="#db2777" stroke-width="1.2" />
+        <text x="103" y="3.5" font-family="Inter, sans-serif" font-size="9" fill="#334155">Планка петли Ø5</text>
 
-        <circle cx="220" cy="0" r="2.5" fill="#bae6fd" stroke="#0284c7" stroke-width="1" />
-        <text x="228" y="3.5" font-family="Inter, sans-serif" font-size="9" fill="#334155">Полкодержатель Ø5</text>
+        <circle cx="195" cy="0" r="2.5" fill="#bae6fd" stroke="#0284c7" stroke-width="1" />
+        <text x="203" y="3.5" font-family="Inter, sans-serif" font-size="9" fill="#334155">Полкодержатель Ø5</text>
+
+        <circle cx="300" cy="0" r="3" fill="#a7f3d0" stroke="#059669" stroke-width="1.2" />
+        <text x="308" y="3.5" font-family="Inter, sans-serif" font-size="9" fill="#334155">Направляющие Ø5</text>
       </g>
 
       <!-- Габариты -->

@@ -328,9 +328,41 @@ export function blueprintDialog(store: Store, viewer: Viewer): void {
         sBox.innerHTML = renderSidePanelDrillingSvg(side);
         sidesWrap.append(sBox);
       });
+
+      const tablesWrap = h('div', { style: 'margin-top:16px; display:flex; flex-direction:column; gap:16px;' });
+      drilling.sides.forEach((side) => {
+        if (!side.holes.length) return;
+        const rows = side.holes.map((hole, hIdx) => {
+          let drillLabel = `Ø${hole.diam} мм`;
+          if (hole.depth) drillLabel += ` (гл. ${hole.depth} мм)`;
+          return h('tr', null,
+            h('td', { class: 'r', style: 'font-weight:700;' }, String(hIdx + 1)),
+            h('td', null, hole.desc),
+            h('td', { class: 'r', style: 'font-weight:600; color:#0284c7;' }, drillLabel),
+            h('td', { class: 'r' }, `${hole.x} мм`),
+            h('td', { class: 'r' }, `${hole.y} мм`),
+          );
+        });
+        const tableBox = h('div', { class: 'scroll-x' },
+          h('div', { style: 'font-weight:700; font-size:12px; margin-bottom:4px; color:#1e293b;' }, `Координатная карта присадки: ${side.name}`),
+          h('table', { class: 'tbl dense' },
+            h('thead', null, h('tr', null,
+              h('th', { class: 'r' }, '№'),
+              h('th', null, 'Крепёж / Фурнитура'),
+              h('th', { class: 'r' }, 'Сверло / Глубина'),
+              h('th', { class: 'r' }, 'Отступ X (сзади)'),
+              h('th', { class: 'r' }, 'Отступ Y (снизу)'),
+            )),
+            h('tbody', null, ...rows),
+          ),
+        );
+        tablesWrap.append(tableBox);
+      });
+
       container.append(
-        h('p', { class: 'hint' }, 'Сверловка боковин: отверстия под евровинты-конфирматы 7×50, ответные планки петель (37 мм от кромки) и полкодержатели Ø5 мм.'),
+        h('p', { class: 'hint' }, 'Сверловка боковин: точные координаты центров отверстий под евровинты-конфирматы 7×50, ответные планки петель (37 мм от кромки, шаг 32 мм), полкодержатели и направляющие ящиков.'),
         sidesWrap,
+        tablesWrap,
       );
     }
   };

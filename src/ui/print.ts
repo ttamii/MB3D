@@ -140,6 +140,37 @@ export function printDoc(kind: PrintKind, store: Store, est: Estimate, viewer: V
           sidesWrap.append(sBox);
         });
         page3.append(sidesWrap);
+
+        const tablesWrap = h('div', { style: 'margin-top:14px; display:flex; flex-direction:column; gap:12px;' });
+        drilling.sides.forEach((side) => {
+          if (!side.holes.length) return;
+          const rows = side.holes.map((hole, hIdx) => {
+            let drillLabel = `Ø${hole.diam} мм`;
+            if (hole.depth) drillLabel += ` (гл. ${hole.depth} мм)`;
+            return h('tr', null,
+              h('td', { class: 'r', style: 'font-weight:700;' }, String(hIdx + 1)),
+              h('td', null, hole.desc),
+              h('td', { class: 'r', style: 'font-weight:600;' }, drillLabel),
+              h('td', { class: 'r' }, `${hole.x} мм`),
+              h('td', { class: 'r' }, `${hole.y} мм`),
+            );
+          });
+          const tableBox = h('div', null,
+            h('div', { style: 'font-weight:700; font-size:10pt; margin-bottom:4px; color:#1e293b;' }, `Координатная таблица: ${side.name}`),
+            h('table', { class: 'pr-t dense' },
+              h('thead', null, h('tr', null,
+                h('th', { class: 'r' }, '№'),
+                h('th', null, 'Крепёж / Фурнитура'),
+                h('th', { class: 'r' }, 'Сверло / Глубина'),
+                h('th', { class: 'r' }, 'X (сзади)'),
+                h('th', { class: 'r' }, 'Y (снизу)'),
+              )),
+              h('tbody', null, ...rows),
+            ),
+          );
+          tablesWrap.append(tableBox);
+        });
+        page3.append(tablesWrap);
         root.append(page3);
       }
     });
