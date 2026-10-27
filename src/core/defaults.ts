@@ -231,9 +231,10 @@ const tvZone = (): Module[] => [
 ];
 
 export const PRESET_GROUPS: PresetGroup[] = [
-  { id: 'kitchen', label: 'Кухня', ids: ['base', 'base-drawers', 'sink', 'oven', 'cargo', 'filler', 'wall', 'dish-dryer', 'mezzanine', 'corner', 'cornerWall', 'tall'] },
+  { id: 'kitchen', label: 'Кухня', ids: ['base', 'base-drawers', 'sink', 'oven', 'cargo', 'filler', 'filler-wall', 'wall', 'dish-dryer', 'mezzanine', 'corner', 'cornerWall', 'tall'] },
   { id: 'living', label: 'Гостиная и ТВ-зона', ids: ['tv-zone', 'tv-stand', 'tv-hanging', 'bookcase', 'dresser'] },
-  { id: 'storage', label: 'Шкафы и прихожая', ids: ['wardrobe-sliding', 'wardrobe-hinged', 'hall-wardrobe', 'shoe', 'bedside'] },
+  { id: 'storage', label: 'Шкафы и прихожая', ids: ['wardrobe-sliding', 'wardrobe-hinged', 'hall-wardrobe', 'filler-tall', 'shoe', 'bedside'] },
+  { id: 'fillers', label: 'Доборные планки (к стене / углу)', ids: ['filler', 'filler-wall', 'filler-tall', 'filler-corner'] },
 ];
 
 export const PRESETS: Preset[] = [
@@ -402,10 +403,40 @@ export const PRESETS: Preset[] = [
   },
   {
     id: 'filler',
-    label: 'Фальшпанель (добор)',
-    hint: '50 × 820, планка к стене',
+    label: 'Фальшпланка нижняя (добор 50 мм)',
+    hint: '50 × 820, для открывания дверей у стены',
     make: () =>
-      base('base', 'Фальшпланка к стене', {
+      base('base', 'Фальшпланка нижняя', {
+        w: 50, h: 820, d: 560, plinth: 100, countertop: true, doorMode: 'none', handles: false,
+        sections: [sec({ door: false })],
+      }),
+  },
+  {
+    id: 'filler-wall',
+    label: 'Фальшпланка навесная (добор 50 мм)',
+    hint: '50 × 720, для верхних шкафов к стене',
+    make: () =>
+      base('wall', 'Фальшпланка навесная', {
+        w: 50, h: 720, d: 320, lift: 1420, doorMode: 'none', handles: false,
+        sections: [sec({ door: false })],
+      }),
+  },
+  {
+    id: 'filler-tall',
+    label: 'Фальшпланка шкафа/пенала (добор 50 мм)',
+    hint: '50 × 2200, для шкафов и пеналов у стены',
+    make: () =>
+      base('tall', 'Фальшпланка шкафа', {
+        w: 50, h: 2200, d: 560, plinth: 100, doorMode: 'none', handles: false,
+        sections: [sec({ door: false })],
+      }),
+  },
+  {
+    id: 'filler-corner',
+    label: 'Угловой добор 90° (50 × 50 мм)',
+    hint: '50 × 820, для зазора дверей в углу кухни',
+    make: () =>
+      base('base', 'Угловой добор 90°', {
         w: 50, h: 820, d: 560, plinth: 100, countertop: true, doorMode: 'none', handles: false,
         sections: [sec({ door: false })],
       }),

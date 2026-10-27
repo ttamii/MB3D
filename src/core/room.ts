@@ -32,9 +32,7 @@ export const DEFAULT_ROOM: RoomConfig = {
   d: 3000,
   h: 2700,
   wallThickness: 150,
-  windows: [
-    { id: 'w1', wall: 'back', x: 1250, w: 1200, h: 1400, lift: 900 },
-  ],
+  windows: [],
   doors: [
     { id: 'd1', wall: 'left', x: 743, w: 800, h: 2100, swing: 'in' },
   ],

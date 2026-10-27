@@ -76,40 +76,26 @@ async function boot(): Promise<void> {
   const undoBtn = h('button', { type: 'button', class: 'ib tb', title: 'Отменить (Ctrl+Z)', 'aria-label': 'Отменить', onClick: () => store.undo() }, icon('undo'));
   const redoBtn = h('button', { type: 'button', class: 'ib tb', title: 'Повторить (Ctrl+Y)', 'aria-label': 'Повторить', onClick: () => store.redo() }, icon('redo'));
   const act = (label: string, ic: string, on: () => void, cls = '') =>
-    h('button', { type: 'button', class: 'btn ghost tool ' + cls, onClick: on }, icon(ic, 17), h('span', null, label));
+    h('button', { type: 'button', class: 'btn ghost tool ' + cls, title: label, onClick: on }, icon(ic, 17), h('span', null, label));
+
+  const newProjBtn = h('button', {
+    type: 'button',
+    class: 'btn ghost tool new-proj-btn',
+    title: 'Начать новый чистый проект',
+    onClick: () => {
+      if (confirm('Начать новый проект? Несохраненные изменения текущего проекта будут очищены.')) {
+        store.commit((p) => {
+          p.modules = [];
+          p.name = 'Новый проект';
+          p.room = { ...DEFAULT_ROOM, windows: [] };
+        }, 'new-project');
+        toast('Создан новый чистый проект');
+      }
+    },
+  }, icon('plus', 16), h('span', null, 'Новый'));
 
   const actions = $('actions');
-  if (!store.readOnly) {
-    actions.append(
-      undoBtn, redoBtn, h('span', { class: 'sep' }),
-      act('Стены', 'grid', () => {
-        const mode = viewer.toggleWallMode();
-        toast(mode === 'solid' ? 'Стены: 3D-модель (срезы)' : mode === 'ghost' ? 'Стены: Прозрачные (Ghost)' : 'Стены: Скрыты');
-      }),
-      act('План комнаты', 'layers', () => roomDialog(store, viewer)),
-      h('span', { class: 'sep' }),
-      act('AI Конструктор', 'wand', () => aiConstructorDialog(store, viewer), 'accent'),
-      act('Мастер кухни', 'wand', () => kitchenWizardDialog(store, viewer)),
-      h('span', { class: 'sep' }),
-      act('Чертёж', 'blueprint', () => blueprintDialog(store, viewer)),
-      act('Раскрой', 'list', () => cutDialog(store, est, viewer)),
-      act('Смета', 'calc', () => estimateDialog(store, est, viewer)),
-      h('span', { class: 'sep' }),
-      act('Рендер', 'camera', () => renderDialog(store, viewer)),
-      act('AR', 'cube', () => arDialog(store, viewer)),
-      act('Проекты', 'folder', () => projectsDialog(store, () => {})),
-      act('Поделиться', 'link', () => shareDialog(store)),
-      h('span', { class: 'sep' }),
-      h('button', { type: 'button', class: 'ib tb', title: 'Настройки цен', 'aria-label': 'Настройки', onClick: () => settingsDialog(store) }, icon('sliders')),
-      h('button', { type: 'button', class: 'ib tb', title: 'Справка', 'aria-label': 'Справка', onClick: () => helpDialog() }, icon('info')));
-  } else {
-    actions.append(act('Посмотреть в AR', 'cube', () => arDialog(store, viewer), 'accent'));
-    if (company?.phone) {
-      const tel = company.phone.replace(/[^\d+]/g, '');
-      actions.append(h('a', { class: 'btn primary tool', href: `tel:${tel}` }, `Позвонить: ${company.phone}`));
-    }
-    nameEl.readOnly = true;
-  }
+  let topXrayBtn: HTMLElement | null = null;
 
   // панель видов
   const views: [ViewName, string][] = [['iso', '3D'], ['front', 'Спереди'], ['top', 'Сверху'], ['side', 'Сбоку']];
@@ -138,9 +124,69 @@ async function boot(): Promise<void> {
       dimBtn.setAttribute('aria-pressed', String(active));
       dimBtn.classList.toggle('on', active);
     },
-  }, icon('blueprint', 16), h('span', null, 'Размеры 3D'));
+  }, icon('blueprint', 16), h('span', null, 'Размеры'));
 
-  vt.append(...views.map(([v, t]) => h('button', { type: 'button', class: 'vt-b', onClick: () => viewer.frame(v) }, t)), dimBtn, openBtn);
+  const xrayBtn = h('button', {
+    type: 'button',
+    class: 'vt-b xray',
+    'aria-pressed': 'false',
+    title: 'Рентген (X-Ray): показать все шурупы, конфирматы и присадку сквозь прозрачные панели (горячая клавиша X)',
+    onClick: () => {
+      const on = viewer.toggleXray();
+      xrayBtn.setAttribute('aria-pressed', String(on));
+      xrayBtn.classList.toggle('on', on);
+      if (topXrayBtn) {
+        topXrayBtn.setAttribute('aria-pressed', String(on));
+        topXrayBtn.classList.toggle('on', on);
+      }
+      toast(on ? 'Рентген: шурупы и присадка включены' : 'Рентген: выключен');
+    },
+  }, icon('layers', 16), h('span', null, 'Рентген (шурупы)'));
+
+  topXrayBtn = act('Рентген', 'layers', () => xrayBtn.click(), 'xray-tool-btn');
+
+  if (!store.readOnly) {
+    actions.append(
+      newProjBtn,
+      undoBtn, redoBtn, h('span', { class: 'sep' }),
+      act('Стены', 'grid', () => {
+        const mode = viewer.toggleWallMode();
+        toast(mode === 'solid' ? 'Стены: 3D-модель (срезы)' : mode === 'ghost' ? 'Стены: Прозрачные (Ghost)' : 'Стены: Скрыты');
+      }),
+      act('План', 'layers', () => roomDialog(store, viewer)),
+      topXrayBtn,
+      h('span', { class: 'sep' }),
+      act('AI Конструктор', 'wand', () => aiConstructorDialog(store, viewer), 'accent keep-label'),
+      act('Мастер кухни', 'wand', () => kitchenWizardDialog(store, viewer), 'keep-label'),
+      h('span', { class: 'sep' }),
+      act('Смета', 'calc', () => estimateDialog(store, est, viewer), 'keep-label'),
+      act('Раскрой', 'list', () => cutDialog(store, est, viewer), 'keep-label'),
+      act('Чертёж', 'blueprint', () => blueprintDialog(store, viewer), 'keep-label'),
+      h('span', { class: 'sep' }),
+      act('Рендер', 'camera', () => renderDialog(store, viewer)),
+      act('AR', 'cube', () => arDialog(store, viewer)),
+      act('Проекты', 'folder', () => projectsDialog(store, () => {})),
+      act('Поделиться', 'link', () => shareDialog(store)),
+      h('span', { class: 'sep' }),
+      h('button', { type: 'button', class: 'ib tb', title: 'Настройки цен', 'aria-label': 'Настройки', onClick: () => settingsDialog(store) }, icon('sliders')),
+      h('button', { type: 'button', class: 'ib tb', title: 'Справка', 'aria-label': 'Справка', onClick: () => helpDialog() }, icon('info')));
+  } else {
+    actions.append(act('Посмотреть в AR', 'cube', () => arDialog(store, viewer), 'accent'));
+    if (company?.phone) {
+      const tel = company.phone.replace(/[^\d+]/g, '');
+      actions.append(h('a', { class: 'btn primary tool', href: `tel:${tel}` }, `Позвонить: ${company.phone}`));
+    }
+    nameEl.readOnly = true;
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (e.key === 'x' || e.key === 'X' || e.key === 'ч' || e.key === 'Ч') {
+      xrayBtn.click();
+    }
+  });
+
+  vt.append(...views.map(([v, t]) => h('button', { type: 'button', class: 'vt-b', onClick: () => viewer.frame(v) }, t)), dimBtn, openBtn, xrayBtn);
 
   const refreshChrome = () => {
     undoBtn.disabled = !store.canUndo();

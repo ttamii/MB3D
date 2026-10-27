@@ -26,6 +26,7 @@ function csp(): Plugin {
 }
 
 export default defineConfig({
+  base: './',
   plugins: [csp()],
   build: {
     target: 'es2022',

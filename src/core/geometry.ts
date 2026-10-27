@@ -86,7 +86,62 @@ function frontDoor(
   }
 
   b.add('hinge', hingesFor(dh));
+  doorHinges(b, anim, x0, x1, y0, y1, hinge, D);
   doorHandle(b, m, anim, x0, x1, y0, y1, hinge, D + FACADE_T);
+}
+
+/** Четырехшарнирные мебельные петли (Blum/Hettich) с монтажными планками, плечом и чашкой Ø35. */
+function doorHinges(
+  b: Builder, anim: PartAnim, x0: number, x1: number, y0: number, y1: number,
+  hinge: 'left' | 'right', D: number,
+): void {
+  const dh = y1 - y0;
+  const numHinges = hingesFor(dh);
+  const topBottom = 100;
+  const isL = hinge === 'left';
+  const step = numHinges > 1 ? (dh - 2 * topBottom) / (numHinges - 1) : 0;
+  for (let hIdx = 0; hIdx < numHinges; hIdx++) {
+    const yCenter = Math.round(y0 + topBottom + hIdx * step);
+
+    // 1. Неподвижная часть на боковине корпуса (монтажная планка + плечо петли с регулировочными винтами)
+    const xPlate = isL ? x0 : x1 - 3;
+    const yPlate = yCenter - 20;
+    const zPlate = D - 45;
+    b.decor('Петля: монтажная планка', 'metal', [xPlate, yPlate, zPlate], [3, 40, 16]);
+
+    // Винты монтажной планки (2 евровинта)
+    b.decor('Петля: винт планки', 'metal', [xPlate - (isL ? 0.5 : -0.5), yCenter + 14, zPlate + 6], [1.5, 4, 4]);
+    b.decor('Петля: винт планки', 'metal', [xPlate - (isL ? 0.5 : -0.5), yCenter - 14, zPlate + 6], [1.5, 4, 4]);
+
+    // Корпус (плечо) петли, защелкнутый на планку и идущий вперед
+    const xArm = isL ? x0 + 1 : x1 - 13;
+    const yArm = yCenter - 6;
+    const zArm = D - 37;
+    b.decor('Петля: плечо', 'metal', [xArm, yArm, zArm], [12, 12, 35]);
+
+    // Регулировочный винт наложения и винт фиксации
+    b.decor('Петля: винт регулировки', 'metal', [xArm + 2, yCenter + 6, zArm + 8], [8, 1.5, 5]);
+    b.decor('Петля: винт фиксации', 'metal', [xArm + 2, yCenter + 6, zArm + 22], [8, 1.5, 5]);
+
+    // 2. Подвижная часть на фасаде (поворачивается вместе со створкой!)
+    // Чашка петли Ø35 мм, утопленная в фасад
+    const xCup = isL ? x0 + 5 : x1 - 35 - 5;
+    const yCup = yCenter - 17.5;
+    const zCup = D;
+    b.decor('Петля: чашка Ø35', 'metal', [xCup, yCup, zCup], [35, 35, 11.5], anim, 'cyl');
+
+    // Фланец чашки с проушинами под саморезы на внутренней стороне двери
+    const xFlange = isL ? x0 + 2 : x1 - 48 - 2;
+    const yFlange = yCenter - 8;
+    const zFlange = D - 1;
+    b.decor('Петля: фланец чашки', 'metal', [xFlange, yFlange, zFlange], [48, 16, 2], anim);
+
+    // Шарнирный рычаг, выходящий из чашки
+    const xLink = isL ? x0 : x1 - 14;
+    const yLink = yCenter - 5;
+    const zLink = D - 12;
+    b.decor('Петля: шарнир', 'metal', [xLink, yLink, zLink], [14, 10, 14], anim);
+  }
 }
 
 function pickRail(maxLen: number): number {
@@ -107,6 +162,10 @@ function rectCabinet(b: Builder, m: Module): void {
   if (isFiller) {
     b.box('Фальшпланка фасада', 'facade', [0, P + 2, D], [W, bodyH - 4, FACADE_T], 2 * (W + bodyH));
     b.box('Монтажная планка ЛДСП', 'corpus', [0, P + t, D - 80], [t, bodyH - 2 * t, 80], bodyH);
+    if (m.name.toLowerCase().includes('углов')) {
+      b.box('Фальшпланка угла (возврат)', 'facade', [W - FACADE_T, P + 2, D - W], [FACADE_T, bodyH - 4, W], 2 * (W + bodyH));
+    }
+    b.add('confirmat', 4);
     if (P > 0) {
       const plinthMat: PartMat = m.plinthColor === 'facade' ? 'facade' : 'corpus';
       b.box('Цоколь', plinthMat, [0, 0, D - 50 - 16], [W, P, 16], W);

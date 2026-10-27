@@ -1,6 +1,7 @@
 import type { Module, Project, Settings } from '../core/types';
 import { defaultProject, PRESETS, isWall } from '../core/defaults';
 import { buildModule } from '../core/geometry';
+import { modulesOverlapY } from '../core/collision';
 import { loadCurrent, loadSettings, saveCurrent, saveSettings } from '../core/storage';
 import { normalizeModule, normalizeProject, normalizeSettings } from '../core/validate';
 import { debounce, uid } from '../core/util';
@@ -28,6 +29,9 @@ export class Store {
     this.settings = loadSettings();
     this.project = loadCurrent(this.settings) ?? defaultProject();
     if (!this.project.modules.length) this.project = defaultProject();
+    if (this.project.room?.windows?.some((w) => w.id === 'w1')) {
+      this.project.room.windows = this.project.room.windows.filter((w) => w.id !== 'w1');
+    }
     this.selectedId = this.project.modules[0]?.id ?? null;
   }
 
@@ -144,8 +148,14 @@ export class Store {
     const copy: Module = structuredClone(src);
     copy.id = uid();
     copy.name = src.name + ' (копия)';
-    copy.x = src.x + buildModule(src).width;
+    const copyW = buildModule(src).width;
+    copy.x = src.x + copyW;
     this.commit((p) => {
+      for (const other of p.modules) {
+        if (other.id !== src.id && modulesOverlapY(other, copy) && other.x >= copy.x) {
+          other.x += copyW;
+        }
+      }
       const i = p.modules.findIndex((m) => m.id === id);
       p.modules.splice(i + 1, 0, copy);
     });

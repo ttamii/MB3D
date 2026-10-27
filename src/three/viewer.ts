@@ -8,7 +8,9 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { buildModule } from '../core/geometry';
-import type { RoomConfig } from '../core/room';
+import { computeModuleDrilling } from '../core/drilling';
+import { preventDragCollision } from '../core/collision';
+import type { RoomConfig, WindowItem, DoorItem } from '../core/room';
 import type { Material, Module, Part, PartAnim } from '../core/types';
 import { grainTexture, stoneTexture } from './textures';
 
@@ -128,6 +130,18 @@ export class Viewer {
   private dimGroup = new Group();
   private showDimensions = true;
   private wallMode: 'solid' | 'ghost' | 'hidden' = 'solid';
+  private isXray = false;
+  private fastenerGroup = new Group();
+  private xrayMat = new MeshStandardMaterial({
+    color: 0x94a3b8,
+    transparent: true,
+    opacity: 0.24,
+    roughness: 0.3,
+    metalness: 0.1,
+    depthWrite: false,
+  });
+  private fastenerSteelMat = new MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.95, roughness: 0.18 });
+  private fastenerRailMat = new MeshStandardMaterial({ color: 0x64748b, metalness: 0.85, roughness: 0.25 });
 
   get room(): RoomConfig | null {
     return this.currentRoom;
@@ -147,6 +161,22 @@ export class Viewer {
     const next = this.wallMode === 'solid' ? 'ghost' : this.wallMode === 'ghost' ? 'hidden' : 'solid';
     this.setWallMode(next);
     return next;
+  }
+
+  getXray(): boolean {
+    return this.isXray;
+  }
+
+  setXray(enabled: boolean): void {
+    if (this.isXray === enabled) return;
+    this.isXray = enabled;
+    this.applyXray();
+    this.invalidate();
+  }
+
+  toggleXray(): boolean {
+    this.setXray(!this.isXray);
+    return this.isXray;
   }
 
   private currentModules: Module[] = [];
@@ -206,7 +236,7 @@ export class Viewer {
     this.floor.receiveShadow = true;
     this.wall = new Mesh(new PlaneGeometry(1, 1), new MeshStandardMaterial({ color: '#f5f3ef', roughness: 1 }));
     this.wall.receiveShadow = true;
-    this.scene.add(this.floor, this.wall, this.roomGroup, this.modules, this.dimGroup);
+    this.scene.add(this.floor, this.wall, this.roomGroup, this.modules, this.dimGroup, this.fastenerGroup);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
@@ -274,28 +304,14 @@ export class Viewer {
           const hitPt = new Vector3();
           if (this.raycaster.ray.intersectPlane(this.dragCandidate.dragPlane, hitPt)) {
             const deltaWorldX = hitPt.x - this.dragCandidate.startHitWorldX;
-            let newX = Math.round((this.dragCandidate.startModuleX + deltaWorldX / MM) / 10) * 10;
-
-            // Магнитная автостыковка (Snapping) к соседним шкафам и углам стены (в пределах 45 мм)
-            const curMod = this.currentModules.find((m) => m.id === this.dragCandidate?.moduleId);
-            if (curMod) {
-              const snapDist = 45;
-              const candidates: number[] = [0];
-              if (this.currentRoom) candidates.push(this.currentRoom.w - curMod.w);
-              for (const other of this.currentModules) {
-                if (other.id === curMod.id) continue;
-                if (Math.abs(other.lift - curMod.lift) < 80) {
-                  candidates.push(other.x + other.w); // встык справа
-                  candidates.push(other.x - curMod.w); // встык слева
-                }
-              }
-              for (const cand of candidates) {
-                if (Math.abs(newX - cand) <= snapDist) {
-                  newX = cand;
-                  break;
-                }
-              }
-            }
+            const rawX = Math.round((this.dragCandidate.startModuleX + deltaWorldX / MM) / 10) * 10;
+            const newX = preventDragCollision(
+              this.currentModules,
+              this.dragCandidate.moduleId,
+              rawX,
+              this.dragCandidate.startModuleX,
+              this.currentRoom?.w
+            );
 
             const g = this.moduleGroups.get(this.dragCandidate.moduleId);
             if (g) {
@@ -395,9 +411,11 @@ export class Viewer {
         const merged = mergeGeometries(geos, false);
         geos.forEach((x) => x.dispose());
         if (!merged) return;
-        const mesh = new Mesh(merged, mat);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
+        const meshMat = this.isXray ? this.xrayMat : mat;
+        const mesh = new Mesh(merged, meshMat);
+        mesh.userData.origMat = mat;
+        mesh.castShadow = !this.isXray;
+        mesh.receiveShadow = !this.isXray;
         mesh.userData.moduleId = m.id;
         if (animKey) {
           mesh.userData.animKey = animKey;
@@ -431,6 +449,7 @@ export class Viewer {
     this.applyOpen();
     this.setSelected(this.selectedId);
     this.updateDimensions();
+    this.applyXray();
     this.invalidate();
   }
 
@@ -643,6 +662,113 @@ export class Viewer {
     this.pickables = [];
     this.lines = [];
     this.anims = [];
+    this.clearFasteners();
+  }
+
+  private clearFasteners(): void {
+    this.fastenerGroup.traverse((o) => {
+      if (o instanceof Mesh) o.geometry.dispose();
+    });
+    this.fastenerGroup.clear();
+  }
+
+  private applyXray(): void {
+    for (const mesh of this.pickables) {
+      if (!mesh.userData.origMat) mesh.userData.origMat = mesh.material;
+      mesh.material = this.isXray ? this.xrayMat : mesh.userData.origMat;
+      mesh.castShadow = !this.isXray;
+      mesh.receiveShadow = !this.isXray;
+    }
+    this.lineMat.color.set(this.isXray ? 0x0284c7 : 0x1b1b1f);
+    this.lineMat.opacity = this.isXray ? 0.7 : 0.3;
+    this.rebuildFasteners();
+  }
+
+  private rebuildFasteners(): void {
+    this.clearFasteners();
+    if (!this.isXray) return;
+
+    for (const m of this.currentModules) {
+      const built = buildModule(m);
+      const drilling = computeModuleDrilling(m, built.parts);
+      const modGroup = new Group();
+      modGroup.position.set(m.x * MM, m.lift * MM, 0);
+
+      const P = (m.kind === 'wall' || m.kind === 'cornerWall') ? 0 : m.plinth;
+      const t = m.t;
+
+      // 1. Боковины: конфирматы, полкодержатели, планки петель, направляющие ящиков
+      for (const side of drilling.sides) {
+        const isLeft = side.side === 'left';
+        const panelX = isLeft ? t / 2 : m.w - t / 2;
+        const inwardDir = isLeft ? 1 : -1;
+
+        for (const hole of side.holes) {
+          const holeZ = 4 + hole.x; // расстояние от задней стенки
+          const holeY = P + hole.y;
+
+          if (hole.type === 'confirmat') {
+            const screw = new Group();
+            screw.position.set(panelX * MM, holeY * MM, holeZ * MM);
+
+            // Шляпка конфирмата (Ø7 мм, толщина 2 мм)
+            const headGeo = new CylinderGeometry(0.0035, 0.0035, 0.002, 12);
+            headGeo.rotateZ(Math.PI / 2);
+            const head = new Mesh(headGeo, this.fastenerSteelMat);
+            head.position.x = -inwardDir * ((t / 2 + 1) * MM);
+            screw.add(head);
+
+            // Тело конфирмата с резьбой (Ø5 мм, длина 45 мм)
+            const shaftGeo = new CylinderGeometry(0.0025, 0.0025, 0.045, 12);
+            shaftGeo.rotateZ(Math.PI / 2);
+            const shaft = new Mesh(shaftGeo, this.fastenerSteelMat);
+            shaft.position.x = inwardDir * 0.015;
+            screw.add(shaft);
+
+            modGroup.add(screw);
+          } else if (hole.type === 'shelf-pin') {
+            // Полкодержатель Ø5 мм
+            const pinGeo = new CylinderGeometry(0.0025, 0.0025, 0.016, 10);
+            pinGeo.rotateZ(Math.PI / 2);
+            const pin = new Mesh(pinGeo, this.fastenerSteelMat);
+            pin.position.set((panelX + inwardDir * 0.008) * MM, holeY * MM, holeZ * MM);
+            modGroup.add(pin);
+          } else if (hole.type === 'drawer-rail') {
+            // Шариковая направляющая полного выдвижения
+            const railLen = Math.max(0.25, (m.d - 60) * MM);
+            const railGeo = new BoxGeometry(0.012, 0.035, railLen);
+            const rail = new Mesh(railGeo, this.fastenerRailMat);
+            rail.position.set((panelX + inwardDir * 0.006) * MM, holeY * MM, (m.d / 2) * MM);
+            modGroup.add(rail);
+          }
+        }
+      }
+
+      // 3. Вертикальные перегородки: конфирматы крепления к дну и крышке
+      if (m.sections.length > 1) {
+        let curSecX = t;
+        for (let i = 0; i < m.sections.length - 1; i++) {
+          curSecX += (m.w - (m.sections.length + 1) * t) / m.sections.length;
+          const partCenterX = curSecX + t / 2;
+          for (const zOff of [60, Math.max(80, m.d - 60)]) {
+            // Конфирмат дна
+            const bScrewGeo = new CylinderGeometry(0.0025, 0.0025, 0.045, 12);
+            const bScrew = new Mesh(bScrewGeo, this.fastenerSteelMat);
+            bScrew.position.set(partCenterX * MM, (P + t / 2) * MM, zOff * MM);
+            modGroup.add(bScrew);
+
+            // Конфирмат крышки
+            const tScrewGeo = new CylinderGeometry(0.0025, 0.0025, 0.045, 12);
+            const tScrew = new Mesh(tScrewGeo, this.fastenerSteelMat);
+            tScrew.position.set(partCenterX * MM, (m.h - t / 2) * MM, zOff * MM);
+            modGroup.add(tScrew);
+          }
+          curSecX += t;
+        }
+      }
+
+      this.fastenerGroup.add(modGroup);
+    }
   }
 
   private clearDimensions(): void {
@@ -950,10 +1076,10 @@ export class Viewer {
     };
 
     const collect = (wall: 'back' | 'left' | 'right'): Opening[] => [
-      ...room.windows.filter((w) => w.wall === wall).map((w) => ({
+      ...room.windows.filter((w: WindowItem) => w.wall === wall).map((w: WindowItem) => ({
         a0: w.x * MM, a1: (w.x + w.w) * MM, y0: w.lift * MM, y1: (w.lift + w.h) * MM, glass: true,
       })),
-      ...room.doors.filter((d) => d.wall === wall).map((d) => ({
+      ...room.doors.filter((d: DoorItem) => d.wall === wall).map((d: DoorItem) => ({
         a0: d.x * MM, a1: (d.x + d.w) * MM, y0: 0, y1: d.h * MM, glass: false,
       })),
     ];

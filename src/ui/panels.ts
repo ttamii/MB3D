@@ -3,6 +3,7 @@ import type { Estimate } from '../core/estimate';
 import { buildModule } from '../core/geometry';
 import type { DoorMode, MatKind, Module, Section } from '../core/types';
 import { fmtNum, money, uid } from '../core/util';
+import { resizeModuleCascading, shiftModuleCascading, insertFillerWithShift } from '../core/collision';
 import type { Store } from '../app/store';
 import { clear, h, icon } from './dom';
 
@@ -251,12 +252,20 @@ export function renderProps(root: HTMLElement, store: Store): void {
     );
 
     const dimsGrid = h('div', { class: 'grid2' },
-      numField(corner ? 'Сторона (ширина)' : 'Ширина', 'w', m.w, LIMITS.w, (v) => set((t) => { t.w = v; }, 'w')),
+      numField(corner ? 'Сторона (ширина)' : 'Ширина', 'w', m.w, LIMITS.w, (v) => {
+        store.commit((p) => {
+          resizeModuleCascading(p.modules, m.id, v, p.room?.w);
+        }, 'w');
+      }),
       numField('Высота', 'h', m.h, LIMITS.h, (v) => set((t) => { t.h = v; }, 'h')),
       numField(corner ? 'Глубина плеча' : 'Глубина', 'd', m.d, LIMITS.d, (v) => set((t) => { t.d = v; }, 'd')),
       wall ? numField('Высота от пола', 'lift', m.lift, LIMITS.lift, (v) => set((t) => { t.lift = v; }, 'lift'))
         : numField('Цоколь', 'plinth', m.plinth, LIMITS.plinth, (v) => set((t) => { t.plinth = v; }, 'plinth')),
-      numField('Позиция X (вдоль стены)', 'x', m.x, LIMITS.x, (v) => set((t) => { t.x = v; }, 'x')),
+      numField('Позиция X (вдоль стены)', 'x', m.x, LIMITS.x, (v) => {
+        store.commit((p) => {
+          shiftModuleCascading(p.modules, m.id, v, p.room?.w);
+        }, 'x');
+      }),
     );
 
     const snapActions = h('div', { class: 'grp', style: 'padding-top:8px;' },
@@ -266,14 +275,113 @@ export function renderProps(root: HTMLElement, store: Store): void {
           class: 'btn btn-ghost sm',
           disabled: !leftNeighbor,
           title: leftNeighbor ? `Пристыковать вплотную к "${leftNeighbor.name}" слева` : 'Нет соседа слева',
-          onClick: () => { if (leftNeighbor) set((t) => { t.x = leftNeighbor.x + leftNeighbor.w; }, 'snap'); },
+          onClick: () => {
+            if (leftNeighbor) {
+              store.commit((p) => {
+                shiftModuleCascading(p.modules, m.id, leftNeighbor.x + leftNeighbor.w, p.room?.w);
+              }, 'snap');
+            }
+          },
         }, 'Стыковать влево'),
         h('button', {
           class: 'btn btn-ghost sm',
           disabled: !rightNeighbor,
           title: rightNeighbor ? `Пристыковать вплотную к "${rightNeighbor.name}" справа` : 'Нет соседа справа',
-          onClick: () => { if (rightNeighbor) set((t) => { t.x = rightNeighbor.x - t.w; }, 'snap'); },
+          onClick: () => {
+            if (rightNeighbor) {
+              store.commit((p) => {
+                shiftModuleCascading(p.modules, m.id, rightNeighbor.x - m.w, p.room?.w);
+              }, 'snap');
+            }
+          },
         }, 'Стыковать вправо'),
+      ),
+    );
+
+    const roomW = store.project.room?.w ?? 4500;
+    const isNearLeftWall = m.x <= 25;
+    const isNearRightWall = m.x + m.w >= roomW - 25;
+
+    const makeFiller = (xPos: number): Module => ({
+      id: uid(),
+      kind: m.kind === 'wall' ? 'wall' : m.kind === 'tall' ? 'tall' : 'base',
+      name: 'Фальшпланка к стене',
+      x: xPos,
+      w: 50,
+      h: m.h,
+      d: m.d,
+      t: m.t,
+      plinth: m.plinth,
+      lift: m.lift,
+      mirror: false,
+      slidingCount: 2,
+      drawerH: 160,
+      countertop: m.countertop,
+      matCorpus: m.matCorpus,
+      matFacade: m.matFacade,
+      matBack: m.matBack,
+      matTop: m.matTop,
+      doorMode: 'none',
+      handles: false,
+      sections: [{ shelves: 0, drawers: 0, rods: 0, rod: false, door: false }],
+    });
+
+    let wallAlert: HTMLElement | null = null;
+    if (isNearLeftWall || isNearRightWall) {
+      wallAlert = h('div', {
+        class: 'wall-alert',
+        style: 'background:#fef3c7; border:1px solid #f59e0b; border-radius:8px; padding:9px 11px; font-size:12px; color:#92400e; margin-top:8px;',
+      },
+        h('div', { style: 'font-weight:700; margin-bottom:3px;' }, '⚠️ Модуль примыкает к стене:'),
+        h('div', { style: 'font-size:11.5px; opacity:0.95; line-height:1.3; margin-bottom:6px;' }, 'В реальной жизни дверь или ручка бьётся о стену при открывании. Установите фальшпланку (добор 50 мм).'),
+        h('div', { style: 'display:flex; gap:6px; flex-wrap:wrap;' },
+          isNearLeftWall ? h('button', {
+            type: 'button',
+            class: 'btn primary sm',
+            style: 'padding:4px 9px; font-size:11.5px;',
+            onClick: () => {
+              store.commit((p) => {
+                insertFillerWithShift(p.modules, 'left', m, makeFiller(0), p.room?.w);
+              }, 'add-filler');
+            },
+          }, '+ Поставить добор слева 50 мм') : null,
+          isNearRightWall ? h('button', {
+            type: 'button',
+            class: 'btn primary sm',
+            style: 'padding:4px 9px; font-size:11.5px;',
+            onClick: () => {
+              store.commit((p) => {
+                insertFillerWithShift(p.modules, 'right', m, makeFiller(0), p.room?.w);
+              }, 'add-filler');
+            },
+          }, '+ Поставить добор справа 50 мм') : null,
+        ),
+      );
+    }
+
+    const fillerActions = h('div', { class: 'grp', style: 'padding-top:8px;' },
+      h('span', { class: 'fld-l' }, 'Пристенные доборы (фальшпланки 50 мм):'),
+      h('div', { class: 'btn-bar', style: 'margin-top:4px;' },
+        h('button', {
+          type: 'button',
+          class: 'btn btn-ghost sm',
+          title: 'Вставить фальшпланку 50 мм слева от модуля',
+          onClick: () => {
+            store.commit((p) => {
+              insertFillerWithShift(p.modules, 'left', m, makeFiller(0), p.room?.w);
+            }, 'add-filler');
+          },
+        }, '+ Добор слева'),
+        h('button', {
+          type: 'button',
+          class: 'btn btn-ghost sm',
+          title: 'Вставить фальшпланку 50 мм справа от модуля',
+          onClick: () => {
+            store.commit((p) => {
+              insertFillerWithShift(p.modules, 'right', m, makeFiller(0), p.room?.w);
+            }, 'add-filler');
+          },
+        }, '+ Добор справа'),
       ),
     );
 
@@ -283,11 +391,14 @@ export function renderProps(root: HTMLElement, store: Store): void {
         segmented('Толщина ЛДСП', [[16, '16 мм'], [18, '18 мм']] as [number, string][], m.t, (v) => set((t) => { t.t = v === 18 ? 18 : 16; })),
         toggle('Зеркально (отразить по горизонтали)', 'mirror', m.mirror, (v) => set((t) => { t.mirror = v; })),
         snapActions,
+        fillerActions,
       ),
     );
-    if (m.t !== 16 || m.mirror) advanced.setAttribute('open', '');
+    if (m.t !== 16 || m.mirror || isNearLeftWall || isNearRightWall) advanced.setAttribute('open', '');
 
-    contentArea.append(nameField, dimsGrid, advanced);
+    contentArea.append(nameField, dimsGrid);
+    if (wallAlert) contentArea.append(wallAlert);
+    contentArea.append(advanced);
 
   } else if (activePropTab === 'secs') {
     // Вкладка 2: Внутреннее наполнение

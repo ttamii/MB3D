@@ -7,6 +7,7 @@ import { estimate } from '../src/core/estimate';
 import { buildModule } from '../src/core/geometry';
 import { generateKitchenLayout } from '../src/core/kitchenWizard';
 import { DEFAULT_ROOM } from '../src/core/room';
+import { computeModuleDrilling } from '../src/core/drilling';
 import type { Module } from '../src/core/types';
 import { normalizeModule, normalizeProject } from '../src/core/validate';
 
@@ -257,6 +258,91 @@ group('Распашные двери: геометрия и открывание
 
   ok(rightDoor.anim?.pivot && rightDoor.anim.pivot[0] > 1150, `Правая дверь pivot не справа (${rightDoor.anim?.pivot?.[0]})`);
   ok((rightDoor.anim?.ang ?? 0) > 0, `Правая дверь должна распахиваться вправо (ang > 0, получено ${rightDoor.anim?.ang})`);
+}
+
+// 10. Дефолтная комната: чистый вид без окна
+group('Дефолтная комната: чистый вид без окна');
+{
+  ok(DEFAULT_ROOM.windows.length === 0, 'В дефолтной комнате не должно быть окна');
+}
+
+// 11. Доборные фальшпланки к стенам и углам
+group('Доборные фальшпланки к стенам и углам');
+{
+  const baseFiller = PRESETS.find((x) => x.id === 'filler')!;
+  const wallFiller = PRESETS.find((x) => x.id === 'filler-wall')!;
+  const tallFiller = PRESETS.find((x) => x.id === 'filler-tall')!;
+  const cornerFiller = PRESETS.find((x) => x.id === 'filler-corner')!;
+
+  ok(!!baseFiller && !!wallFiller && !!tallFiller && !!cornerFiller, 'Не все пресеты фальшпланок найдены');
+
+  const bBuilt = buildModule(baseFiller.make());
+  ok(bBuilt.parts.some((p) => p.name.includes('Фальшпланка фасада')), 'Нижняя фальшпланка не содержит фасадную планку');
+  ok(bBuilt.parts.some((p) => p.name.includes('Монтажная планка')), 'Нижняя фальшпланка не содержит монтажную планку');
+
+  const cBuilt = buildModule(cornerFiller.make());
+  ok(cBuilt.parts.some((p) => p.name.includes('возврат')), 'Угловой добор не содержит перпендикулярный возврат');
+}
+
+// 12. Сверловка и крепеж для X-Ray
+group('Сверловка и крепеж для X-Ray (шурупы, конфирматы, направляющие)');
+{
+  const p = PRESETS.find((x) => x.id === 'base-drawers')!;
+  const m = p.make();
+  const built = buildModule(m);
+  const dr = computeModuleDrilling(m, built.parts);
+
+  ok(dr.sides.length === 2, 'Ожидалось 2 боковины в сверловке');
+  const leftHoles = dr.sides[0].holes;
+  ok(leftHoles.some((h) => h.type === 'confirmat'), 'Конфирматы не найдены в сверловке');
+  ok(leftHoles.some((h) => h.type === 'drawer-rail'), 'Направляющие ящиков не найдены в сверловке');
+}
+
+// 13. Физические коллизии и каскадный сдвиг модулей
+group('Физические коллизии и каскадный сдвиг при изменении размеров и доборов');
+{
+  const { resizeModuleCascading, preventDragCollision, insertFillerWithShift } = await import('../src/core/collision');
+  const baseP = PRESETS.find((x) => x.id === 'base')!;
+
+  // Сценарий 1: Увеличение ширины добора с 50 до 100 мм расталкивает модули
+  const filler = { ...baseP.make(), id: 'f1', name: 'Фальшпланка', x: 0, w: 50 };
+  const mod1 = { ...baseP.make(), id: 'm1', name: 'Тумба 1', x: 50, w: 600 };
+  const mod2 = { ...baseP.make(), id: 'm2', name: 'Тумба 2', x: 650, w: 600 };
+  const mods = [filler, mod1, mod2];
+
+  resizeModuleCascading(mods, 'f1', 100, 4000);
+  ok(filler.w === 100, `Ширина добора не изменилась (${filler.w})`);
+  ok(mod1.x === 100, `Тумба 1 не сдвинулась: x=${mod1.x}, ожидалось 100`);
+  ok(mod2.x === 700, `Тумба 2 не сдвинулась: x=${mod2.x}, ожидалось 700`);
+
+  // Сценарий 2: Уменьшение ширины добора со 100 до 50 мм подтягивает соединенные модули обратно
+  resizeModuleCascading(mods, 'f1', 50, 4000);
+  ok(filler.w === 50, `Ширина добора не вернулась (${filler.w})`);
+  ok(mod1.x === 50, `Тумба 1 не подтянулась: x=${mod1.x}, ожидалось 50`);
+  ok(mod2.x === 650, `Тумба 2 не подтянулась: x=${mod2.x}, ожидалось 650`);
+
+  // Сценарий 3: Защита от проникновения при 3D-перетаскивании мышью
+  // Тумба 1 находится между добором (0..50) и Тумбой 2 (650..1250)
+  // При попытке перетащить ее влево на x=0 она должна упереться в добор на x=50
+  const clampedXLeft = preventDragCollision(mods, 'm1', -100, 50, 4000);
+  ok(clampedXLeft === 50, `Коллизия слева не сработала: x=${clampedXLeft}, ожидалось 50`);
+
+  // При попытке перетащить ее вправо на x=200 она должна упереться в Тумбу 2 на 650 - 600 = 50
+  const clampedXRight = preventDragCollision(mods, 'm1', 300, 50, 4000);
+  ok(clampedXRight === 50, `Коллизия справа не сработала: x=${clampedXRight}, ожидалось 50`);
+
+  // Сценарий 4: Вставка добора слева сдвигает все модули
+  const rowMods = [
+    { ...baseP.make(), id: 'r1', x: 0, w: 600 },
+    { ...baseP.make(), id: 'r2', x: 600, w: 600 },
+  ];
+  const newFiller = { ...baseP.make(), id: 'rf', name: 'Добор', x: 0, w: 50 };
+  insertFillerWithShift(rowMods, 'left', rowMods[0], newFiller, 4000);
+  ok(newFiller.x === 0, `Добор не встал на x=0 (${newFiller.x})`);
+  const r1 = rowMods.find((m) => m.id === 'r1')!;
+  const r2 = rowMods.find((m) => m.id === 'r2')!;
+  ok(r1.x === 50, `Модуль 1 не сдвинулся при вставке добора: x=${r1.x}`);
+  ok(r2.x === 650, `Модуль 2 не сдвинулся при вставке добора: x=${r2.x}`);
 }
 
 console.log(failed ? `\n${failed} проверок не пройдено` : '\nВсе проверки пройдены');
