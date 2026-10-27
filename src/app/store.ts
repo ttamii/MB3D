@@ -1,5 +1,6 @@
 import type { Module, Project, Settings } from '../core/types';
 import { defaultProject, PRESETS, isWall } from '../core/defaults';
+import { DEFAULT_ROOM } from '../core/room';
 import { buildModule } from '../core/geometry';
 import { modulesOverlapY } from '../core/collision';
 import { loadCurrent, loadSettings, saveCurrent, saveSettings } from '../core/storage';
@@ -28,7 +29,6 @@ export class Store {
   constructor() {
     this.settings = loadSettings();
     this.project = loadCurrent(this.settings) ?? defaultProject();
-    if (!this.project.modules.length) this.project = defaultProject();
     if (this.project.room?.windows?.some((w) => w.id === 'w1')) {
       this.project.room.windows = this.project.room.windows.filter((w) => w.id !== 'w1');
     }
@@ -113,7 +113,14 @@ export class Store {
   }
 
   newProject(): void {
-    this.loadProject({ v: 1, id: uid(), name: 'Новый проект', updatedAt: Date.now(), modules: [] });
+    this.loadProject({
+      v: 1,
+      id: uid(),
+      name: 'Новый проект',
+      updatedAt: Date.now(),
+      modules: [],
+      room: JSON.parse(JSON.stringify(DEFAULT_ROOM)),
+    });
   }
 
   setSettings(raw: unknown): void {

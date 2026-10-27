@@ -444,13 +444,12 @@ export const PRESETS: Preset[] = [
 ];
 
 export function defaultProject() {
-  const a = PRESETS.find((p) => p.id === 'wardrobe-sliding')!.make();
   return {
     v: 1 as const,
     id: uid(),
     name: 'Новый проект',
     updatedAt: Date.now(),
-    modules: [a],
+    modules: [],
     room: JSON.parse(JSON.stringify(DEFAULT_ROOM)),
   };
 }

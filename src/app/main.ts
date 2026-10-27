@@ -83,12 +83,8 @@ async function boot(): Promise<void> {
     class: 'btn ghost tool new-proj-btn',
     title: 'Начать новый чистый проект',
     onClick: () => {
-      if (confirm('Начать новый проект? Несохраненные изменения текущего проекта будут очищены.')) {
-        store.commit((p) => {
-          p.modules = [];
-          p.name = 'Новый проект';
-          p.room = { ...DEFAULT_ROOM, windows: [] };
-        }, 'new-project');
+      if (!store.project.modules.length || confirm('Начать новый проект? Несохраненные изменения текущего проекта будут очищены.')) {
+        store.newProject();
         toast('Создан новый чистый проект');
       }
     },
