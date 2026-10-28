@@ -10,6 +10,7 @@ import { clear, h, icon } from '../ui/dom';
 import { createFloatingHud } from '../ui/floatingHud';
 import { renderModules, renderProps } from '../ui/panels';
 import { showModuleContextMenu } from '../ui/contextMenu';
+import { parseFurniturePrompt } from '../core/aiConstructor';
 import { Store } from './store';
 
 const $ = <T extends HTMLElement>(id: string): T => {
@@ -23,6 +24,10 @@ async function boot(): Promise<void> {
   const app = $('app');
   let company: { name: string; phone: string } | null = null;
 
+  const urlParams = new URLSearchParams(location.search);
+  const aiQuery = urlParams.get('ai');
+  const isNew = urlParams.get('new') === '1' || urlParams.get('clear') === '1';
+
   const token = location.hash.match(/^#v=([\w-]+)$/);
   if (token) {
     const r = await decodeShare(token[1], store.settings);
@@ -34,6 +39,21 @@ async function boot(): Promise<void> {
       app.classList.add('share');
       document.title = `${r.project.name} — ${r.company.name || 'Mebel3D'}`;
     }
+  } else if (aiQuery) {
+    const res = parseFurniturePrompt(aiQuery);
+    const newMods = res.modules?.length ? res.modules : [res.module];
+    store.commit((p) => {
+      p.modules = newMods;
+      p.name = res.title.replace('AI-Генерация: ', '');
+    }, 'ai-init');
+    store.select(newMods[0]?.id ?? null);
+    setTimeout(() => toast(`AI-Генерация: ${newMods.length} мод. создано`), 400);
+  } else if (isNew) {
+    store.commit((p) => {
+      p.modules = [];
+      p.name = 'Новый проект';
+    }, 'new-init');
+    store.select(null);
   }
 
   const viewport = $('viewport');

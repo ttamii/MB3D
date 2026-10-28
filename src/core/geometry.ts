@@ -86,13 +86,13 @@ function frontDoor(
   }
 
   b.add('hinge', hingesFor(dh));
-  doorHinges(b, anim, x0, x1, y0, y1, hinge, D);
+  doorHinges(b, m, anim, x0, x1, y0, y1, hinge, D);
   doorHandle(b, m, anim, x0, x1, y0, y1, hinge, D + FACADE_T);
 }
 
 /** Четырехшарнирные мебельные петли (Blum/Hettich) с монтажными планками, плечом и чашкой Ø35. */
 function doorHinges(
-  b: Builder, anim: PartAnim, x0: number, x1: number, y0: number, y1: number,
+  b: Builder, m: Module, anim: PartAnim, x0: number, x1: number, y0: number, y1: number,
   hinge: 'left' | 'right', D: number,
 ): void {
   const dh = y1 - y0;
@@ -100,47 +100,54 @@ function doorHinges(
   const topBottom = 100;
   const isL = hinge === 'left';
   const step = numHinges > 1 ? (dh - 2 * topBottom) / (numHinges - 1) : 0;
+  const t = m.t || 16;
+
   for (let hIdx = 0; hIdx < numHinges; hIdx++) {
     const yCenter = Math.round(y0 + topBottom + hIdx * step);
 
-    // 1. Неподвижная часть на боковине корпуса (монтажная планка + плечо петли с регулировочными винтами)
-    const xPlate = isL ? x0 : x1 - 3;
-    const yPlate = yCenter - 20;
-    const zPlate = D - 45;
-    b.decor('Петля: монтажная планка', 'metal', [xPlate, yPlate, zPlate], [3, 40, 16]);
+    // 1. Неподвижная часть на боковине корпуса (монтажная планка + плечо петли)
+    // Монтажная планка крепится на ВНУТРЕННЮЮ плоскость боковины шкафа
+    const xPlate = isL
+      ? (x0 <= 25 ? t : Math.max(t, x0 + 1))
+      : (x1 >= m.w - 25 ? m.w - t - 3 : Math.min(m.w - t - 3, x1 - 4));
+    const yPlate = yCenter - 16;
+    const zPlate = D - 50;
+    b.decor('Петля: монтажная планка', 'metal', [xPlate, yPlate, zPlate], [3, 32, 16]);
 
-    // Винты монтажной планки (2 евровинта)
-    b.decor('Петля: винт планки', 'metal', [xPlate - (isL ? 0.5 : -0.5), yCenter + 14, zPlate + 6], [1.5, 4, 4]);
-    b.decor('Петля: винт планки', 'metal', [xPlate - (isL ? 0.5 : -0.5), yCenter - 14, zPlate + 6], [1.5, 4, 4]);
+    // Евровинты крепления планки к боковине
+    const xScrew = isL ? xPlate - 0.5 : xPlate + 2.5;
+    b.decor('Петля: винт планки', 'metal', [xScrew, yCenter + 11, zPlate + 6], [1, 3.5, 3.5]);
+    b.decor('Петля: винт планки', 'metal', [xScrew, yCenter - 11, zPlate + 6], [1, 3.5, 3.5]);
 
-    // Корпус (плечо) петли, защелкнутый на планку и идущий вперед
-    const xArm = isL ? x0 + 1 : x1 - 13;
-    const yArm = yCenter - 6;
-    const zArm = D - 37;
-    b.decor('Петля: плечо', 'metal', [xArm, yArm, zArm], [12, 12, 35]);
+    // Корпус (плечо) петли, защелкнутый на планку
+    const xArm = isL ? xPlate + 0.5 : xPlate - 9.5;
+    const yArm = yCenter - 5.5;
+    const zArm = D - 38;
+    b.decor('Петля: плечо', 'metal', [xArm, yArm, zArm], [9, 11, 35]);
 
-    // Регулировочный винт наложения и винт фиксации
-    b.decor('Петля: винт регулировки', 'metal', [xArm + 2, yCenter + 6, zArm + 8], [8, 1.5, 5]);
-    b.decor('Петля: винт фиксации', 'metal', [xArm + 2, yCenter + 6, zArm + 22], [8, 1.5, 5]);
+    // Регулировочные винты на плече петли
+    b.decor('Петля: винт регулировки', 'metal', [xArm + 1, yCenter + 5.5, zArm + 8], [7, 1.2, 4]);
+    b.decor('Петля: винт фиксации', 'metal', [xArm + 1, yCenter + 5.5, zArm + 22], [7, 1.2, 4]);
 
     // 2. Подвижная часть на фасаде (поворачивается вместе со створкой!)
-    // Чашка петли Ø35 мм, утопленная в фасад
-    const xCup = isL ? x0 + 5 : x1 - 35 - 5;
+    // Чашка петли Ø35 мм, утопленная в тело фасада с внутренней стороны
+    // k = 4 мм от края фасада, глубина 11.5 мм (не пробивает фасад насквозь!)
+    const xCup = isL ? x0 + 4 : x1 - 39;
     const yCup = yCenter - 17.5;
-    const zCup = D;
+    const zCup = D + 0.5;
     b.decor('Петля: чашка Ø35', 'metal', [xCup, yCup, zCup], [35, 35, 11.5], anim, 'cyl');
 
-    // Фланец чашки с проушинами под саморезы на внутренней стороне двери
-    const xFlange = isL ? x0 + 2 : x1 - 48 - 2;
-    const yFlange = yCenter - 8;
+    // Фланец чашки с проушинами под саморезы на внутренней плоскости двери
+    const xFlange = isL ? x0 + 13.5 : x1 - 29.5;
+    const yFlange = yCenter - 24;
     const zFlange = D - 1;
-    b.decor('Петля: фланец чашки', 'metal', [xFlange, yFlange, zFlange], [48, 16, 2], anim);
+    b.decor('Петля: фланец чашки', 'metal', [xFlange, yFlange, zFlange], [16, 48, 1.5], anim);
 
-    // Шарнирный рычаг, выходящий из чашки
-    const xLink = isL ? x0 : x1 - 14;
-    const yLink = yCenter - 5;
-    const zLink = D - 12;
-    b.decor('Петля: шарнир', 'metal', [xLink, yLink, zLink], [14, 10, 14], anim);
+    // Шарнирный рычажный узел, связывающий плечо и чашку
+    const xLink = isL ? x0 + 8 : x1 - 18;
+    const yLink = yCenter - 4;
+    const zLink = D - 8;
+    b.decor('Петля: шарнир', 'metal', [xLink, yLink, zLink], [10, 8, 8], anim);
   }
 }
 

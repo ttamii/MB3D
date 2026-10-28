@@ -240,6 +240,18 @@ group('AI Конструктор: NLP-парсинг запросов и гео�
   ok(res3.module.matFacade === 'eg-u999', 'цвет графит не определен');
   ok(res3.module.sections[0].drawers === 4, 'ящиков не 4');
   bounds(normalizeModule(res3.module, mats)).forEach((e) => ok(false, `AI res3: ${e}`));
+
+  // Проверка метров и сантиметров: "шкаф 2.4м на 1.8м на 60см"
+  const res4 = parseFurniturePrompt('Шкаф 2.4м на 1.8м на 60см трехдверный кашемир с рейками');
+  ok(res4.module.w === 1800 && res4.module.h === 2400 && res4.module.d === 600, `метрические габариты не распознаны (${res4.module.w}x${res4.module.h}x${res4.module.d})`);
+  ok(res4.module.sections.length === 3, 'трехдверный не создал 3 секции');
+  ok(res4.module.matFacade === 'eg-u702', 'кашемир не определен');
+  ok(res4.module.milling === 'ribbed', 'рейки не определены');
+
+  // Проверка кухонного гарнитура
+  const resKitchen = parseFurniturePrompt('Кухня 2.4м с мойкой и верхними шкафами');
+  ok(resKitchen.modules && resKitchen.modules.length >= 4, 'кухонный ряд не создан');
+  ok(resKitchen.modules.some((m) => m.kind === 'wall'), 'нет верхних навесных шкафов');
 }
 
 // 9. Распашные двери: геометрия и открывание от центра

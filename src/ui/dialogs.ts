@@ -1347,43 +1347,78 @@ export function roomDialog(store: Store, viewer: Viewer): void {
 
 export function aiConstructorDialog(store: Store, viewer: Viewer): void {
   const d = openDialog('AI Конструктор мебели', { wide: true });
-  let currentPrompt = 'Шкаф-купе 2400х1800х600 в прихожую с зеркалом, 2 штангами и 4 ящиками';
+  let currentPrompt = 'Шкаф 2.4м на 1.8м на 60см трехдверный кашемир с рейками';
+  let activeTab: 'wardrobes' | 'kitchens' | 'living' = 'wardrobes';
 
   const container = h('div', { class: 'ai-body', style: 'display:flex; flex-direction:column; gap:16px;' });
+
+  const categories = [
+    { id: 'wardrobes' as const, label: 'Шкафы и гардеробные' },
+    { id: 'kitchens' as const, label: 'Кухонные гарнитуры' },
+    { id: 'living' as const, label: 'ТВ-тумбы, комоды и стеллажи' },
+  ];
+
+  const presetsMap = {
+    wardrobes: [
+      'Шкаф 2.4м на 1.8м на 60см трехдверный кашемир с рейками',
+      'Шкаф-купе 2400х1800х600 в прихожую с зеркалом и 4 ящиками',
+      'Шкаф в спальню 2.4м графит с зеркалом и 2 штангами',
+      'Встроенный шкаф до потолка 3 двери без ручек белый',
+    ],
+    kitchens: [
+      'Прямая кухня 2.4м со столешницей и мойкой',
+      'Кухонный гарнитур 3 метра графит с ящиками и верхними шкафами',
+      'Кухня 1.8м кашемир с сушкой для посуды и вытяжкой',
+      'Мини-кухня 1.6м белый глянец со столешницей под мрамор',
+    ],
+    living: [
+      'Подвесная тумба ТВ 1800мм на 2 ящика push-to-open',
+      'Комод 1000х900х450 на 4 ящика в цвете графит',
+      'Стеллаж для книг 800х2200 с полками дуб сонома',
+      'Обувница в прихожую 800х1000 компактная',
+    ],
+  };
 
   const renderContent = () => {
     clear(container);
 
-    const desc = h('div', { style: 'background:rgba(79,70,229,0.08); border-left:4px solid var(--accent); padding:10px 14px; border-radius:6px; font-size:13px; line-height:1.5; color:#1e293b;' },
-      h('b', null, 'Умный ИИ-генератор мебели: '),
-      'Опишите изделие естественным языком. Система распознает габариты, тип открывания (купе, распашной, подвесной), наполнение (ящики, штанги, полки), цвета плит и фурнитуру, генерируя готовую 3D-модель для производства.',
+    const desc = h('div', { style: 'background:rgba(99,102,241,0.08); border-left:4px solid var(--accent); padding:10px 14px; border-radius:8px; font-size:13px; line-height:1.5; color:var(--ink);' },
+      h('b', null, 'Умный ИИ-генератор мебели для цеха: '),
+      'Опишите изделие естественным языком в метрах, см или мм. Нейросеть распознает габариты, количество створок, тип открывания, внутреннее наполнение (ящики, штанги, полки), декоры EGGER и фурнитуру, генерируя готовую параметрическую модель.',
     );
 
-    const quickChips = [
-      'Шкаф-купе 2400×1800 с зеркалом и ящиками',
-      'Подвесная тумба ТВ 1800мм на 2 ящика',
-      'Комод 1000×900 на 4 ящика графит',
-      'Стеллаж для книг 800×2200 с полками',
-      'Обувница в прихожую 800×1000',
-    ];
+    const tabButtons = h('div', { style: 'display:flex; gap:8px; border-bottom:1px solid var(--line); padding-bottom:8px;' },
+      ...categories.map((c) =>
+        h('button', {
+          type: 'button',
+          class: `btn sm ${activeTab === c.id ? 'primary' : 'ghost'}`,
+          style: 'font-size:12px;',
+          onClick: () => {
+            activeTab = c.id;
+            renderContent();
+          },
+        }, c.label)
+      ),
+    );
 
     const chipsWrap = h('div', { style: 'display:flex; flex-wrap:wrap; gap:6px;' },
-      ...quickChips.map((txt) =>
+      ...presetsMap[activeTab].map((txt) =>
         h('button', {
           type: 'button',
           class: 'btn sm ghost',
-          style: 'font-size:12px;',
+          style: 'font-size:12px; border:1px solid var(--line);',
           onClick: () => {
             currentPrompt = txt;
-            renderContent();
+            textInput.value = txt;
+            updatePreview();
           },
         }, txt)
       ),
     );
 
     const textInput = h('textarea', {
-      style: 'width:100%; min-height:85px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-family:inherit; font-size:13.5px; resize:vertical; outline:none;',
-      placeholder: 'Опишите мебель, например: Шкаф 2-дверный 1400х2300х580 с зеркалом, штангой и 3 ящиками в цвете кашемир',
+      style: 'width:100%; min-height:85px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-family:inherit; font-size:13.5px; resize:vertical; outline:none; background:var(--panel-2); color:var(--ink);',
+      placeholder: 'Опишите мебель: например, Шкаф 2.4м на 1.8м трехдверный кашемир с рейками и ящиками',
       value: currentPrompt,
       onInput: (e: Event) => {
         currentPrompt = (e.target as HTMLTextAreaElement).value;
@@ -1392,20 +1427,46 @@ export function aiConstructorDialog(store: Store, viewer: Viewer): void {
     });
 
     const previewCard = h('div', {
-      style: 'background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:12px 16px;',
+      style: 'background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:14px 16px;',
     });
 
     const updatePreview = () => {
       clear(previewCard);
       const res = parseFurniturePrompt(currentPrompt);
-      const titleEl = h('div', { style: 'font-size:15px; font-weight:700; color:var(--ink); margin-bottom:4px;' }, res.title);
-      const descEl = h('div', { style: 'font-size:13px; color:var(--ink-2); margin-bottom:10px;' }, res.description);
-      const tagsWrap = h('div', { style: 'display:flex; flex-wrap:wrap; gap:6px;' },
-        ...res.features.map((f) =>
-          h('span', { style: 'display:inline-block; padding:3px 9px; border-radius:6px; background:#ffffff; border:1px solid var(--line); font-size:11.5px; font-weight:600; color:var(--accent);' }, f)
+      const modsToEst = res.modules?.length ? res.modules : [res.module];
+      const estRes = estimate(modsToEst, store.settings);
+
+      const headerRow = h('div', { style: 'display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px; margin-bottom:6px;' },
+        h('div', null,
+          h('div', { style: 'font-size:15px; font-weight:700; color:var(--ink);' }, res.title),
+          h('div', { style: 'font-size:12.5px; color:var(--ink-2); margin-top:2px;' }, res.description),
+        ),
+        h('div', { style: 'text-align:right;' },
+          h('div', { style: 'font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600;' }, 'Ориентир сметы'),
+          h('div', { style: 'font-size:16px; font-weight:800; color:var(--accent);' }, money(estRes.total)),
         ),
       );
-      previewCard.append(titleEl, descEl, tagsWrap);
+
+      const tagsWrap = h('div', { style: 'display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;' },
+        ...res.features.map((f) =>
+          h('span', { style: 'display:inline-block; padding:4px 10px; border-radius:6px; background:var(--panel); border:1px solid var(--line); font-size:12px; font-weight:600; color:var(--accent);' }, f)
+        ),
+      );
+
+      let modulesListEl: HTMLElement | null = null;
+      if (res.modules && res.modules.length > 1) {
+        modulesListEl = h('div', { style: 'margin-top:12px; padding-top:10px; border-top:1px dashed var(--line); font-size:12px; color:var(--ink-2);' },
+          h('div', { style: 'font-weight:700; color:var(--ink); margin-bottom:4px;' }, `Состав гарнитура (${res.modules.length} модулей):`),
+          h('div', { style: 'display:flex; flex-wrap:wrap; gap:6px;' },
+            ...res.modules.map((m) =>
+              h('span', { style: 'padding:2px 8px; border-radius:4px; background:rgba(0,0,0,0.04); font-size:11px;' }, `${m.name} (${m.w} мм)`)
+            ),
+          ),
+        );
+      }
+
+      previewCard.append(headerRow, tagsWrap);
+      if (modulesListEl) previewCard.append(modulesListEl);
     };
 
     updatePreview();
@@ -1413,15 +1474,16 @@ export function aiConstructorDialog(store: Store, viewer: Viewer): void {
     container.append(
       desc,
       h('div', { class: 'grp' },
-        h('h3', null, 'Быстрые примеры:'),
-        chipsWrap,
+        h('h3', { style: 'margin-bottom:6px;' }, 'Категории и готовые шаблоны:'),
+        tabButtons,
+        h('div', { style: 'margin-top:8px;' }, chipsWrap),
       ),
       h('div', { class: 'grp' },
-        h('h3', null, 'Текстовый запрос:'),
+        h('h3', { style: 'margin-bottom:6px;' }, 'Текстовый запрос на русском языке:'),
         textInput,
       ),
       h('div', { class: 'grp' },
-        h('h3', null, 'Результат анализа и распознавания:'),
+        h('h3', { style: 'margin-bottom:6px;' }, 'Распознанная конфигурация:'),
         previewCard,
       ),
     );
@@ -1435,12 +1497,14 @@ export function aiConstructorDialog(store: Store, viewer: Viewer): void {
       class: 'btn ghost',
       onClick: () => {
         const res = parseFurniturePrompt(currentPrompt);
+        const newMods = res.modules?.length ? res.modules : [res.module];
         store.commit((p) => {
-          p.modules = [res.module];
+          p.modules = newMods;
+          p.name = res.title.replace('AI-Генерация: ', '');
         }, 'ai-replace');
-        store.select(res.module.id);
+        store.select(newMods[0]?.id ?? null);
         viewer.frame('iso');
-        toast(`Заменено: ${res.module.name}`);
+        toast(`Проект создан: ${pName(res.title)}`);
         d.close();
       },
     }, 'Заменить проект'),
@@ -1449,21 +1513,24 @@ export function aiConstructorDialog(store: Store, viewer: Viewer): void {
       style: 'font-weight:700;',
       onClick: () => {
         const res = parseFurniturePrompt(currentPrompt);
-        const mods = store.project.modules;
-        if (mods.length > 0) {
-          const last = mods[mods.length - 1];
-          res.module.x = last.x + last.w;
-        }
+        const newMods = res.modules?.length ? res.modules : [res.module];
+        const existing = store.project.modules;
+        const offset = existing.length > 0 ? Math.max(...existing.map((m) => m.x + m.w)) : 0;
+        newMods.forEach((m) => { m.x += offset; });
         store.commit((p) => {
-          p.modules.push(res.module);
+          p.modules.push(...newMods);
         }, 'ai-add');
-        store.select(res.module.id);
+        store.select(newMods[0]?.id ?? null);
         viewer.frame('iso');
-        toast(`Добавлен: ${res.module.name}`);
+        toast(`Добавлено модулей: ${newMods.length}`);
         d.close();
       },
-    }, 'Добавить модуль в 3D'),
+    }, 'Добавить в 3D сцену'),
   );
+}
+
+function pName(t: string): string {
+  return t.replace('AI-Генерация: ', '');
 }
 
 

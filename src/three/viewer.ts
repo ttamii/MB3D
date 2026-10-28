@@ -37,8 +37,15 @@ function partGeo(p: Part, off: [number, number, number]): BufferGeometry {
   const [sx, sy, sz] = p.size.map((v) => v * MM) as [number, number, number];
   let g: BufferGeometry;
   if (p.shape === 'cyl') {
-    g = new CylinderGeometry(sy / 2, sy / 2, sx, 16);
-    g.rotateZ(Math.PI / 2);
+    if (sz < sx && sz < sy) {
+      // Цилиндр вдоль оси Z (чашка петли): диаметр в плоскости XY, глубина по Z
+      g = new CylinderGeometry(sx / 2, sx / 2, sz, 24);
+      g.rotateX(Math.PI / 2);
+    } else {
+      // Цилиндр вдоль оси X (гардеробная штанга): длина sx по X, диаметр sy в YZ
+      g = new CylinderGeometry(sy / 2, sy / 2, sx, 20);
+      g.rotateZ(Math.PI / 2);
+    }
   } else g = boxGeo(sx, sy, sz);
   g.translate(
     (p.pos[0] + p.size[0] / 2) * MM - off[0],
