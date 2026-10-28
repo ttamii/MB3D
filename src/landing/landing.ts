@@ -67,7 +67,7 @@ function initHero3D() {
 
   const renderer = new WebGLRenderer({ antialias: true, alpha: true });
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.25;
   container.appendChild(renderer.domElement);
