@@ -40,6 +40,7 @@ export interface Estimate {
 export function partMaterialId(p: Part, m: Module): string | null {
   switch (p.mat) {
     case 'corpus': return m.matCorpus;
+    case 'black': return 'eg-u999';
     case 'facade': return m.matFacade;
     case 'back': return m.matBack;
     case 'top': return m.matTop;

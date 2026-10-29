@@ -32,6 +32,7 @@ export const DEFAULT_MATERIALS: Material[] = [
   { id: 'eg-h3332', name: 'EGGER H3332 ST10 Дуб Небраска серый', kind: 'sheet', color: '#8a8279', grain: true, category: 'EGGER Древесные', price: 5600 },
   { id: 'eg-h1145', name: 'EGGER H1145 ST10 Дуб Бардолино натуральный', kind: 'sheet', color: '#c8b398', grain: true, category: 'EGGER Древесные', price: 5400 },
   { id: 'eg-h3734', name: 'EGGER H3734 ST9 Орех Дижон натуральный', kind: 'sheet', color: '#654a3a', grain: true, category: 'EGGER Древесные', price: 5900 },
+  { id: 'eg-h3730', name: 'EGGER H3730 ST10 Гикори натуральный', kind: 'sheet', color: '#9c7a54', grain: true, category: 'EGGER Древесные', price: 5800 },
   { id: 'eg-h3700', name: 'EGGER H3700 ST10 Орех Пасифик натуральный', kind: 'sheet', color: '#745a49', grain: true, category: 'EGGER Древесные', price: 5700 },
   { id: 'eg-h3157', name: 'EGGER H3157 ST12 Дуб Винченца', kind: 'sheet', color: '#ab937a', grain: true, category: 'EGGER Древесные', price: 5500 },
   { id: 'eg-h1344', name: 'EGGER H1344 ST32 Дуб Шерман коньяк', kind: 'sheet', color: '#845d42', grain: true, category: 'EGGER Древесные', price: 6200 },
@@ -88,6 +89,7 @@ export const DEFAULT_MATERIALS: Material[] = [
   { id: 'm-emerald', name: 'Фасад МДФ Эмаль Изумруд', kind: 'facade', color: '#2f5d50', gloss: false, category: 'МДФ Эмаль', price: 26000 },
   { id: 'm-navy', name: 'Фасад МДФ Эмаль Синий', kind: 'facade', color: '#2b3f66', gloss: false, category: 'МДФ Эмаль', price: 26000 },
   { id: 'm-terra', name: 'Фасад МДФ Эмаль Терракот', kind: 'facade', color: '#b9694c', gloss: false, category: 'МДФ Эмаль', price: 26000 },
+  { id: 'm-mirror', name: 'Зеркало серебро 4 мм на подложке ЛДСП', kind: 'facade', color: '#d8e3ec', gloss: true, category: 'Зеркала и стекло', price: 22000 },
 
   // ——— Влагостойкие столешницы 38 мм (EGGER / Slotex) ———
   { id: 'top-f812', name: 'EGGER F812 ST76 Мрамор Леванто белый 38 мм', kind: 'top', color: '#edebe6', stone: true, category: 'Столешницы EGGER 38 мм', price: 42000 },

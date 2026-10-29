@@ -2,10 +2,11 @@ import '@fontsource-variable/inter';
 import '../styles/app.css';
 import { estimate, type Estimate } from '../core/estimate';
 import { DEFAULT_ROOM } from '../core/room';
-import { decodeShare, saveToLibrary } from '../core/storage';
+import { decodeShare, saveToLibrary, syncCloudLibraryToLocal } from '../core/storage';
+import { getCurrentUser, isAccessGateEnabled } from '../core/auth';
 import { money, rafThrottle } from '../core/util';
 import { Viewer, type ViewName } from '../three/viewer';
-import { aiConstructorDialog, arDialog, blueprintDialog, cutDialog, estimateDialog, helpDialog, kitchenWizardDialog, projectsDialog, renderDialog, roomDialog, settingsDialog, shareDialog, toast } from '../ui/dialogs';
+import { aiConstructorDialog, arDialog, blueprintDialog, cutDialog, estimateDialog, helpDialog, kitchenWizardDialog, projectsDialog, renderDialog, roomDialog, settingsDialog, shareDialog, showAuthGateModal, toast } from '../ui/dialogs';
 import { clear, h, icon } from '../ui/dom';
 import { createFloatingHud } from '../ui/floatingHud';
 import { renderModules, renderProps } from '../ui/panels';
@@ -29,6 +30,14 @@ async function boot(): Promise<void> {
   const isNew = urlParams.get('new') === '1' || urlParams.get('clear') === '1';
 
   const token = location.hash.match(/^#v=([\w-]+)$/);
+  if (!token && isAccessGateEnabled() && !getCurrentUser()) {
+    showAuthGateModal(() => {
+      location.reload();
+    });
+  }
+  if (!token) {
+    void syncCloudLibraryToLocal(store.settings);
+  }
   if (token) {
     const r = await decodeShare(token[1], store.settings);
     if (r) {
@@ -181,7 +190,7 @@ async function boot(): Promise<void> {
       h('span', { class: 'sep' }),
       act('Рендер', 'camera', () => renderDialog(store, viewer)),
       act('AR', 'cube', () => arDialog(store, viewer)),
-      act('Проекты', 'folder', () => projectsDialog(store, () => {})),
+      act('Заказы / БД', 'folder', () => projectsDialog(store, () => {}), 'keep-label'),
       act('Поделиться', 'link', () => shareDialog(store)),
       h('span', { class: 'sep' }),
       h('button', { type: 'button', class: 'ib tb', title: 'Настройки цен', 'aria-label': 'Настройки', onClick: () => settingsDialog(store) }, icon('sliders')),

@@ -125,6 +125,10 @@ export function normalizeProject(raw: unknown, materials: Material[] = DEFAULT_M
     seen.add(m.id);
   }
   const room = normalizeRoom(raw.room);
+  const clientName = safeText(raw.clientName, 80);
+  const clientPhone = safeText(raw.clientPhone, 40);
+  const clientAddress = safeText(raw.clientAddress, 120);
+  const status = raw.status === 'draft' || raw.status === 'approved' || raw.status === 'production' || raw.status === 'done' ? raw.status : undefined;
   return {
     v: 1,
     id: typeof raw.id === 'string' && /^[\w-]{1,40}$/.test(raw.id) ? raw.id : uid(),
@@ -132,6 +136,10 @@ export function normalizeProject(raw: unknown, materials: Material[] = DEFAULT_M
     updatedAt: num(raw.updatedAt, Date.now()),
     modules,
     ...(room ? { room } : {}),
+    ...(clientName ? { clientName } : {}),
+    ...(clientPhone ? { clientPhone } : {}),
+    ...(clientAddress ? { clientAddress } : {}),
+    ...(status ? { status } : {}),
   };
 }
 

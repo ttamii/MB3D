@@ -174,7 +174,7 @@ function rectCabinet(b: Builder, m: Module): void {
     }
     b.add('confirmat', 4);
     if (P > 0) {
-      const plinthMat: PartMat = m.plinthColor === 'facade' ? 'facade' : 'corpus';
+      const plinthMat: PartMat = m.plinthColor === 'black' ? 'black' : m.plinthColor === 'facade' ? 'facade' : 'corpus';
       b.box('Цоколь', plinthMat, [0, 0, D - 50 - 16], [W, P, 16], W);
       b.add('leg', 2);
     }
@@ -209,7 +209,7 @@ function rectCabinet(b: Builder, m: Module): void {
   }
 
   if (P > 0) {
-    const plinthMat: PartMat = m.plinthColor === 'facade' ? 'facade' : 'corpus';
+    const plinthMat: PartMat = m.plinthColor === 'black' ? 'black' : m.plinthColor === 'facade' ? 'facade' : 'corpus';
     // Передний цоколь (монолитный на всю ширину W, стыкуется без промежутков)
     const plinthZ = D - 50 - 16;
     b.box('Цоколь', plinthMat, [0, 0, plinthZ], [W, P, 16], W);
@@ -458,7 +458,7 @@ function cornerCabinet(b: Builder, m: Module): void {
   b.add('confirmat', 16);
 
   if (P > 0) {
-    const plinthMat: PartMat = m.plinthColor === 'facade' ? 'facade' : 'corpus';
+    const plinthMat: PartMat = m.plinthColor === 'black' ? 'black' : m.plinthColor === 'facade' ? 'facade' : 'corpus';
     b.box('Цоколь (плечо 1)', plinthMat, [0, 0, S - 50 - 16], [D, P, 16], D);
     b.box('Цоколь (плечо 2)', plinthMat, [S - 50 - 16, 0, BK], [16, P, D - BK], D - BK);
     b.add('leg', 6);

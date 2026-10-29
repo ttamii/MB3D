@@ -6,7 +6,13 @@ import { planKitchen } from '../core/kitchenWizard';
 import { parseFurniturePrompt } from '../core/aiConstructor';
 import { computeNesting, renderSheetSvg, DEFAULT_SHEET_FORMATS } from '../core/nesting';
 import { DEFAULT_ROOM, renderRoomPlanSvg, type RoomConfig } from '../core/room';
-import type { Settings } from '../core/types';
+import type { ProjectStatus, Settings } from '../core/types';
+import {
+  createAccount, deleteAccount, getCloudConfig, getCurrentUser, isAccessGateEnabled,
+  isCloudConfigured, loadAccounts, loginWithCredentials, logoutCurrentUser,
+  pullProjectsFromCloud, pushProjectToCloud, setAccessGateEnabled, setCloudConfig,
+  toggleAccountActive, updateAccountPassword,
+} from '../core/auth';
 import { downloadBlob, fileName, fmtNum, money } from '../core/util';
 import {
   deleteFromLibrary, encodeShare, loadLibrary, projectFromJson, projectToJson, saveToLibrary,
@@ -423,25 +429,92 @@ export function settingsDialog(store: Store): void {
     btn('Сохранить', 'primary', () => { store.setSettings(s); d.close(); toast('Настройки сохранены'); }, 'check'));
 }
 
-// ——— проекты ———
+// ——— проекты, база заказов (CRM) и управление доступом ———
 
-export function projectsDialog(store: Store, onChanged: () => void): void {
-  const d = openDialog('Проекты');
-  const listHost = h('div', { class: 'proj-list' });
+const STATUS_LABELS: Record<ProjectStatus, { text: string; bg: string; color: string }> = {
+  draft: { text: 'Черновик / Замер', bg: '#f1f5f9', color: '#475569' },
+  approved: { text: 'Согласован', bg: '#e0f2fe', color: '#0369a1' },
+  production: { text: 'В цеху (распил)', bg: '#fef3c7', color: '#b45309' },
+  done: { text: 'Сдан клиенту', bg: '#dcfce7', color: '#15803d' },
+};
 
-  const refresh = () => {
-    clear(listHost);
-    const lib = loadLibrary(store.settings);
-    if (!lib.length) listHost.append(h('p', { class: 'empty' }, 'Сохранённых проектов пока нет.'));
-    for (const p of lib) {
-      listHost.append(h('div', { class: 'proj' },
-        h('div', null, h('b', null, p.name), h('small', null, `${p.modules.length} мод. · ${new Date(p.updatedAt).toLocaleString('ru-RU')}`)),
-        h('div', { class: 'proj-a' },
-          btn('Открыть', 'sm primary', () => { store.loadProject(p); d.close(); toast('Проект открыт'); }),
-          h('button', { type: 'button', class: 'ib danger', 'aria-label': 'Удалить проект', onClick: () => { if (confirm(`Удалить проект «${p.name}»?`)) { deleteFromLibrary(p.id, store.settings); refresh(); } } }, icon('trash', 16)))));
+export function showAuthGateModal(onAuthenticated: () => void): void {
+  const overlay = h('div', {
+    style: 'position:fixed; inset:0; z-index:9999; background:radial-gradient(circle at 50% 25%, #1e1b4b 0%, #07090f 85%); display:flex; align-items:center; justify-content:center; padding:16px;',
+  });
+
+  const loginInput = h('input', {
+    type: 'text',
+    placeholder: 'Логин (например: admin)',
+    autocomplete: 'username',
+    style: 'width:100%; padding:11px 13px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06); color:#fff; font-size:14px; outline:none;',
+  });
+  const passInput = h('input', {
+    type: 'password',
+    placeholder: 'Пароль',
+    autocomplete: 'current-password',
+    style: 'width:100%; padding:11px 13px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06); color:#fff; font-size:14px; outline:none;',
+  });
+  const errBox = h('div', {
+    style: 'color:#f87171; font-size:12.5px; min-height:18px; font-weight:500;',
+  });
+
+  const submit = () => {
+    const res = loginWithCredentials(loginInput.value, passInput.value);
+    if (!res.ok) {
+      errBox.textContent = res.error;
+      return;
     }
+    overlay.remove();
+    toast(`Добро пожаловать, ${res.user.name}`);
+    onAuthenticated();
   };
-  refresh();
+
+  loginInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') passInput.focus(); });
+  passInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+
+  const card = h('div', {
+    style: 'width:100%; max-width:390px; background:rgba(15,23,42,0.92); border:1px solid rgba(255,255,255,0.14); border-radius:16px; padding:28px 24px; color:#f8fafc; box-shadow:0 24px 60px rgba(0,0,0,0.65); display:flex; flex-direction:column; gap:14px;',
+  },
+    h('div', { style: 'display:flex; align-items:center; gap:10px;' },
+      h('span', { style: 'display:inline-flex; width:34px; height:34px; border-radius:9px; background:linear-gradient(135deg,#6366f1,#8b5cf6); align-items:center; justify-content:center; font-weight:800;' }, 'M'),
+      h('div', null,
+        h('div', { style: 'font-size:17px; font-weight:800;' }, 'Вход в Mebel3D Pro'),
+        h('div', { style: 'font-size:12px; color:#94a3b8;' }, 'Закрытая система проектирования и раскроя'),
+      ),
+    ),
+    h('div', { style: 'display:flex; flex-direction:column; gap:6px; margin-top:4px;' },
+      h('label', { style: 'font-size:12px; color:#cbd5e1; font-weight:600;' }, 'Логин сотрудника или мастера'),
+      loginInput,
+    ),
+    h('div', { style: 'display:flex; flex-direction:column; gap:6px;' },
+      h('label', { style: 'font-size:12px; color:#cbd5e1; font-weight:600;' }, 'Пароль доступа'),
+      passInput,
+    ),
+    errBox,
+    h('button', {
+      type: 'button',
+      style: 'width:100%; padding:12px; border-radius:9px; border:0; background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; font-weight:700; font-size:14px; cursor:pointer;',
+      onClick: submit,
+    }, 'Войти в конструктор'),
+    h('a', {
+      href: './',
+      style: 'text-align:center; font-size:12.5px; color:#94a3b8; text-decoration:none; margin-top:4px;',
+    }, '← Вернуться на главную страницу'),
+  );
+
+  overlay.append(card);
+  document.body.appendChild(overlay);
+  setTimeout(() => loginInput.focus(), 50);
+}
+
+export function projectsDialog(store: Store, onChanged: () => void, initialTab: 'projects' | 'access' | 'cloud' = 'projects'): void {
+  const d = openDialog('База проектов, заказы и доступ', { wide: true });
+  let activeTab: 'projects' | 'access' | 'cloud' = initialTab;
+  let searchQuery = '';
+  let statusFilter: 'all' | ProjectStatus = 'all';
+
+  const container = h('div', { style: 'display:flex; flex-direction:column; gap:14px;' });
 
   const file = h('input', {
     type: 'file', accept: 'application/json,.json', hidden: true,
@@ -457,14 +530,403 @@ export function projectsDialog(store: Store, onChanged: () => void): void {
     },
   });
 
-  d.body.append(
-    h('div', { class: 'row-btns' },
-      btn('Сохранить текущий', 'primary', () => { if (saveToLibrary(store.project, store.settings)) { toast('Проект сохранён'); refresh(); onChanged(); } else toast('Не хватает места в браузере', 'err'); }, 'check'),
-      btn('Новый', 'ghost', () => { if (!store.project.modules.length || confirm('Начать новый проект? Несохранённые изменения останутся только в автосохранении.')) { store.newProject(); d.close(); } }, 'plus')),
-    listHost, file);
+  const render = () => {
+    clear(container);
+    const curUser = getCurrentUser();
+    const gateOn = isAccessGateEnabled();
+    const cloudOn = isCloudConfigured();
+
+    const tabs = h('div', { style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; border-bottom:1px solid var(--line); padding-bottom:10px;' },
+      h('div', { style: 'display:flex; gap:6px; flex-wrap:wrap;' },
+        h('button', {
+          type: 'button',
+          class: `btn sm ${activeTab === 'projects' ? 'primary' : 'ghost'}`,
+          onClick: () => { activeTab = 'projects'; render(); },
+        }, 'Мои заказы и проекты'),
+        h('button', {
+          type: 'button',
+          class: `btn sm ${activeTab === 'access' ? 'primary' : 'ghost'}`,
+          onClick: () => { activeTab = 'access'; render(); },
+        }, gateOn ? 'Доступ и логины (Защита ВКЛ)' : 'Доступ и логины'),
+        h('button', {
+          type: 'button',
+          class: `btn sm ${activeTab === 'cloud' ? 'primary' : 'ghost'}`,
+          onClick: () => { activeTab = 'cloud'; render(); },
+        }, cloudOn ? 'Облачная БД (Подключена)' : 'Облачная БД (Supabase)'),
+      ),
+      curUser ? h('div', { style: 'font-size:12px; color:var(--muted);' },
+        `Профиль: `, h('b', { style: 'color:var(--ink);' }, `${curUser.name} (${curUser.login})`),
+      ) : null,
+    );
+
+    container.append(tabs);
+
+    if (activeTab === 'projects') {
+      // Карточка текущего открытого заказа (CRM-поля клиента)
+      const p = store.project;
+      const curCard = h('div', {
+        style: 'background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;',
+      },
+        h('div', { style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;' },
+          h('b', { style: 'font-size:13.5px;' }, `Текущий заказ: ${p.name}`),
+          h('div', { style: 'display:flex; gap:6px;' },
+            btn('Сохранить в базу', 'sm primary', () => {
+              if (saveToLibrary(store.project, store.settings)) {
+                toast(cloudOn ? 'Проект сохранён локально и в облако БД' : 'Проект сохранён в базу');
+                render();
+                onChanged();
+              } else {
+                toast('Не хватает места в браузере', 'err');
+              }
+            }, 'check'),
+            btn('Новый пустой проект', 'sm ghost', () => {
+              if (!store.project.modules.length || confirm('Начать новый проект с чистого листа?')) {
+                store.commit((proj) => {
+                  proj.modules = [];
+                  proj.name = 'Новый заказ';
+                  proj.clientName = '';
+                  proj.clientPhone = '';
+                  proj.clientAddress = '';
+                  proj.status = 'draft';
+                }, 'new-clean');
+                store.select(null);
+                d.close();
+                toast('Создан чистый проект');
+              }
+            }, 'plus'),
+          ),
+        ),
+        h('div', { class: 'grid2', style: 'gap:8px;' },
+          h('label', { class: 'fld' },
+            h('span', { class: 'fld-l' }, 'Имя клиента / Заказчик'),
+            h('input', {
+              type: 'text',
+              placeholder: 'Например: Айгуль Нурланова',
+              value: p.clientName ?? '',
+              onInput: (e: Event) => store.commit((pr) => { pr.clientName = (e.target as HTMLInputElement).value; }, 'crm-client'),
+            }),
+          ),
+          h('label', { class: 'fld' },
+            h('span', { class: 'fld-l' }, 'Телефон клиента (WhatsApp)'),
+            h('input', {
+              type: 'text',
+              placeholder: '+7 777 000 00 00',
+              value: p.clientPhone ?? '',
+              onInput: (e: Event) => store.commit((pr) => { pr.clientPhone = (e.target as HTMLInputElement).value; }, 'crm-phone'),
+            }),
+          ),
+          h('label', { class: 'fld' },
+            h('span', { class: 'fld-l' }, 'Адрес / ЖК / Комната'),
+            h('input', {
+              type: 'text',
+              placeholder: 'ЖК Sensata, кв. 45, прихожая',
+              value: p.clientAddress ?? '',
+              onInput: (e: Event) => store.commit((pr) => { pr.clientAddress = (e.target as HTMLInputElement).value; }, 'crm-addr'),
+            }),
+          ),
+          h('label', { class: 'fld' },
+            h('span', { class: 'fld-l' }, 'Статус заказа'),
+            h('select', {
+              onChange: (e: Event) => store.commit((pr) => { pr.status = (e.target as HTMLSelectElement).value as ProjectStatus; }, 'crm-status'),
+            },
+              h('option', { value: 'draft', selected: (p.status ?? 'draft') === 'draft' }, 'Черновик / Замер'),
+              h('option', { value: 'approved', selected: p.status === 'approved' }, 'Согласован с клиентом'),
+              h('option', { value: 'production', selected: p.status === 'production' }, 'В цеху (распил / сборка)'),
+              h('option', { value: 'done', selected: p.status === 'done' }, 'Сдан клиенту'),
+            ),
+          ),
+        ),
+      );
+
+      // Панель поиска и фильтрации сохраненных заказов
+      const filterBar = h('div', { style: 'display:flex; gap:8px; flex-wrap:wrap; align-items:center;' },
+        h('input', {
+          type: 'search',
+          placeholder: 'Поиск по названию, имени клиента, телефону или ЖК…',
+          value: searchQuery,
+          style: 'flex:1; min-width:200px; padding:7px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px;',
+          onInput: (e: Event) => {
+            searchQuery = (e.target as HTMLInputElement).value;
+            renderList();
+          },
+        }),
+        h('select', {
+          style: 'padding:7px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px;',
+          onChange: (e: Event) => {
+            statusFilter = (e.target as HTMLSelectElement).value as 'all' | ProjectStatus;
+            renderList();
+          },
+        },
+          h('option', { value: 'all', selected: statusFilter === 'all' }, 'Все статусы'),
+          h('option', { value: 'draft', selected: statusFilter === 'draft' }, 'Черновик / Замер'),
+          h('option', { value: 'approved', selected: statusFilter === 'approved' }, 'Согласован'),
+          h('option', { value: 'production', selected: statusFilter === 'production' }, 'В цеху'),
+          h('option', { value: 'done', selected: statusFilter === 'done' }, 'Сдан'),
+        ),
+        cloudOn ? btn('Загрузить из облака БД', 'sm ghost', async () => {
+          const res = await pullProjectsFromCloud(store.settings);
+          if (!res.ok) {
+            toast(res.error ?? 'Ошибка загрузки из БД', 'err');
+            return;
+          }
+          res.projects.forEach((cp) => saveToLibrary(cp, store.settings));
+          toast(`Синхронизировано проектов из БД: ${res.projects.length}`);
+          renderList();
+        }, 'download') : null,
+      );
+
+      const listHost = h('div', { class: 'proj-list', style: 'max-height:320px; overflow:auto;' });
+
+      const renderList = () => {
+        clear(listHost);
+        const q = searchQuery.trim().toLowerCase();
+        const lib = loadLibrary(store.settings).filter((item) => {
+          if (statusFilter !== 'all' && (item.status ?? 'draft') !== statusFilter) return false;
+          if (!q) return true;
+          const hay = `${item.name} ${item.clientName ?? ''} ${item.clientPhone ?? ''} ${item.clientAddress ?? ''}`.toLowerCase();
+          return hay.includes(q);
+        });
+
+        if (!lib.length) {
+          listHost.append(h('p', { class: 'empty' }, 'Сохранённых заказов по вашему запросу пока нет. Нажмите «Сохранить в базу» выше.'));
+          return;
+        }
+
+        for (const item of lib) {
+          const st = STATUS_LABELS[item.status ?? 'draft'];
+          const estTotal = estimate(item.modules, store.settings).total;
+          const clientLine = [item.clientName, item.clientPhone, item.clientAddress].filter(Boolean).join(' · ');
+
+          listHost.append(h('div', { class: 'proj', style: 'align-items:center;' },
+            h('div', { style: 'display:flex; flex-direction:column; gap:3px;' },
+              h('div', { style: 'display:flex; align-items:center; gap:8px; flex-wrap:wrap;' },
+                h('b', { style: 'font-size:14px;' }, item.name),
+                h('span', {
+                  style: `font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px; background:${st.bg}; color:${st.color};`,
+                }, st.text),
+                h('span', { style: 'font-size:12.5px; font-weight:700; color:var(--accent);' }, money(estTotal)),
+              ),
+              clientLine ? h('div', { style: 'font-size:12px; color:var(--ink-2);' }, `Клиент: ${clientLine}`) : null,
+              h('small', { style: 'color:var(--muted);' }, `${item.modules.length} мод. · Обновлён: ${new Date(item.updatedAt).toLocaleString('ru-RU')}`),
+            ),
+            h('div', { class: 'proj-a' },
+              btn('Открыть', 'sm primary', () => { store.loadProject(item); d.close(); toast(`Открыт заказ: ${item.name}`); }),
+              h('button', {
+                type: 'button', class: 'ib danger', 'aria-label': 'Удалить проект',
+                onClick: () => {
+                  if (confirm(`Удалить проект «${item.name}»?`)) {
+                    deleteFromLibrary(item.id, store.settings);
+                    renderList();
+                  }
+                },
+              }, icon('trash', 16)),
+            ),
+          ));
+        }
+      };
+
+      renderList();
+      container.append(curCard, filterBar, listHost);
+
+    } else if (activeTab === 'access') {
+      // Вкладка управления паролями, пользователями и закрытым входом
+      const accounts = loadAccounts();
+
+      const gateToggleBox = h('div', {
+        style: 'background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;',
+      },
+        h('div', null,
+          h('div', { style: 'font-weight:700; font-size:13.5px;' }, 'Закрытый доступ к конструктору по логину и паролю'),
+          h('div', { style: 'font-size:12px; color:var(--muted); margin-top:2px;' },
+            'Если включено, при открытии конструктора посторонние увидят окно ввода логина и пароля. У каждого логина — своя изолированная папка проектов.',
+          ),
+        ),
+        h('div', { style: 'display:flex; gap:8px; align-items:center;' },
+          h('button', {
+            type: 'button',
+            class: `btn sm ${gateOn ? 'primary' : 'ghost'}`,
+            onClick: () => {
+              setAccessGateEnabled(!gateOn);
+              toast(!gateOn ? 'Защита паролем при входе ВКЛЮЧЕНА' : 'Свободный вход без пароля включён');
+              render();
+            },
+          }, gateOn ? 'Защита ВКЛЮЧЕНА (Выключить)' : 'Включить защиту паролем'),
+          gateOn ? h('button', {
+            type: 'button',
+            class: 'btn sm ghost',
+            onClick: () => {
+              logoutCurrentUser();
+              d.close();
+              showAuthGateModal(() => {
+                location.reload();
+              });
+            },
+          }, 'Сменить аккаунт / Выйти') : null,
+        ),
+      );
+
+      // Добавление нового пользователя (для платного доступа или сотрудников)
+      const newLogin = h('input', { type: 'text', placeholder: 'Логин (например: master2)' });
+      const newPass = h('input', { type: 'text', placeholder: 'Пароль (мин. 4 символа)' });
+      const newName = h('input', { type: 'text', placeholder: 'Имя / Название цеха' });
+
+      const addUserForm = h('div', {
+        style: 'border:1px solid var(--line); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;',
+      },
+        h('b', { style: 'font-size:13px;' }, 'Создать логин и пароль (для себя, цеха или платного подписчика):'),
+        h('div', { class: 'grid2', style: 'gap:8px;' },
+          h('label', { class: 'fld' }, h('span', { class: 'fld-l' }, 'Логин'), newLogin),
+          h('label', { class: 'fld' }, h('span', { class: 'fld-l' }, 'Пароль'), newPass),
+          h('label', { class: 'fld wide' }, h('span', { class: 'fld-l' }, 'Имя пользователя / Компания'), newName),
+        ),
+        h('div', null,
+          btn('+ Добавить пользователя', 'sm primary', () => {
+            const res = createAccount({
+              login: newLogin.value,
+              password: newPass.value,
+              name: newName.value,
+              role: 'pro',
+            });
+            if (typeof res === 'string') {
+              toast(res, 'err');
+              return;
+            }
+            toast(`Создан доступ для: ${res.login}`);
+            render();
+          }),
+        ),
+      );
+
+      const usersTable = h('div', { class: 'scroll-x' },
+        h('table', { class: 'tbl dense' },
+          h('thead', null, h('tr', null,
+            h('th', null, 'Логин'),
+            h('th', null, 'Пароль'),
+            h('th', null, 'Имя / Цех'),
+            h('th', null, 'Роль'),
+            h('th', null, 'Статус доступа'),
+            h('th', null, 'Действия'),
+          )),
+          h('tbody', null, ...accounts.map((acc) =>
+            h('tr', null,
+              h('td', { style: 'font-weight:700;' }, acc.login),
+              h('td', { style: 'font-family:monospace;' }, acc.password),
+              h('td', null, acc.name),
+              h('td', null, acc.role === 'admin' ? 'Администратор' : 'Подписчик Pro'),
+              h('td', null, acc.active ? 'Активен' : 'Приостановлен'),
+              h('td', { style: 'display:flex; gap:6px;' },
+                h('button', {
+                  type: 'button',
+                  class: 'btn sm ghost',
+                  onClick: () => {
+                    const np = prompt(`Новый пароль для пользователя «${acc.login}»:`, acc.password);
+                    if (np && updateAccountPassword(acc.id, np)) {
+                      toast('Пароль обновлён');
+                      render();
+                    }
+                  },
+                }, 'Пароль'),
+                acc.id !== 'usr_admin' ? h('button', {
+                  type: 'button',
+                  class: 'btn sm ghost',
+                  onClick: () => {
+                    toggleAccountActive(acc.id, !acc.active);
+                    render();
+                  },
+                }, acc.active ? 'Блок.' : 'Вкл.') : null,
+                acc.id !== 'usr_admin' ? h('button', {
+                  type: 'button',
+                  class: 'ib danger',
+                  onClick: () => {
+                    if (confirm(`Удалить пользователя «${acc.login}»?`)) {
+                      deleteAccount(acc.id);
+                      render();
+                    }
+                  },
+                }, icon('trash', 15)) : null,
+              ),
+            ),
+          )),
+        ),
+      );
+
+      container.append(gateToggleBox, addUserForm, usersTable);
+
+    } else if (activeTab === 'cloud') {
+      // Вкладка настройки облачной базы данных PostgreSQL (Supabase)
+      const cfg = getCloudConfig();
+      const urlInp = h('input', {
+        type: 'url',
+        placeholder: 'https://xxxx.supabase.co',
+        value: cfg.url,
+      });
+      const keyInp = h('input', {
+        type: 'text',
+        placeholder: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        value: cfg.anonKey,
+      });
+
+      const sqlSnippet = `create table if not exists public.mebel_projects (
+  id text primary key,
+  user_login text not null default 'admin',
+  name text not null,
+  client_name text default '',
+  client_phone text default '',
+  status text default 'draft',
+  updated_at bigint not null,
+  payload jsonb not null
+);
+alter table public.mebel_projects enable row level security;
+create policy "Public access" on public.mebel_projects for all using (true) with check (true);`;
+
+      container.append(
+        h('div', {
+          style: 'background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.5;',
+        },
+          h('b', null, 'Облачная синхронизация PostgreSQL (Supabase): '),
+          'По умолчанию все проекты надёжно сохраняются в памяти вашего браузера. Чтобы проекты автоматически синхронизировались между вашим телефоном, планшетом на замере и домашним ПК — укажите URL и Anon Key бесплатного проекта Supabase.',
+        ),
+        h('div', { class: 'grid2', style: 'gap:10px;' },
+          h('label', { class: 'fld wide' }, h('span', { class: 'fld-l' }, 'Supabase Project URL'), urlInp),
+          h('label', { class: 'fld wide' }, h('span', { class: 'fld-l' }, 'Supabase Anon Public Key'), keyInp),
+        ),
+        h('div', { style: 'display:flex; gap:8px; flex-wrap:wrap;' },
+          btn('Сохранить подключение к БД', 'primary', async () => {
+            setCloudConfig({ url: urlInp.value, anonKey: keyInp.value });
+            if (isCloudConfigured()) {
+              const res = await pushProjectToCloud(store.project);
+              if (res.ok) toast('Облачная БД успешно подключена и синхронизирована');
+              else toast(res.error ?? 'Проверьте ключи и наличие таблицы mebel_projects', 'err');
+            } else {
+              toast('Облачная синхронизация отключена (локальный режим)');
+            }
+            render();
+          }, 'check'),
+          btn('Скопировать SQL создания таблицы', 'ghost', async () => {
+            try {
+              await navigator.clipboard.writeText(sqlSnippet);
+              toast('SQL-код скопирован в буфер обмена');
+            } catch {
+              toast('Скопируйте SQL из поля ниже вручную');
+            }
+          }, 'copy'),
+        ),
+        h('details', { class: 'more' },
+          h('summary', null, 'SQL-скрипт для вставки в Supabase SQL Editor (выполняется 1 раз)'),
+          h('pre', {
+            style: 'margin-top:8px; padding:10px; background:#0f172a; color:#e2e8f0; border-radius:8px; font-size:11.5px; overflow-x:auto;',
+          }, sqlSnippet),
+        ),
+      );
+    }
+  };
+
+  render();
+  d.body.append(container, file);
   d.foot.append(
-    btn('Импорт из файла', 'ghost', () => file.click(), 'upload'),
-    btn('Экспорт в файл', 'ghost', () => downloadBlob(new Blob([projectToJson(store.project)], { type: 'application/json' }), `${fileName(store.project.name)}.mebel3d.json`), 'download'));
+    btn('Импорт из файла (.json)', 'ghost', () => file.click(), 'upload'),
+    btn('Скачать проект файлом (.json)', 'ghost', () => downloadBlob(new Blob([projectToJson(store.project)], { type: 'application/json' }), `${fileName(store.project.name)}.mebel3d.json`), 'download'),
+  );
 }
 
 // ——— фото-рендер ———

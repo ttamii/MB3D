@@ -178,7 +178,8 @@ export function renderProps(root: HTMLElement, store: Store): void {
   const corner = isCorner(m.kind);
   const wall = isWall(m.kind);
   const canSlide = m.kind === 'wardrobe';
-  const matOpts = (k: MatKind) => store.settings.materials.filter((x) => x.kind === k);
+  const matOpts = (k: MatKind) =>
+    store.settings.materials.filter((x) => (k === 'facade' ? x.kind === 'facade' || x.kind === 'sheet' : x.kind === k));
 
   // Верхняя шапка модуля с быстрым удалением и дублированием
   const topHeader = h('div', { style: 'display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;' },

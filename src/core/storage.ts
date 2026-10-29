@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS } from './defaults';
+import { deleteProjectFromCloud, getUserStorageSuffix, isCloudConfigured, pullProjectsFromCloud, pushProjectToCloud } from './auth';
 import type { Project, Settings } from './types';
 import { normalizeProject, normalizeSettings } from './validate';
 
@@ -33,12 +34,12 @@ export function loadSettings(): Settings {
 export const saveSettings = (s: Settings) => write(K_SETTINGS, s);
 
 export function loadCurrent(settings: Settings): Project | null {
-  return normalizeProject(read(K_CURRENT), settings.materials);
+  return normalizeProject(read(K_CURRENT + getUserStorageSuffix()), settings.materials);
 }
-export const saveCurrent = (p: Project) => write(K_CURRENT, p);
+export const saveCurrent = (p: Project) => write(K_CURRENT + getUserStorageSuffix(), p);
 
 export function loadLibrary(settings: Settings): Project[] {
-  const raw = read(K_LIB);
+  const raw = read(K_LIB + getUserStorageSuffix());
   if (!Array.isArray(raw)) return [];
   return raw
     .map((p) => normalizeProject(p, settings.materials))
@@ -47,13 +48,44 @@ export function loadLibrary(settings: Settings): Project[] {
 }
 
 export function saveToLibrary(p: Project, settings: Settings): boolean {
+  const key = K_LIB + getUserStorageSuffix();
+  const updated = { ...p, updatedAt: Date.now() };
   const lib = loadLibrary(settings).filter((x) => x.id !== p.id);
-  lib.unshift({ ...p, updatedAt: Date.now() });
-  return write(K_LIB, lib.slice(0, 100));
+  lib.unshift(updated);
+  const ok = write(key, lib.slice(0, 100));
+  if (isCloudConfigured()) {
+    void pushProjectToCloud(updated);
+  }
+  return ok;
 }
 
 export function deleteFromLibrary(id: string, settings: Settings): void {
-  write(K_LIB, loadLibrary(settings).filter((x) => x.id !== id));
+  const key = K_LIB + getUserStorageSuffix();
+  write(key, loadLibrary(settings).filter((x) => x.id !== id));
+  if (isCloudConfigured()) {
+    void deleteProjectFromCloud(id);
+  }
+}
+
+export async function syncCloudLibraryToLocal(settings: Settings): Promise<number> {
+  if (!isCloudConfigured()) return 0;
+  const res = await pullProjectsFromCloud(settings);
+  if (!res.ok || !res.projects.length) return 0;
+  const key = K_LIB + getUserStorageSuffix();
+  const localArr = loadLibrary(settings);
+  const byId = new Map<string, Project>();
+  localArr.forEach((p) => byId.set(p.id, p));
+  let addedOrUpdated = 0;
+  for (const norm of res.projects) {
+    const prev = byId.get(norm.id);
+    if (!prev || norm.updatedAt > prev.updatedAt) {
+      byId.set(norm.id, norm);
+      addedOrUpdated++;
+    }
+  }
+  const merged = Array.from(byId.values()).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 100);
+  write(key, merged);
+  return addedOrUpdated;
 }
 
 export function projectToJson(p: Project): string {

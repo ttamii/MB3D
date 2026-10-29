@@ -357,5 +357,38 @@ group('Физические коллизии и каскадный сдвиг п
   ok(r2.x === 650, `Модуль 2 не сдвинулся при вставке добора: x=${r2.x}`);
 }
 
+// 14. Зеркало, черный цоколь, CRM-реквизиты и присадка одной двери
+group('Зеркало, черный цоколь, CRM-поля проекта и точная присадка петель');
+{
+  const m = normalizeModule({
+    ...PRESETS[0].make(),
+    matFacade: 'm-mirror',
+    plinthColor: 'black',
+    hinge: 'right',
+    sections: [{ shelves: 1, drawers: 0, rods: 0, rod: false, door: true }],
+  }, mats);
+  ok(m.matFacade === 'm-mirror', `Материал зеркала сбросился: ${m.matFacade}`);
+  const built = buildModule(m);
+  const plinth = built.parts.find((p) => p.name === 'Цоколь');
+  ok(plinth?.mat === 'black', `Цвет цоколя должен быть 'black', а не ${plinth?.mat}`);
+
+  const dr = computeModuleDrilling(m, built.parts);
+  const leftSidePlates = dr.sides[0].holes.filter((h) => h.type === 'hinge-plate');
+  const rightSidePlates = dr.sides[1].holes.filter((h) => h.type === 'hinge-plate');
+  ok(leftSidePlates.length === 0 && rightSidePlates.length > 0, `Ответные планки петель при hinge='right' должны быть только справа (L=${leftSidePlates.length}, R=${rightSidePlates.length})`);
+  ok(dr.facades[0]?.hingeSide === 'right', `Чашки петель на фасаде должны быть справа (${dr.facades[0]?.hingeSide})`);
+
+  const proj = normalizeProject({
+    id: 'p-crm',
+    name: 'Кухня Иванова',
+    clientName: 'Иван Петров',
+    clientPhone: '+7 777 123 45 67',
+    clientAddress: 'ул. Абая 10',
+    status: 'production',
+    modules: [m],
+  }, mats);
+  ok(proj?.clientName === 'Иван Петров' && proj?.status === 'production', 'CRM-поля заказа потерялись при нормализации');
+}
+
 console.log(failed ? `\n${failed} проверок не пройдено` : '\nВсе проверки пройдены');
 process.exit(failed ? 1 : 0);

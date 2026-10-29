@@ -103,8 +103,9 @@ export function computeModuleDrilling(m: Module, builtParts: Part[]): ModuleDril
   m.sections.forEach((s, i) => {
     if (m.doorMode !== 'hinged' || !s.door) return;
     const nd = s.drawers;
-    const fh = nd > 0 ? Math.min(m.drawerH, Math.floor((H - P - 2 * t - 60) / nd)) : 0;
-    const y0 = nd > 0 ? P + 2 + nd * fh : P + 2;
+    const fullHeight = H - P - 4;
+    const fhStep = nd > 0 ? Math.min(m.drawerH, fullHeight / nd) : 0;
+    const y0 = nd > 0 ? P + 2 + Math.round(nd * fhStep) : P + 2;
     const y1 = H - 2;
     const doorH = y1 - y0;
     if (doorH < 100) return;
@@ -121,7 +122,13 @@ export function computeModuleDrilling(m: Module, builtParts: Part[]): ModuleDril
     const doorW = (segW - gap * (nDoors - 1)) / nDoors;
 
     for (let k = 0; k < nDoors; k++) {
-      const hingeSide: 'left' | 'right' = nDoors === 1 ? 'left' : k === 0 ? 'left' : 'right';
+      let hingeSide: 'left' | 'right';
+      if (nDoors === 1) {
+        const desired: 'left' | 'right' = n > 1 ? (i < n / 2 ? 'left' : 'right') : (m.hinge ?? 'left');
+        hingeSide = m.mirror ? (desired === 'left' ? 'right' : 'left') : desired;
+      } else {
+        hingeSide = k === 0 ? 'left' : 'right';
+      }
       const numHinges = hingesFor(doorH);
       const edgeDist = 21.5; // стандарт до центра чашки Ø35 мм
 
@@ -188,27 +195,43 @@ export function computeModuleDrilling(m: Module, builtParts: Part[]): ModuleDril
       holes.push({ x: Math.round(sideD / 2), y: yBottom, diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат дна (центр)' });
     }
 
-    // Конфирматы крепления Крышки
-    const yTop = Math.round(sideH - t / 2);
-    holes.push(
-      { x: 50, y: yTop, diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат крепления крышки (задний)' },
-      { x: sideD - 50, y: yTop, diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат крепления крышки (передний)' },
-    );
-    if (sideD > 500) {
-      holes.push({ x: Math.round(sideD / 2), y: yTop, diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат крышки (центр)' });
+    // Конфирматы крепления Крышки (или царг мойки)
+    const isSink = m.kind === 'base' && (m.name.toLowerCase().includes('мойк') || m.name.toLowerCase().includes('раковин') || (n === 1 && m.sections[0].shelves === 0 && m.sections[0].drawers === 0 && m.doorMode === 'hinged'));
+    if (isSink) {
+      holes.push(
+        { x: Math.round(t / 2), y: sideH - 45, diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат задней царги мойки' },
+        { x: sideD - Math.round(t / 2) - 10, y: sideH - 45, diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат передней царги мойки' },
+      );
+    } else {
+      const yTop = Math.round(sideH - t / 2);
+      holes.push(
+        { x: 50, y: yTop, diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат крепления крышки (задний)' },
+        { x: sideD - 50, y: yTop, diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат крепления крышки (передний)' },
+      );
+      if (sideD > 500) {
+        holes.push({ x: Math.round(sideD / 2), y: yTop, diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат крышки (центр)' });
+      }
     }
 
     // Отверстия под ответные планки петель (отступ 37 мм от переднего края, шаг 32 мм)
     const targetSection = isL ? m.sections[0] : m.sections[m.sections.length - 1];
-    if (m.doorMode === 'hinged' && targetSection?.door) {
-      const doorH = sideH - 4;
+    const outerSingleHinge: 'left' | 'right' = n > 1
+      ? (isL ? 'left' : 'right')
+      : (m.mirror ? ((m.hinge ?? 'left') === 'left' ? 'right' : 'left') : (m.hinge ?? 'left'));
+    const hasHingeOnThisWall = cw > 620 || n > 1 || (isL && outerSingleHinge === 'left') || (!isL && outerSingleHinge === 'right');
+
+    if (m.doorMode === 'hinged' && targetSection?.door && hasHingeOnThisWall) {
+      const nd = targetSection.drawers;
+      const fhStep = nd > 0 ? Math.min(m.drawerH, (H - P - 4) / nd) : 0;
+      const doorY0 = nd > 0 ? 2 + Math.round(nd * fhStep) : 2;
+      const doorH = (sideH - 2) - doorY0;
       const numHinges = hingesFor(doorH);
       const topBottom = 100;
       const xPlate = sideD - 37;
 
       for (let hIdx = 0; hIdx < numHinges; hIdx++) {
-        const step = (doorH - 2 * topBottom) / (numHinges - 1);
-        const yCenter = Math.round(topBottom + hIdx * step);
+        const step = numHinges > 1 ? (doorH - 2 * topBottom) / (numHinges - 1) : 0;
+        const yCenter = Math.round(doorY0 + topBottom + hIdx * step);
         holes.push(
           { x: xPlate, y: yCenter - 16, diam: 5, depth: 12, type: 'hinge-plate', desc: `Планка петли ${hIdx + 1} (винт 1)` },
           { x: xPlate, y: yCenter + 16, diam: 5, depth: 12, type: 'hinge-plate', desc: `Планка петли ${hIdx + 1} (винт 2)` },

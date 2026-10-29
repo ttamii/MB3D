@@ -625,6 +625,8 @@ export class Viewer {
     let mat: MeshStandardMaterial;
     if (key === 'metal') mat = new MeshStandardMaterial({ color: '#c3c6cb', metalness: 0.95, roughness: 0.22 });
     else if (key === 'handle') mat = new MeshStandardMaterial({ color: '#b5b8bd', metalness: 0.9, roughness: 0.3 });
+    else if (key === 'black') mat = new MeshStandardMaterial({ color: '#1b1d21', metalness: 0.08, roughness: 0.85 });
+    else if (key === 'm-mirror') mat = new MeshStandardMaterial({ color: '#dce6ef', metalness: 0.92, roughness: 0.06 });
     else {
       const d = matMap.get(key);
       const color = d?.color ?? '#cccccc';

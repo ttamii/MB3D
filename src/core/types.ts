@@ -42,6 +42,8 @@ export interface Module {
   hinge?: 'left' | 'right';
 }
 
+export type ProjectStatus = 'draft' | 'approved' | 'production' | 'done';
+
 export interface Project {
   v: 1;
   id: string;
@@ -49,6 +51,10 @@ export interface Project {
   updatedAt: number;
   modules: Module[];
   room?: import('./room').RoomConfig;
+  clientName?: string;
+  clientPhone?: string;
+  clientAddress?: string;
+  status?: ProjectStatus;
 }
 
 export interface Material {
@@ -89,7 +95,7 @@ export interface Settings {
   labor: LaborSettings;
 }
 
-export type PartMat = 'corpus' | 'facade' | 'back' | 'top' | 'metal' | 'handle';
+export type PartMat = 'corpus' | 'facade' | 'back' | 'top' | 'metal' | 'handle' | 'black';
 
 export interface PartAnim {
   type: 'door' | 'drawer' | 'sliding';
