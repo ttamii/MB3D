@@ -3,7 +3,7 @@ import type { Estimate } from '../core/estimate';
 import { buildModule } from '../core/geometry';
 import type { DoorMode, MatKind, Module, Section } from '../core/types';
 import { fmtNum, money, uid } from '../core/util';
-import { isSameVerticalTier, resizeHeightWithStack, resizeModuleCascading, shiftModuleCascading, insertFillerWithShift, syncTierHeight } from '../core/collision';
+import { applyTopTrimToUpperRow, getActiveTopTrimH, isSameVerticalTier, resizeHeightWithStack, resizeModuleCascading, shiftModuleCascading, insertFillerWithShift, syncTierHeight } from '../core/collision';
 import type { Store } from '../app/store';
 import { clear, h, icon } from './dom';
 
@@ -265,12 +265,42 @@ export function renderProps(root: HTMLElement, store: Store): void {
       }),
       numField(corner ? 'Глубина плеча' : 'Глубина', 'd', m.d, LIMITS.d, (v) => set((t) => { t.d = v; }, 'd')),
       wall ? numField('Высота от пола', 'lift', m.lift, LIMITS.lift, (v) => set((t) => { t.lift = v; }, 'lift'))
-        : numField('Цоколь', 'plinth', m.plinth, LIMITS.plinth, (v) => set((t) => { t.plinth = v; }, 'plinth')),
+        : numField('Цоколь (цельный в ряду)', 'plinth', m.plinth, LIMITS.plinth, (v) => set((t) => { t.plinth = v; }, 'plinth')),
       numField('Позиция X (вдоль стены)', 'x', m.x, LIMITS.x, (v) => {
         store.commit((p) => {
           shiftModuleCascading(p.modules, m.id, v, p.room?.w);
         }, 'x');
       }),
+      m.kind !== 'base' && m.kind !== 'corner'
+        ? numField('Верхняя планка (карниз)', 'topTrim', m.topTrim ?? 0, LIMITS.topTrim, (v) => set((t) => {
+          if (v > 0) t.topTrim = v;
+          else delete t.topTrim;
+        }, 'topTrim'))
+        : null,
+    );
+
+    const activeTrimH = getActiveTopTrimH(store.project.modules);
+    const topTrimCard = h('div', {
+      style: 'background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:9px 11px; margin-top:8px;',
+    },
+      h('div', { style: 'font-size:12px; font-weight:700; color:#1e293b; margin-bottom:4px;' }, 'Верхняя планка (карниз под потолок):'),
+      h('div', { style: 'font-size:11px; color:#64748b; margin-bottom:7px; line-height:1.35;' },
+        'Закрывает зазор до потолка и объединяет верхние шкафы и пенал единой цельной планкой:',
+      ),
+      h('div', { class: 'btn-bar', style: 'flex-wrap:wrap; gap:5px;' },
+        ...[0, 50, 60, 80, 100].map((th) =>
+          h('button', {
+            type: 'button',
+            class: `btn sm ${activeTrimH === th ? 'primary' : 'btn-ghost'}`,
+            style: 'padding:4px 8px; font-size:11.5px;',
+            onClick: () => {
+              store.commit((p) => {
+                applyTopTrimToUpperRow(p.modules, th);
+              }, 'top-trim-row');
+            },
+          }, th === 0 ? 'Без планки' : `${th} мм`),
+        ),
+      ),
     );
 
     const snapActions = h('div', { class: 'grp', style: 'padding-top:8px;' },
@@ -326,6 +356,8 @@ export function renderProps(root: HTMLElement, store: Store): void {
       matFacade: m.matFacade,
       matBack: m.matBack,
       matTop: m.matTop,
+      ...(m.plinthColor ? { plinthColor: m.plinthColor } : {}),
+      ...(m.topTrim ? { topTrim: m.topTrim } : {}),
       doorMode: 'none',
       handles: false,
       sections: [{ shelves: 0, drawers: 0, rods: 0, rod: false, door: false }],
@@ -416,6 +448,7 @@ export function renderProps(root: HTMLElement, store: Store): void {
 
     contentArea.append(nameField, dimsGrid);
     if (syncTierBtn) contentArea.append(syncTierBtn);
+    contentArea.append(topTrimCard);
     if (wallAlert) contentArea.append(wallAlert);
     contentArea.append(advanced);
 
@@ -525,12 +558,26 @@ export function renderProps(root: HTMLElement, store: Store): void {
       ], m.milling ?? 'modern', (v) => set((t) => { t.milling = v; })),
     );
     if (!wall) {
-      facadeNodes.push(segmented('Цоколь снизу', [
+      facadeNodes.push(segmented('Цоколь снизу (цельный в ряду)', [
         ['facade', 'В тон фасадов'],
         ['corpus', 'В тон корпуса'],
         ['black', 'Чёрный'],
       ], m.plinthColor ?? 'facade', (v) => set((t) => { t.plinthColor = v; })));
     }
+    const curGlobalTrim = getActiveTopTrimH(store.project.modules);
+    facadeNodes.push(
+      segmented('Верхняя планка (карниз под потолок)', [
+        [0, 'Нет'],
+        [50, '50 мм'],
+        [60, '60 мм'],
+        [80, '80 мм'],
+        [100, '100 мм'],
+      ] as [number, string][], curGlobalTrim, (v) => {
+        store.commit((p) => {
+          applyTopTrimToUpperRow(p.modules, v);
+        }, 'top-trim-row');
+      }),
+    );
     facadeNodes.push(toggle('Лицевые ручки', 'handles', m.handles, (v) => set((t) => { t.handles = v; })));
     if (m.kind === 'base' || m.kind === 'corner') {
       facadeNodes.push(toggle('Столешница 38 мм', 'top', m.countertop, (v) => set((t) => { t.countertop = v; })));

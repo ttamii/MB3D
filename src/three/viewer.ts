@@ -7,7 +7,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
-import { buildModule } from '../core/geometry';
+import { buildContinuousSpans, buildModule } from '../core/geometry';
 import { computeModuleDrilling } from '../core/drilling';
 import { preventDragCollision } from '../core/collision';
 import type { RoomConfig, WindowItem, DoorItem } from '../core/room';
@@ -41,8 +41,8 @@ function partGeo(p: Part, off: [number, number, number]): BufferGeometry {
       // Цилиндр вдоль оси Z (чашка петли): диаметр в плоскости XY, глубина по Z
       g = new CylinderGeometry(sx / 2, sx / 2, sz, 24);
       g.rotateX(Math.PI / 2);
-    } else if (sy < sx && sy < sz) {
-      // Цилиндр вдоль оси Y (конфорка варочной панели, слив мойки): диаметр в плоскости XZ, высота sy по Y
+    } else if (Math.abs(sx - sz) < 1e-6 || (sy < sx && sy < sz)) {
+      // Цилиндр вдоль оси Y (регулируемая опора-ножка, конфорка варочной панели, слив мойки): диаметр в плоскости XZ, высота sy по Y
       g = new CylinderGeometry(sx / 2, sx / 2, sy, 24);
     } else {
       // Цилиндр вдоль оси X (гардеробная штанга): длина sx по X, диаметр sy в YZ
@@ -385,7 +385,7 @@ export class Viewer {
     this.bounds.makeEmpty();
 
     for (const m of modules) {
-      const built = buildModule(m);
+      const built = buildModule(m, { skipContinuous: true });
       const g = new Group();
       g.position.set(m.x * MM, m.lift * MM, 0);
       g.userData.moduleId = m.id;
@@ -457,6 +457,34 @@ export class Viewer {
           new Vector3((m.x + built.width) * MM, (m.lift + built.height) * MM, built.depth * MM),
         ),
       );
+    }
+
+    // Единые цельные детали на весь ряд: цоколь на клипсах, столешница 38 мм и верхняя планка (карниз)
+    const spans = buildContinuousSpans(modules, false);
+    if (spans.length > 0) {
+      const spanGroup = new Group();
+      const spanBuckets = new Map<string, { mat: MeshStandardMaterial; geos: BufferGeometry[] }>();
+      for (const sp of spans) {
+        const mat = this.partMaterial(sp.part, sp.refModule, matMap);
+        const b = spanBuckets.get(mat.uuid) ?? { mat, geos: [] };
+        b.geos.push(partGeo(sp.part, [0, 0, 0]));
+        spanBuckets.set(mat.uuid, b);
+      }
+      spanBuckets.forEach((b) => {
+        const merged = mergeGeometries(b.geos, false);
+        b.geos.forEach((x) => x.dispose());
+        if (!merged) return;
+        const meshMat = this.isXray ? this.xrayMat : b.mat;
+        const mesh = new Mesh(merged, meshMat);
+        mesh.userData.origMat = b.mat;
+        mesh.castShadow = !this.isXray;
+        mesh.receiveShadow = !this.isXray;
+        spanGroup.add(mesh);
+        const edges = new LineSegments(new EdgesGeometry(merged, 25), this.lineMat);
+        spanGroup.add(edges);
+        this.lines.push(edges);
+      });
+      this.modules.add(spanGroup);
     }
 
     if (this.bounds.isEmpty()) this.bounds.set(new Vector3(-0.5, 0, 0), new Vector3(0.5, 2, 0.6));

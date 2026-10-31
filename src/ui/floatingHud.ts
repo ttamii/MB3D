@@ -1,5 +1,6 @@
 import type { Store } from '../app/store';
-import { isSameVerticalTier, resizeHeightWithStack, resizeModuleCascading, syncTierHeight } from '../core/collision';
+import { applyTopTrimToUpperRow, getActiveTopTrimH, isSameVerticalTier, resizeHeightWithStack, resizeModuleCascading, syncTierHeight } from '../core/collision';
+import { isWall } from '../core/defaults';
 import type { Viewer } from '../three/viewer';
 import { clear, h, icon } from './dom';
 
@@ -225,34 +226,35 @@ export function createFloatingHud(container: HTMLElement, store: Store, _viewer:
       );
     }
 
-    // Цоколь (с чекбоксом)
+    // Цоколь (единая планка снизу на клипсах)
     const plinthChecked = m.plinth > 0;
+    const setRowPlinth = (val: number) => {
+      store.commit((p) => {
+        for (const mod of p.modules) {
+          if (!isWall(mod.kind) && (mod.lift ?? 0) === 0) {
+            mod.plinth = val;
+          }
+        }
+      }, 'hud-plinth');
+    };
     const plinthRow = h('div', { class: 'hud-row' },
-      h('label', { class: 'hud-row-check' },
+      h('label', { class: 'hud-row-check', title: 'Единый цельный цоколь на клипсах для всего нижнего ряда' },
         h('input', {
           type: 'checkbox',
           checked: plinthChecked,
           onChange: (e: Event) => {
             const on = (e.target as HTMLInputElement).checked;
-            store.commit((p) => {
-              const target = p.modules.find((x) => x.id === m.id);
-              if (target) target.plinth = on ? 100 : 0;
-            }, 'hud-plinth-toggle');
+            setRowPlinth(on ? 100 : 0);
           },
         }),
-        h('span', null, 'Цоколь'),
+        h('span', null, 'Цоколь снизу'),
       ),
       h('div', { class: 'hud-step-box' },
         h('button', {
           type: 'button',
           class: 'hud-step-arr',
           disabled: !plinthChecked,
-          onClick: () => {
-            store.commit((p) => {
-              const target = p.modules.find((x) => x.id === m.id);
-              if (target) target.plinth = Math.max(50, target.plinth - 10);
-            }, 'hud-plinth');
-          },
+          onClick: () => setRowPlinth(Math.max(50, m.plinth - 10)),
         }, '◀'),
         h('span', { class: 'hud-axis' }, 'H'),
         h('input', {
@@ -262,11 +264,8 @@ export function createFloatingHud(container: HTMLElement, store: Store, _viewer:
           disabled: !plinthChecked,
           onInput: (e: Event) => {
             const n = (e.target as HTMLInputElement).valueAsNumber;
-            if (Number.isFinite(n) && n >= 0 && n <= 250) {
-              store.commit((p) => {
-                const target = p.modules.find((x) => x.id === m.id);
-                if (target) target.plinth = n;
-              }, 'hud-plinth');
+            if (Number.isFinite(n) && n >= 0 && n <= 200) {
+              setRowPlinth(Math.round(n));
             }
           },
         }),
@@ -275,16 +274,62 @@ export function createFloatingHud(container: HTMLElement, store: Store, _viewer:
           type: 'button',
           class: 'hud-step-arr',
           disabled: !plinthChecked,
-          onClick: () => {
-            store.commit((p) => {
-              const target = p.modules.find((x) => x.id === m.id);
-              if (target) target.plinth = Math.min(250, target.plinth + 10);
-            }, 'hud-plinth');
-          },
+          onClick: () => setRowPlinth(Math.min(200, m.plinth + 10)),
         }, '▶'),
       ),
     );
     card.append(plinthRow);
+
+    // Верхняя доборная планка (карниз под потолок на весь верхний ряд)
+    const activeTrimH = getActiveTopTrimH(store.project.modules);
+    const trimChecked = activeTrimH > 0;
+    const setRowTrim = (val: number) => {
+      store.commit((p) => {
+        applyTopTrimToUpperRow(p.modules, val);
+      }, 'hud-top-trim');
+    };
+    const trimRow = h('div', { class: 'hud-row' },
+      h('label', { class: 'hud-row-check', title: 'Цельная верхняя доборная планка (карниз под потолок) над верхними шкафами и пеналом' },
+        h('input', {
+          type: 'checkbox',
+          checked: trimChecked,
+          onChange: (e: Event) => {
+            const on = (e.target as HTMLInputElement).checked;
+            setRowTrim(on ? 60 : 0);
+          },
+        }),
+        h('span', null, 'Планка сверху'),
+      ),
+      h('div', { class: 'hud-step-box' },
+        h('button', {
+          type: 'button',
+          class: 'hud-step-arr',
+          disabled: !trimChecked,
+          onClick: () => setRowTrim(Math.max(30, activeTrimH - 10)),
+        }, '◀'),
+        h('span', { class: 'hud-axis' }, 'H'),
+        h('input', {
+          type: 'number',
+          class: 'hud-step-inp',
+          value: String(activeTrimH),
+          disabled: !trimChecked,
+          onInput: (e: Event) => {
+            const n = (e.target as HTMLInputElement).valueAsNumber;
+            if (Number.isFinite(n) && n >= 0 && n <= 250) {
+              setRowTrim(Math.round(n));
+            }
+          },
+        }),
+        h('span', { class: 'hud-unit' }, 'мм'),
+        h('button', {
+          type: 'button',
+          class: 'hud-step-arr',
+          disabled: !trimChecked,
+          onClick: () => setRowTrim(Math.min(250, activeTrimH + 10)),
+        }, '▶'),
+      ),
+    );
+    card.append(trimRow);
 
     // Действия с модулем (Дублировать, Удалить)
     const actRow = h('div', { class: 'hud-actions' },

@@ -12,6 +12,7 @@ export interface KitchenWizardOptions {
   millingMix: 'trend' | 'modern' | 'frame' | 'ribbed'; // 'trend' = внизу рамка, вверху модерн, антресоль рифлёная
   layoutVariant: number; // 0: пенал слева (при прямой) / справа (при угловой), 1: пенал справа, 2: без пенала
   shape?: 'linear' | 'corner-left'; // Форма гарнитура: Прямая или Угловая Г-образная
+  topTrimH?: number; // Высота верхней доборной планки / карниза под потолок (0 = нет, например 60 мм)
 }
 
 export interface KitchenPlan {
@@ -394,6 +395,15 @@ export function planKitchen(opts: KitchenWizardOptions, room?: RoomConfig): Kitc
 
       x += w;
       slot++;
+    }
+  }
+
+  if (opts.topTrimH && opts.topTrimH > 0) {
+    const trimH = Math.min(250, Math.round(opts.topTrimH));
+    for (const m of modules) {
+      if (m.kind === 'base' || m.kind === 'corner') continue;
+      if (useMezz && (m.kind === 'wall' || m.kind === 'cornerWall') && m.lift < mezzLift) continue;
+      m.topTrim = trimH;
     }
   }
 

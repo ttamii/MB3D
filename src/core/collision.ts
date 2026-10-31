@@ -306,3 +306,38 @@ export function syncTierHeight(modules: Module[], targetId: string): void {
     }
   }
 }
+
+/**
+ * Устанавливает или убирает верхнюю доборную планку (карниз под потолок) сразу на всех
+ * верхних шкафах/антресолях, пеналах и высоких шкафах, формирующих верхний контур гарнитура.
+ */
+export function applyTopTrimToUpperRow(modules: Module[], trimH: number): void {
+  const cleanH = Math.max(0, Math.min(250, Math.round(trimH)));
+  for (const m of modules) {
+    if (m.kind === 'base' || m.kind === 'corner') {
+      delete m.topTrim;
+      continue;
+    }
+    const mW = getModuleW(m);
+    const mTop = (m.lift ?? 0) + m.h;
+    const hasModuleAbove = modules.some(
+      (o) =>
+        o.id !== m.id &&
+        o.x < m.x + mW - 5 &&
+        o.x + getModuleW(o) > m.x + 5 &&
+        (o.lift ?? 0) >= mTop - 20,
+    );
+    if (!hasModuleAbove && cleanH > 0) {
+      m.topTrim = cleanH;
+    } else {
+      delete m.topTrim;
+    }
+  }
+}
+
+export function getActiveTopTrimH(modules: Module[]): number {
+  for (const m of modules) {
+    if (m.topTrim && m.topTrim > 0) return m.topTrim;
+  }
+  return 0;
+}

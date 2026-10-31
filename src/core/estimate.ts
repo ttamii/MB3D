@@ -1,4 +1,4 @@
-import { buildModule } from './geometry';
+import { buildContinuousSpans, buildModule } from './geometry';
 import type { Material, Module, Part, Settings } from './types';
 
 export interface CutRow {
@@ -65,7 +65,7 @@ export function estimate(modules: Module[], settings: Settings): Estimate {
   const waste = 1 + settings.waste / 100;
 
   for (const m of modules) {
-    const built = buildModule(m);
+    const built = buildModule(m, { skipContinuous: true });
     let direct = 0;
     for (const p of built.parts) {
       if (!p.sheet) continue;
@@ -93,6 +93,28 @@ export function estimate(modules: Module[], settings: Settings): Estimate {
       if (item) direct += q * item.price;
     }
     perDirect[m.id] = direct;
+  }
+
+  for (const sp of buildContinuousSpans(modules, true)) {
+    const p = sp.part;
+    if (!p.sheet) continue;
+    const id = partMaterialId(p, sp.refModule);
+    const mat = id ? matMap.get(id) : undefined;
+    if (!id || !mat) continue;
+    const { l, w, t } = partDims(p);
+    const area = (l * w) / 1e6;
+    matArea.set(id, (matArea.get(id) ?? 0) + area);
+    const partCost = area * (mat.kind === 'top' ? 1.05 : waste) * mat.price + (p.edgeMm / 1000) * settings.edgePrice;
+    edgeMm += p.edgeMm;
+    perDirect[sp.refModule.id] = (perDirect[sp.refModule.id] ?? 0) + partCost;
+
+    const key = [sp.groupId, p.name, l, w, t, id].join('|');
+    const row = cutMap.get(key);
+    if (row) row.qty += 1;
+    else
+      cutMap.set(key, {
+        key, name: p.name, moduleId: sp.groupId, moduleName: sp.groupName, l, w, t, qty: 1, matId: id, matName: mat.name, edgeMm: p.edgeMm,
+      });
   }
 
   const materials: Line[] = [];

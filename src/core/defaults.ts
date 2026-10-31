@@ -149,6 +149,7 @@ export const LIMITS = {
   h: [150, 2800],
   d: [150, 800],
   plinth: [0, 200],
+  topTrim: [0, 250],
   lift: [0, 2700],
   sections: [1, 5],
   shelves: [0, 12],

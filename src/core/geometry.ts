@@ -177,7 +177,7 @@ function pickRail(maxLen: number): number {
   return 250;
 }
 
-function rectCabinet(b: Builder, m: Module): void {
+function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
   const { w: W, h: H, d: D, t } = m;
   const wall = isWall(m.kind);
   const P = wall ? 0 : m.plinth;
@@ -185,22 +185,31 @@ function rectCabinet(b: Builder, m: Module): void {
   const BK = BACK_T;
   const n = m.sections.length;
   const slide = m.doorMode === 'sliding';
+  const trimH = m.topTrim && m.topTrim > 0 && m.kind !== 'base' && m.kind !== 'corner' ? m.topTrim : 0;
 
   const isFiller = W <= 120 && n === 1 && m.sections[0].drawers === 0 && m.sections[0].shelves === 0 && m.doorMode === 'none';
   if (isFiller) {
     b.box('Фальшпланка фасада', 'facade', [0, P + 2, D], [W, bodyH - 4, FACADE_T], 2 * (W + bodyH));
-    b.box('Монтажная планка ЛДСП', 'corpus', [0, P + t, D - 80], [t, bodyH - 2 * t, 80], bodyH);
+    b.box('Монтажная планка ЛДСП', 'corpus', [0, P, BK], [t, bodyH, Math.max(80, D - BK)], bodyH);
     if (m.name.toLowerCase().includes('углов')) {
       b.box('Фальшпланка угла (возврат)', 'facade', [W - FACADE_T, P + 2, D - W], [FACADE_T, bodyH - 4, W], 2 * (W + bodyH));
     }
     b.add('confirmat', 4);
     if (P > 0) {
-      const plinthMat: PartMat = m.plinthColor === 'black' ? 'black' : m.plinthColor === 'facade' ? 'facade' : 'corpus';
-      b.box('Цоколь', plinthMat, [0, 0, D - 50 - 16], [W, P, 16], W);
+      if (!skipContinuous) {
+        const plinthMat: PartMat = m.plinthColor === 'black' ? 'black' : m.plinthColor === 'facade' ? 'facade' : 'corpus';
+        b.box('Цоколь', plinthMat, [0, 0, D - 50 - 16], [W, P, 16], W);
+      }
       b.add('leg', 2);
     }
-    if (m.countertop && m.kind === 'base') {
+    if (m.countertop && m.kind === 'base' && !skipContinuous) {
       b.box('Столешница', 'top', [0, H, 0], [W, COUNTERTOP_T, D + 30], W);
+    }
+    if (trimH > 0) {
+      if (!skipContinuous) {
+        b.box('Верхняя планка (карниз)', 'facade', [0, H, D], [W, trimH, FACADE_T], 2 * (W + trimH));
+      }
+      b.add('confirmat', 2);
     }
     return;
   }
@@ -230,15 +239,28 @@ function rectCabinet(b: Builder, m: Module): void {
   }
 
   if (P > 0) {
-    const plinthMat: PartMat = m.plinthColor === 'black' ? 'black' : m.plinthColor === 'facade' ? 'facade' : 'corpus';
-    // Передний цоколь (монолитный на всю ширину W, стыкуется без промежутков)
     const plinthZ = D - 50 - 16;
-    b.box('Цоколь', plinthMat, [0, 0, plinthZ], [W, P, 16], W);
-    // Боковые цоколи по кругу корпуса (закрывают дырку с торцов)
-    const sidePlinthDepth = plinthZ - BK;
-    if (sidePlinthDepth > 50) {
-      b.box('Цоколь боковой L', plinthMat, [0, 0, BK], [16, P, sidePlinthDepth], sidePlinthDepth);
-      b.box('Цоколь боковой R', plinthMat, [W - 16, 0, BK], [16, P, sidePlinthDepth], sidePlinthDepth);
+    if (!skipContinuous) {
+      const plinthMat: PartMat = m.plinthColor === 'black' ? 'black' : m.plinthColor === 'facade' ? 'facade' : 'corpus';
+      b.box('Цоколь', plinthMat, [0, 0, plinthZ], [W, P, 16], W);
+      const sidePlinthDepth = plinthZ - BK;
+      if (sidePlinthDepth > 50) {
+        b.box('Цоколь боковой L', plinthMat, [0, 0, BK], [16, P, sidePlinthDepth], sidePlinthDepth);
+        b.box('Цоколь боковой R', plinthMat, [W - 16, 0, BK], [16, P, sidePlinthDepth], sidePlinthDepth);
+      }
+    }
+    // 3D Регулируемые кухонные ножки-опоры с клипсами, к которым защелкивается цельная планка цоколя
+    if (W >= 200 && D >= 240 && P >= 35) {
+      const zFrontLeg = Math.max(BK + 10, plinthZ - 32);
+      const zBackLeg = Math.max(BK + 10, Math.min(zFrontLeg - 40, BK + 45));
+      const xL = Math.min(55, Math.floor(W * 0.18));
+      const xR = Math.max(xL + 40, W - xL - 30);
+      const legXs = W >= 800 ? [xL, Math.round(W / 2 - 15), xR] : [xL, xR];
+      for (const lx of legXs) {
+        b.decor('Опора регулируемая', 'black', [lx, 0, zFrontLeg], [30, P, 30], undefined, 'cyl');
+        b.decor('Опора: клипса цоколя', 'black', [lx + 7, Math.round(P * 0.5), plinthZ + 16], [16, Math.min(18, Math.floor(P * 0.35)), Math.max(4, zFrontLeg - (plinthZ + 16) + 8)]);
+        b.decor('Опора регулируемая', 'black', [lx, 0, zBackLeg], [30, P, 30], undefined, 'cyl');
+      }
     }
     b.add('leg', W >= 800 ? 6 : 4);
   }
@@ -481,7 +503,9 @@ function rectCabinet(b: Builder, m: Module): void {
   }
 
   if (m.countertop && (m.kind === 'base')) {
-    b.box('Столешница', 'top', [0, H, 0], [W, COUNTERTOP_T, D + 30], W);
+    if (!skipContinuous) {
+      b.box('Столешница', 'top', [0, H, 0], [W, COUNTERTOP_T, D + 30], W);
+    }
     // Врезная мойка на тумбе под мойку
     if (isSink && W >= 400 && D >= 450) {
       const sw = Math.min(580, W - 90);
@@ -507,6 +531,16 @@ function rectCabinet(b: Builder, m: Module): void {
       b.decor('Варочная панель: конфорка 4', 'metal', [cxTop + cwTop - rZone - 36, H + COUNTERTOP_T, czTop + cdTop - rZone - 42], [rZone, 1.5, rZone], undefined, 'cyl');
     }
   }
+
+  if (trimH > 0) {
+    if (!skipContinuous) {
+      b.box('Верхняя планка (карниз)', 'facade', [0, H, D], [W, trimH, FACADE_T], 2 * (W + trimH));
+      if (D >= 120 && W >= 2 * t + 40) {
+        b.box('Монтажная планка карниза', 'corpus', [t, H, Math.max(BK, D - 80)], [W - 2 * t, trimH, t], W - 2 * t);
+      }
+    }
+    b.add('confirmat', 4);
+  }
 }
 
 function cornerCabinet(b: Builder, m: Module): void {
@@ -517,6 +551,7 @@ function cornerCabinet(b: Builder, m: Module): void {
   const BK = BACK_T;
   const sec = m.sections[0];
   const Hi = H - P - 2 * t;
+  const trimH = m.topTrim && m.topTrim > 0 && m.kind === 'cornerWall' ? m.topTrim : 0;
 
   b.box('Боковина (у стены)', 'corpus', [0, P, BK], [t, bodyH, S - BK], bodyH);
   b.box('Боковина внутренняя 1', 'corpus', [D - t, P, D - t], [t, bodyH, S - D + t], bodyH);
@@ -568,13 +603,24 @@ function cornerCabinet(b: Builder, m: Module): void {
     b.box('Столешница (часть 1)', 'top', [0, H, 0], [S + 30, COUNTERTOP_T, D + 30], S + 30);
     b.box('Столешница (часть 2)', 'top', [0, H, D + 30], [D + 30, COUNTERTOP_T, S - D], D + 30);
   }
+
+  if (trimH > 0) {
+    b.box('Верхняя планка (плечо 1)', 'facade', [0, H, S], [D, trimH, FACADE_T], 2 * (D + trimH));
+    b.box('Верхняя планка (плечо 2)', 'facade', [S, H, 0], [FACADE_T, trimH, D], 2 * (D + trimH));
+    b.add('confirmat', 6);
+  }
 }
 
-export function buildModule(m: Module): BuiltModule {
+export interface BuildModuleOptions {
+  /** Пропустить индивидуальные куски цоколя, столешницы и верхнего карниза (заменяются цельными через buildContinuousSpans). */
+  skipContinuous?: boolean;
+}
+
+export function buildModule(m: Module, opts?: BuildModuleOptions): BuiltModule {
   const b = new Builder();
   const corner = isCorner(m.kind);
   if (corner) cornerCabinet(b, m);
-  else rectCabinet(b, m);
+  else rectCabinet(b, m, opts?.skipContinuous === true);
 
   const W = m.w;
   if (m.mirror) {
@@ -590,7 +636,8 @@ export function buildModule(m: Module): BuiltModule {
     }
   }
 
-  const topExtra = m.countertop && (m.kind === 'base' || m.kind === 'corner') ? COUNTERTOP_T : 0;
+  const topExtra = (m.countertop && (m.kind === 'base' || m.kind === 'corner') ? COUNTERTOP_T : 0)
+    + (m.topTrim && m.topTrim > 0 && m.kind !== 'base' && m.kind !== 'corner' ? m.topTrim : 0);
   return {
     parts: b.parts,
     hardware: b.hw,
@@ -598,6 +645,293 @@ export function buildModule(m: Module): BuiltModule {
     depth: (corner ? m.w : m.d) + FACADE_T,
     height: m.h + topExtra,
   };
+}
+
+export interface SpanPart {
+  /** Деталь в мировых координатах сцены [x, y, z] */
+  part: Part;
+  /** Эталонный модуль для определения декора материала */
+  refModule: Module;
+  /** Название узла для карты раскроя и бирок */
+  groupName: string;
+  /** Идентификатор узла для карты раскроя */
+  groupId: string;
+}
+
+function splitSpanLengths(totalW: number, maxSheetLen: number, split: boolean): number[] {
+  if (!split || totalW <= maxSheetLen) return [totalW];
+  const res: number[] = [];
+  let rem = totalW;
+  while (rem > maxSheetLen) {
+    res.push(maxSheetLen);
+    rem -= maxSheetLen;
+  }
+  if (rem > 0) res.push(rem);
+  return res;
+}
+
+/**
+ * Формирует цельные (единые на весь непрерывный ряд стоящих вплотную шкафов) детали:
+ * 1) Цельный нижний цоколь на клипсах к регулируемым ножкам (+ крайние торцевые возвраты),
+ * 2) Цельная столешница 38 мм без швов между тумбами,
+ * 3) Цельная верхняя доборная планка (карниз под потолок) над верхним рядом и пеналами.
+ */
+export function buildContinuousSpans(modules: Module[], splitForCutlist = false): SpanPart[] {
+  const spans: SpanPart[] = [];
+  const BK = BACK_T;
+
+  // 1. Цельный нижний цоколь (напольные не-угловые модули)
+  const plinthMods = modules
+    .filter((m) => !isWall(m.kind) && !isCorner(m.kind) && (m.lift ?? 0) === 0 && m.plinth > 0)
+    .sort((a, b) => a.x - b.x);
+
+  const plinthRuns: Module[][] = [];
+  for (const m of plinthMods) {
+    const prevRun = plinthRuns[plinthRuns.length - 1];
+    const prev = prevRun ? prevRun[prevRun.length - 1] : null;
+    if (
+      prev &&
+      Math.abs((prev.x + prev.w) - m.x) <= 5 &&
+      prev.plinth === m.plinth &&
+      prev.d === m.d &&
+      (prev.plinthColor ?? 'facade') === (m.plinthColor ?? 'facade')
+    ) {
+      prevRun.push(m);
+    } else {
+      plinthRuns.push([m]);
+    }
+  }
+
+  for (const run of plinthRuns) {
+    const first = run[0];
+    const last = run[run.length - 1];
+    const totalW = Math.round((last.x + last.w) - first.x);
+    const P = first.plinth;
+    const D = first.d;
+    const plinthZ = D - 50 - 16;
+    const plinthMat: PartMat = first.plinthColor === 'black' ? 'black' : first.plinthColor === 'facade' ? 'facade' : 'corpus';
+    const isMulti = run.length > 1;
+    const groupName = isMulti ? `Общий цоколь (${run.length} мод.)` : first.name;
+    const groupId = isMulti ? `span-plinth-${first.id}` : first.id;
+    const frontName = isMulti ? 'Цоколь цельный (на клипсах)' : 'Цоколь';
+
+    let curX = first.x;
+    for (const segW of splitSpanLengths(totalW, 2750, splitForCutlist)) {
+      spans.push({
+        refModule: first,
+        groupName,
+        groupId,
+        part: {
+          name: frontName,
+          mat: plinthMat,
+          pos: [curX, 0, plinthZ],
+          size: [segW, P, 16],
+          edgeMm: segW,
+          sheet: true,
+          shape: 'box',
+        },
+      });
+      curX += segW;
+    }
+
+    const sidePlinthDepth = plinthZ - BK;
+    if (sidePlinthDepth > 50 && totalW > 120) {
+      spans.push({
+        refModule: first,
+        groupName,
+        groupId,
+        part: {
+          name: 'Цоколь боковой L',
+          mat: plinthMat,
+          pos: [first.x, 0, BK],
+          size: [16, P, sidePlinthDepth],
+          edgeMm: sidePlinthDepth,
+          sheet: true,
+          shape: 'box',
+        },
+      });
+      spans.push({
+        refModule: last,
+        groupName,
+        groupId,
+        part: {
+          name: 'Цоколь боковой R',
+          mat: plinthMat,
+          pos: [last.x + last.w - 16, 0, BK],
+          size: [16, P, sidePlinthDepth],
+          edgeMm: sidePlinthDepth,
+          sheet: true,
+          shape: 'box',
+        },
+      });
+    }
+  }
+
+  // 2. Цельная столешница 38 мм над рядом нижних тумб
+  const topMods = modules
+    .filter((m) => m.kind === 'base' && !isCorner(m.kind) && m.countertop)
+    .sort((a, b) => a.x - b.x);
+
+  const topRuns: Module[][] = [];
+  for (const m of topMods) {
+    const prevRun = topRuns[topRuns.length - 1];
+    const prev = prevRun ? prevRun[prevRun.length - 1] : null;
+    if (
+      prev &&
+      Math.abs((prev.x + prev.w) - m.x) <= 5 &&
+      (prev.lift ?? 0) + prev.h === (m.lift ?? 0) + m.h &&
+      prev.d === m.d &&
+      prev.matTop === m.matTop
+    ) {
+      prevRun.push(m);
+    } else {
+      topRuns.push([m]);
+    }
+  }
+
+  for (const run of topRuns) {
+    const first = run[0];
+    const last = run[run.length - 1];
+    const totalW = Math.round((last.x + last.w) - first.x);
+    const H = (first.lift ?? 0) + first.h;
+    const D = first.d;
+    const isMulti = run.length > 1;
+    const groupName = isMulti ? `Единая столешница (${run.length} мод.)` : first.name;
+    const groupId = isMulti ? `span-top-${first.id}` : first.id;
+    const partName = isMulti ? 'Столешница цельная' : 'Столешница';
+
+    let curX = first.x;
+    for (const segW of splitSpanLengths(totalW, 3050, splitForCutlist)) {
+      spans.push({
+        refModule: first,
+        groupName,
+        groupId,
+        part: {
+          name: partName,
+          mat: 'top',
+          pos: [curX, H, 0],
+          size: [segW, COUNTERTOP_T, D + 30],
+          edgeMm: segW,
+          sheet: true,
+          shape: 'box',
+        },
+      });
+      curX += segW;
+    }
+  }
+
+  // 3. Цельная верхняя доборная планка / карниз под потолок
+  const trimMods = modules
+    .filter((m) => !isCorner(m.kind) && m.kind !== 'base' && (m.topTrim ?? 0) > 0)
+    .sort((a, b) => a.x - b.x);
+
+  const trimRuns: Module[][] = [];
+  for (const m of trimMods) {
+    const prevRun = trimRuns[trimRuns.length - 1];
+    const prev = prevRun ? prevRun[prevRun.length - 1] : null;
+    if (
+      prev &&
+      Math.abs((prev.x + prev.w) - m.x) <= 5 &&
+      Math.abs(((prev.lift ?? 0) + prev.h) - ((m.lift ?? 0) + m.h)) <= 2 &&
+      prev.topTrim === m.topTrim &&
+      prev.d === m.d &&
+      prev.matFacade === m.matFacade
+    ) {
+      prevRun.push(m);
+    } else {
+      trimRuns.push([m]);
+    }
+  }
+
+  for (let ri = 0; ri < trimRuns.length; ri++) {
+    const run = trimRuns[ri];
+    const first = run[0];
+    const last = run[run.length - 1];
+    const totalW = Math.round((last.x + last.w) - first.x);
+    const topY = (first.lift ?? 0) + first.h;
+    const trimH = first.topTrim!;
+    const D = first.d;
+    const t = first.t || 16;
+    const isMulti = run.length > 1;
+    const groupName = isMulti ? `Верхний карниз (${run.length} мод.)` : first.name;
+    const groupId = isMulti ? `span-trim-${first.id}` : first.id;
+    const partName = isMulti ? 'Верхняя планка (карниз цельный)' : 'Верхняя планка (карниз)';
+
+    let curX = first.x;
+    for (const segW of splitSpanLengths(totalW, 2750, splitForCutlist)) {
+      spans.push({
+        refModule: first,
+        groupName,
+        groupId,
+        part: {
+          name: partName,
+          mat: 'facade',
+          pos: [curX, topY, D],
+          size: [segW, trimH, FACADE_T],
+          edgeMm: 2 * (segW + trimH),
+          sheet: true,
+          shape: 'box',
+        },
+      });
+      if (D >= 120 && segW >= 2 * t + 40) {
+        spans.push({
+          refModule: first,
+          groupName,
+          groupId,
+          part: {
+            name: 'Монтажная планка карниза',
+            mat: 'corpus',
+            pos: [curX + t, topY, Math.max(BK, D - 80)],
+            size: [segW - 2 * t, trimH, t],
+            edgeMm: segW - 2 * t,
+            sheet: true,
+            shape: 'box',
+          },
+        });
+      }
+      curX += segW;
+    }
+
+    // Боковой возврат верхней планки при перепаде глубины (например, между пеналом 560 мм и верхними шкафами 320 мм)
+    const nextRun = trimRuns[ri + 1];
+    if (nextRun && Math.abs((last.x + last.w) - nextRun[0].x) <= 5 && D > nextRun[0].d + 20) {
+      const dDiff = D - nextRun[0].d;
+      spans.push({
+        refModule: last,
+        groupName,
+        groupId,
+        part: {
+          name: 'Боковой возврат верхней планки',
+          mat: 'facade',
+          pos: [last.x + last.w - FACADE_T, topY, nextRun[0].d],
+          size: [FACADE_T, trimH, dDiff],
+          edgeMm: 2 * (dDiff + trimH),
+          sheet: true,
+          shape: 'box',
+        },
+      });
+    }
+    const prevRun = ri > 0 ? trimRuns[ri - 1] : undefined;
+    if (prevRun && Math.abs((prevRun[prevRun.length - 1].x + prevRun[prevRun.length - 1].w) - first.x) <= 5 && D > prevRun[0].d + 20) {
+      const dDiff = D - prevRun[0].d;
+      spans.push({
+        refModule: first,
+        groupName,
+        groupId,
+        part: {
+          name: 'Боковой возврат верхней планки',
+          mat: 'facade',
+          pos: [first.x, topY, prevRun[0].d],
+          size: [FACADE_T, trimH, dDiff],
+          edgeMm: 2 * (dDiff + trimH),
+          sheet: true,
+          shape: 'box',
+        },
+      });
+    }
+  }
+
+  return spans;
 }
 
 export const FOOTPRINT_W = (m: Module) => m.w;

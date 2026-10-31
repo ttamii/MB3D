@@ -40,6 +40,8 @@ export interface Module {
   milling?: 'modern' | 'frame' | 'ribbed';
   plinthColor?: 'corpus' | 'facade' | 'black';
   hinge?: 'left' | 'right' | 'top';
+  /** Высота верхней доборной планки / карниза под потолок, мм (0 = нет). */
+  topTrim?: number;
 }
 
 export type ProjectStatus = 'draft' | 'approved' | 'production' | 'done';

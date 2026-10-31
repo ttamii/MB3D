@@ -53,6 +53,8 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
   const milling = r.milling === 'frame' || r.milling === 'ribbed' || r.milling === 'modern' ? r.milling : undefined;
   const plinthColor = r.plinthColor === 'facade' || r.plinthColor === 'corpus' || r.plinthColor === 'black' ? r.plinthColor : undefined;
   const hinge = r.hinge === 'left' || r.hinge === 'right' || r.hinge === 'top' ? r.hinge : undefined;
+  const topTrimVal = int(r.topTrim, 0, ...LIMITS.topTrim);
+  const topTrim = topTrimVal > 0 && kind !== 'base' && kind !== 'corner' ? topTrimVal : undefined;
 
   return {
     id: typeof r.id === 'string' && /^[\w-]{1,40}$/.test(r.id) ? r.id : uid(),
@@ -79,6 +81,7 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
     ...(milling ? { milling } : {}),
     ...(plinthColor && !wall ? { plinthColor } : {}),
     ...(hinge ? { hinge } : {}),
+    ...(topTrim ? { topTrim } : {}),
   };
 }
 

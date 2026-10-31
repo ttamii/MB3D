@@ -4,7 +4,8 @@
  */
 import { DEFAULT_SETTINGS, PRESETS } from '../src/core/defaults';
 import { estimate } from '../src/core/estimate';
-import { buildModule } from '../src/core/geometry';
+import { buildContinuousSpans, buildModule } from '../src/core/geometry';
+import { applyTopTrimToUpperRow } from '../src/core/collision';
 import { generateKitchenLayout } from '../src/core/kitchenWizard';
 import { DEFAULT_ROOM } from '../src/core/room';
 import { computeModuleDrilling } from '../src/core/drilling';
@@ -32,7 +33,7 @@ function bounds(m: Module): string[] {
     const tol = 2.5;
     if (p.anim?.type === 'sliding') return;
     if (x < -tol || x + sx > maxX + tol) errs.push(`${p.name}: выход по X (${x}..${x + sx} при W=${m.w})`);
-    if (y < -tol || y + sy > m.h + (m.countertop ? 40 : 0) + tol) errs.push(`${p.name}: выход по Y (${y}..${y + sy} при H=${m.h})`);
+    if (y < -tol || y + sy > m.h + (m.countertop ? 40 : 0) + (m.topTrim ?? 0) + tol) errs.push(`${p.name}: выход по Y (${y}..${y + sy} при H=${m.h})`);
     if (z < -tol || z + sz > maxZ + tol) errs.push(`${p.name}: выход по Z`);
   });
   return errs;
@@ -431,6 +432,41 @@ group('Антресоли 2170 мм, двухдверная сушка для п
     syncTierHeight(k4000, mezzanines[0].id);
     ok(mezzanines.slice(1).every((m) => m.h === 250), 'syncTierHeight не выровнял высоту всех антресолей');
   }
+}
+
+// 16. Цельный цоколь на ножках, цельная столешница и верхняя планка (карниз)
+group('Цельный нижний цоколь на клипсах, цельная столешница и верхняя планка (карниз)');
+{
+  const k2400 = generateKitchenLayout({
+    wallLength: 2400,
+    tiers: 2,
+    facadeMat: 'm-ral1015',
+    corpusMat: 'eg-w1000',
+    topMat: 'top-f812',
+    plinthColor: 'facade',
+    millingMix: 'modern',
+    layoutVariant: 0,
+    topTrimH: 60,
+  }).map((m) => normalizeModule(m, mats));
+
+  const spans = buildContinuousSpans(k2400, true);
+  const plinthSpans = spans.filter((s) => s.part.name.startsWith('Цоколь цельный'));
+  ok(plinthSpans.length === 1 && plinthSpans[0].part.size[0] === 2400, `Ожидался 1 цельный цоколь 2400 мм, получено: ${plinthSpans.map((p) => p.part.size[0]).join(',')}`);
+
+  const topSpans = spans.filter((s) => s.part.name.startsWith('Столешница цельная'));
+  ok(topSpans.length === 1 && topSpans[0].part.size[0] === 1800, `Ожидалась 1 цельная столешница 1800 мм над тумбами, получено: ${topSpans.map((p) => p.part.size[0]).join(',')}`);
+
+  const trimSpans = spans.filter((s) => s.part.name.startsWith('Верхняя планка'));
+  ok(trimSpans.length >= 1, 'Верхняя планка (карниз) не сформирована');
+
+  const baseMod = k2400.find((m) => m.kind === 'base');
+  if (baseMod) {
+    const legs = buildModule(baseMod, { skipContinuous: true }).parts.filter((p) => p.name === 'Опора регулируемая');
+    ok(legs.length >= 4, `Ожидалось минимум 4 3D-ножки под тумбой, получено ${legs.length}`);
+  }
+
+  applyTopTrimToUpperRow(k2400, 80);
+  ok(k2400.filter((m) => m.kind === 'wall' || m.kind === 'tall').every((m) => m.topTrim === 80), 'applyTopTrimToUpperRow(80) не применил высоту 80 мм ко всему верхнему ряду');
 }
 
 console.log(failed ? `\n${failed} проверок не пройдено` : '\nВсе проверки пройдены');

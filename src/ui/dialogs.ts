@@ -1236,6 +1236,7 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
   let millingMix: 'trend' | 'modern' | 'frame' | 'ribbed' = 'trend';
   let layoutVariant = 0; // 0: пенал слева, 1: пенал справа, 2: без пенала
   let shape: 'linear' | 'corner-left' = 'linear';
+  let topTrimH = 60; // Верхняя доборная планка под потолок (карниз 60 мм по умолчанию)
 
   const container = h('div', { class: 'wizard-body', style: 'display:flex; flex-direction:column; gap:16px;' });
 
@@ -1270,18 +1271,33 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
       ),
     );
 
-    // Ярусы
+    // Ярусы и верхняя планка
     const tiersWrap = h('div', { class: 'grp' },
-      h('h3', null, '2. Конфигурация ярусов'),
-      h('div', { class: 'btn-bar' },
+      h('h3', null, '2. Конфигурация ярусов и верхней планки'),
+      h('div', { class: 'btn-bar', style: 'margin-bottom:10px;' },
         h('button', {
           class: `btn sm ${tiers === 3 ? 'primary' : 'ghost'}`,
           onClick: () => { tiers = 3; renderContent(); },
-        }, '3 яруса (Низ + Верх 720 мм + Антресоли push-to-open)'),
+        }, '3 яруса (Низ + Верх 720 мм + Антресоли на газлифтах)'),
         h('button', {
           class: `btn sm ${tiers === 2 ? 'primary' : 'ghost'}`,
           onClick: () => { tiers = 2; renderContent(); },
         }, '2 яруса (Низ + Верх 720 мм)'),
+      ),
+      h('div', { style: 'font-size:12px; color:#475569; margin-bottom:5px;' }, 'Верхняя доборная планка (цельный карниз под потолок):'),
+      h('div', { class: 'btn-bar', style: 'flex-wrap:wrap; gap:6px;' },
+        ...[
+          [0, 'Без верхней планки'],
+          [50, 'Планка 50 мм'],
+          [60, 'Планка 60 мм (Стандарт)'],
+          [80, 'Планка 80 мм'],
+          [100, 'Планка 100 мм'],
+        ].map(([th, lbl]) =>
+          h('button', {
+            class: `btn sm ${topTrimH === th ? 'primary' : 'ghost'}`,
+            onClick: () => { topTrimH = Number(th); renderContent(); },
+          }, String(lbl)),
+        ),
       ),
     );
 
@@ -1393,6 +1409,7 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
       millingMix,
       layoutVariant,
       shape,
+      topTrimH,
     }, room);
 
     if (!modules.length) {
