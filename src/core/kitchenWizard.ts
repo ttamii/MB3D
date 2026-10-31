@@ -68,13 +68,45 @@ function freeSegments(total: number, room: RoomConfig | undefined, notes: string
   return segs.filter((s) => s.x1 - s.x0 >= MIN_W);
 }
 
-/** Делит участок на модули 400-800 мм без остатка; последний забирает округление. */
+/**
+ * Делит участок на стандартные кухонные модули (приоритет 800 мм для двухдверной мойки/сушки посуды
+ * и 600 мм для бытовой техники и ящиков) строго без остатка.
+ */
 function splitWidths(len: number, minCount = 1): number[] {
-  const lo = Math.max(minCount, Math.ceil(len / 800));
+  if (len < 750 && minCount <= 1) return [len];
+  const lo = Math.max(minCount, Math.ceil(len / 850));
   const hi = Math.max(lo, Math.floor(len / 400));
-  const n = Math.min(hi, Math.max(lo, Math.round(len / 600)));
-  const w = Math.floor(len / n / 10) * 10;
-  return Array.from({ length: n }, (_, i) => (i === n - 1 ? len - w * (n - 1) : w));
+  const n = Math.min(hi, Math.max(lo, Math.round(len / 680)));
+  if (n <= 1) return [len];
+
+  // Предпочтительные ширины: слот 0 (мойка + двухдверная сушка) = 800 мм, последний слот на больших кухнях = 800 мм
+  const widths = Array.from({ length: n }, (_, i) => {
+    if (i === 0 && len >= n * 520 + 180) return 800;
+    if (i === n - 1 && n >= 4 && len >= 2900) return 800;
+    if (i === 1 && n >= 5 && len >= 3600) return 800;
+    return 600;
+  });
+
+  let diff = len - widths.reduce((a, b) => a + b, 0);
+  // Распределяем разницу по гибким модулям (в пределах 400..850 мм), сохраняя 800 мм у сушки и 600 мм у духовки (слот 2)
+  const flexOrder = Array.from({ length: n }, (_, i) => i).sort((a, b) => {
+    const prio = (idx: number) => (idx === 2 ? 10 : idx === 0 ? 8 : idx === n - 1 ? 5 : 1);
+    return prio(a) - prio(b);
+  });
+
+  for (const idx of flexOrder) {
+    if (diff === 0) break;
+    const minW = len / n < 420 ? 300 : 400;
+    const maxW = 850;
+    const take = Math.max(minW - widths[idx], Math.min(maxW - widths[idx], diff));
+    const roundedTake = Math.trunc(take / 10) * 10;
+    widths[idx] += roundedTake;
+    diff -= roundedTake;
+  }
+  if (diff !== 0) {
+    widths[widths.length - 1] += diff;
+  }
+  return widths;
 }
 
 export function planKitchen(opts: KitchenWizardOptions, room?: RoomConfig): KitchenPlan {
@@ -259,33 +291,68 @@ export function planKitchen(opts: KitchenWizardOptions, room?: RoomConfig): Kitc
     }
   }
 
+  const tallAtLeft = layoutVariant !== 2 && !isCorner && layoutVariant === 0;
+  const tallAtRight = layoutVariant !== 2 && (isCorner || layoutVariant === 1);
+
   let slot = 0;
   for (const s of work) {
     const len = s.x1 - s.x0;
     if (len < MIN_W) continue;
     let x = s.x0;
-    for (const w of splitWidths(len, slot === 0 && work.length === 1 ? 2 : 1)) {
-      let baseName = `Нижний шкаф ${slot + 1}`;
+    const slotWidths = splitWidths(len, slot === 0 && work.length === 1 ? 2 : 1);
+    for (let wi = 0; wi < slotWidths.length; wi++) {
+      const w = slotWidths[wi];
+      let baseName = w >= 700 ? `Двухдверная тумба ${slot + 1}` : `Нижний шкаф ${slot + 1}`;
       let baseSections = [sec({ shelves: 1, door: true })];
       let baseDoorMode: 'none' | 'hinged' = 'hinged';
       let baseDrH = 200;
-      let upperName = `Верхний шкаф ${slot + 1}`;
+      let upperName = w >= 700 ? `Двухдверный шкаф для посуды ${slot + 1}` : `Верхний шкаф ${slot + 1}`;
 
       if (slot === 0) {
-        baseName = 'Модуль под мойку';
+        baseName = w >= 700 ? 'Модуль под мойку (2 двери)' : 'Модуль под мойку';
         baseSections = [sec({ shelves: 0, door: true })];
-        upperName = 'Сушка для посуды (2 яруса)';
+        upperName = 'Двухдверный шкаф-сушка для посуды (2 яруса)';
       } else if (slot === 1) {
         baseName = 'Модуль с 3 ящиками (приборы + кастрюли)';
         baseSections = [sec({ drawers: 3, door: false })];
         baseDoorMode = 'none';
         baseDrH = 240;
+        upperName = w >= 700 ? 'Двухдверный шкаф для бокалов и посуды' : 'Шкаф для бокалов и бакалеи';
       } else if (slot === 2) {
         baseName = 'Модуль под варочную поверхность';
         baseSections = [sec({ shelves: 1, drawers: 1, door: false })];
         baseDoorMode = 'none';
         baseDrH = 160;
-        upperName = 'Шкаф под вытяжку';
+        upperName = 'Шкаф под встроенную вытяжку';
+      } else if (slot === 3) {
+        if (w >= 700) {
+          baseName = 'Двухдверная тумба для посуды и кастрюль';
+          upperName = 'Двухдверный шкаф для посуды и сервиза';
+        } else {
+          baseName = 'Модуль под ПММ / Отсек хранения';
+          upperName = 'Шкаф для посуды и хранения';
+        }
+      } else if (slot === 4) {
+        if (w >= 700) {
+          baseName = 'Двухдверная база хранения (2 створки)';
+          upperName = 'Двухдверный шкаф для посуды (2 створки)';
+        } else {
+          baseName = 'Доп. модуль с 3 ящиками';
+          baseSections = [sec({ drawers: 3, door: false })];
+          baseDoorMode = 'none';
+          baseDrH = 240;
+          upperName = 'Верхний шкаф для запасов';
+        }
+      }
+
+      // Умная ориентация петель для однодверных шкафов:
+      // если слева стоит глубокий пенал или угол — петли справа (открывание ОТ пенала),
+      // если справа стоит пенал или стена — петли слева (открывание ОТ правого края)
+      let smartHinge: 'left' | 'right' = slot % 2 === 0 ? 'left' : 'right';
+      if (wi === 0 && (tallAtLeft || isCorner)) {
+        smartHinge = 'right';
+      } else if (wi === slotWidths.length - 1 && tallAtRight) {
+        smartHinge = 'left';
       }
 
       if (hitsWindow(x, x + w, 0, BASE_H + COUNTERTOP_H)) {
@@ -294,7 +361,7 @@ export function planKitchen(opts: KitchenWizardOptions, room?: RoomConfig): Kitc
 
       modules.push({
         ...common, id: uid(), name: baseName, kind: 'base', x, w, h: BASE_H, d: 560, plinth: 100, lift: 0,
-        sections: baseSections, doorMode: baseDoorMode, drawerH: baseDrH, handles: true, countertop: true,
+        sections: baseSections, doorMode: baseDoorMode, hinge: smartHinge, drawerH: baseDrH, handles: true, countertop: true,
         milling: bottomMilling, plinthColor,
       });
 
@@ -304,7 +371,7 @@ export function planKitchen(opts: KitchenWizardOptions, room?: RoomConfig): Kitc
         } else {
           modules.push({
             id: uid(), name: upperName, kind: 'wall', x, w, h: upperH, d: 320, plinth: 0, lift: WALL_LIFT,
-            sections: [sec({ shelves: 2, door: true })], doorMode: 'hinged', handles: true, countertop: false,
+            sections: [sec({ shelves: 2, door: true })], doorMode: 'hinged', hinge: smartHinge, handles: true, countertop: false,
             milling: upperMilling, ...common,
           });
         }
@@ -315,8 +382,9 @@ export function planKitchen(opts: KitchenWizardOptions, room?: RoomConfig): Kitc
           notes.push(`Антресоль ${x}-${x + w} мм пропущена: окно.`);
         } else {
           modules.push({
-            id: uid(), name: `Антресоль ${slot + 1} (push-to-open)`, kind: 'wall', x, w, h: mezzH, d: 560, plinth: 0,
-            lift: mezzLift, sections: [sec({ shelves: 0, door: true })], doorMode: 'hinged', handles: false,
+            id: uid(), name: w >= 700 ? `Антресоль двухдверная ${slot + 1} (push-to-open)` : `Антресоль ${slot + 1} (push-to-open)`,
+            kind: 'wall', x, w, h: mezzH, d: 560, plinth: 0,
+            lift: mezzLift, sections: [sec({ shelves: 0, door: true })], doorMode: 'hinged', hinge: smartHinge, handles: false,
             countertop: false, milling: mezzMilling, ...common,
           });
         }

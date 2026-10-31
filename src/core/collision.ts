@@ -248,3 +248,61 @@ export function resolveAllOverlaps(modules: Module[]): boolean {
   }
   return changed;
 }
+
+/**
+ * Изменяет высоту модуля и автоматически сдвигает по вертикали (lift) антресоли,
+ * стоящие непосредственно на его крышке, чтобы исключить наложение ярусов.
+ */
+export function resizeHeightWithStack(modules: Module[], targetId: string, newH: number): void {
+  const target = modules.find((m) => m.id === targetId);
+  if (!target) return;
+  const oldH = target.h;
+  const oldTop = (target.lift ?? 0) + oldH;
+  target.h = newH;
+  const newTop = (target.lift ?? 0) + newH;
+
+  for (const m of modules) {
+    if (m.id === target.id) continue;
+    const xOverlap = m.x < target.x + getModuleW(target) - 5 && m.x + getModuleW(m) > target.x + 5;
+    if (xOverlap && Math.abs((m.lift ?? 0) - oldTop) <= 40) {
+      m.lift = newTop;
+    }
+  }
+}
+
+export function isSameVerticalTier(a: Module, b: Module): boolean {
+  if (a.kind !== b.kind) return false;
+  const aLift = a.lift ?? 0;
+  const bLift = b.lift ?? 0;
+  if (a.kind === 'wall' || a.kind === 'cornerWall') {
+    const aIsMezz = aLift >= 1900 || a.name.toLowerCase().includes('антресоль');
+    const bIsMezz = bLift >= 1900 || b.name.toLowerCase().includes('антресоль');
+    return aIsMezz === bIsMezz;
+  }
+  return Math.abs(aLift - bLift) <= 150;
+}
+
+/**
+ * Выравнивает высоту всех шкафов текущего яруса (например, всех антресолей или всех верхних шкафов)
+ * под высоту выбранного модуля и подгоняет высоту пенала под общую верхнюю линию.
+ */
+export function syncTierHeight(modules: Module[], targetId: string): void {
+  const target = modules.find((m) => m.id === targetId);
+  if (!target) return;
+  const sameTier = modules.filter((m) => m.id !== target.id && isSameVerticalTier(m, target));
+  for (const m of sameTier) {
+    resizeHeightWithStack(modules, m.id, target.h);
+  }
+  // Если выравниваем верхний ряд или антресоли — выравниваем пенал под самый верхний край кухни
+  const maxWallTop = Math.max(
+    0,
+    ...modules.filter((m) => m.kind === 'wall' || m.kind === 'cornerWall').map((m) => (m.lift ?? 0) + m.h)
+  );
+  if (maxWallTop >= 2000) {
+    for (const m of modules) {
+      if (m.kind === 'tall') {
+        m.h = maxWallTop;
+      }
+    }
+  }
+}

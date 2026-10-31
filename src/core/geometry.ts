@@ -44,14 +44,18 @@ function doorHandle(
   b.add('handle');
 }
 
+export function isDoubleDoorSection(m: Module, segW: number): boolean {
+  if (segW > 620) return true;
+  if (segW >= 540 && /сушк|двухдвер|посуд|2\s*ств|2\s*двер/i.test(m.name)) return true;
+  return false;
+}
+
 function frontDoor(
   b: Builder, m: Module, label: string, x0: number, x1: number, y0: number, y1: number,
   hinge: 'left' | 'right', D: number, key: string,
 ): void {
-  let ang = hinge === 'left' ? -105 : 105;
-  if (hinge === 'left' && (m.x + x0) <= 50) {
-    ang = -85;
-  }
+  // Ограничитель угла открывания 85° (Blum Clip Top 86°), чтобы створки не бились о соседние модули, пеналы и стены
+  const ang = hinge === 'left' ? -85 : 85;
   const anim: PartAnim = { type: 'door', key, pivot: [hinge === 'left' ? x0 : x1, D], ang };
   const dw = x1 - x0;
   const dh = y1 - y0;
@@ -388,7 +392,7 @@ function rectCabinet(b: Builder, m: Module): void {
       const y1 = H - 2;
       if (y1 - y0 > 100) {
         const segW = fx1 - fx0;
-        const nDoors = segW > 620 ? 2 : 1;
+        const nDoors = isDoubleDoorSection(m, segW) ? 2 : 1;
         const gap = 3;
         const dw = (segW - gap * (nDoors - 1)) / nDoors;
         for (let k = 0; k < nDoors; k++) {
@@ -477,12 +481,12 @@ function cornerCabinet(b: Builder, m: Module): void {
   if (m.doorMode !== 'none' && sec.door && Hi > 100) {
     const y0 = P + 2;
     const hd = H - 2 - y0;
-    const a1: PartAnim = { type: 'door', key: `${m.id}-door-c1`, pivot: [1, S], ang: -105 };
+    const a1: PartAnim = { type: 'door', key: `${m.id}-door-c1`, pivot: [1, S], ang: -85 };
     b.box('Фасад (плечо 1)', 'facade', [1, y0, S], [D - 2, hd, FACADE_T], 2 * (D - 2 + hd), a1);
     b.add('hinge', hingesFor(hd));
     doorHandle(b, m, a1, 1, D - 1, y0, y0 + hd, 'left', S + FACADE_T);
 
-    const a2: PartAnim = { type: 'door', key: `${m.id}-door-c2`, pivot: [S, 1], ang: 105 };
+    const a2: PartAnim = { type: 'door', key: `${m.id}-door-c2`, pivot: [S, 1], ang: 85 };
     b.box('Фасад (плечо 2)', 'facade', [S, y0, 1], [FACADE_T, hd, D - 2], 2 * (D - 2 + hd), a2);
     b.add('hinge', hingesFor(hd));
     if (m.handles) {

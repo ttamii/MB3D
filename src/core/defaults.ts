@@ -146,10 +146,10 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export const LIMITS = {
   w: [50, 4000],
-  h: [200, 2800],
+  h: [150, 2800],
   d: [150, 800],
   plinth: [0, 200],
-  lift: [0, 2000],
+  lift: [0, 2700],
   sections: [1, 5],
   shelves: [0, 12],
   drawers: [0, 6],

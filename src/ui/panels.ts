@@ -3,7 +3,7 @@ import type { Estimate } from '../core/estimate';
 import { buildModule } from '../core/geometry';
 import type { DoorMode, MatKind, Module, Section } from '../core/types';
 import { fmtNum, money, uid } from '../core/util';
-import { resizeModuleCascading, shiftModuleCascading, insertFillerWithShift } from '../core/collision';
+import { isSameVerticalTier, resizeHeightWithStack, resizeModuleCascading, shiftModuleCascading, insertFillerWithShift, syncTierHeight } from '../core/collision';
 import type { Store } from '../app/store';
 import { clear, h, icon } from './dom';
 
@@ -258,7 +258,11 @@ export function renderProps(root: HTMLElement, store: Store): void {
           resizeModuleCascading(p.modules, m.id, v, p.room?.w);
         }, 'w');
       }),
-      numField('Высота', 'h', m.h, LIMITS.h, (v) => set((t) => { t.h = v; }, 'h')),
+      numField('Высота', 'h', m.h, LIMITS.h, (v) => {
+        store.commit((p) => {
+          resizeHeightWithStack(p.modules, m.id, v);
+        }, 'h');
+      }),
       numField(corner ? 'Глубина плеча' : 'Глубина', 'd', m.d, LIMITS.d, (v) => set((t) => { t.d = v; }, 'd')),
       wall ? numField('Высота от пола', 'lift', m.lift, LIMITS.lift, (v) => set((t) => { t.lift = v; }, 'lift'))
         : numField('Цоколь', 'plinth', m.plinth, LIMITS.plinth, (v) => set((t) => { t.plinth = v; }, 'plinth')),
@@ -397,7 +401,21 @@ export function renderProps(root: HTMLElement, store: Store): void {
     );
     if (m.t !== 16 || m.mirror || isNearLeftWall || isNearRightWall) advanced.setAttribute('open', '');
 
+    const sameTierHeightMods = store.project.modules.filter((o) => o.id !== m.id && isSameVerticalTier(o, m));
+    const syncTierBtn = sameTierHeightMods.length > 0 ? h('button', {
+      type: 'button',
+      class: 'btn btn-ghost sm',
+      style: 'width:100%; margin-top:4px;',
+      title: 'Применить высоту текущего модуля ко всем шкафам этого яруса (например, ко всем антресолям или верхним шкафам)',
+      onClick: () => {
+        store.commit((p) => {
+          syncTierHeight(p.modules, m.id);
+        }, 'sync-tier-h');
+      },
+    }, `Выровнять высоту всего яруса (${m.h} мм)`) : null;
+
     contentArea.append(nameField, dimsGrid);
+    if (syncTierBtn) contentArea.append(syncTierBtn);
     if (wallAlert) contentArea.append(wallAlert);
     contentArea.append(advanced);
 

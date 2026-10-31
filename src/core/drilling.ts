@@ -1,4 +1,4 @@
-import { hingesFor } from './geometry';
+import { hingesFor, isDoubleDoorSection } from './geometry';
 import type { Module, Part } from './types';
 
 export interface Hole {
@@ -117,7 +117,7 @@ export function computeModuleDrilling(m: Module, builtParts: Part[]): ModuleDril
     const fx1 = segR - (i === n - 1 ? 1 : 1.5);
     const segW = fx1 - fx0;
 
-    const nDoors = segW > 620 ? 2 : 1;
+    const nDoors = isDoubleDoorSection(m, segW) ? 2 : 1;
     const gap = 3;
     const doorW = (segW - gap * (nDoors - 1)) / nDoors;
 

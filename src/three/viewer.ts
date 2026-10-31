@@ -851,6 +851,12 @@ export class Viewer {
       }
     } else if (this.showDimensions) {
       for (const m of this.currentModules) {
+        // Не рисуем дублирующую верхнюю размерную линию внутри фасада антресоли, если прямо на крышке шкафа стоит верхний ярус
+        const hasStackedAbove = this.currentModules.some(
+          (o) => o.id !== m.id && o.x < m.x + m.w - 10 && o.x + o.w > m.x + 10 && Math.abs(o.lift - (m.lift + m.h)) <= 40
+        );
+        if (hasStackedAbove) continue;
+
         const mx0 = m.x * MM;
         const mx1 = (m.x + m.w) * MM;
         const my = (m.lift + m.h) * MM + 0.04;

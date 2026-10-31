@@ -1,4 +1,5 @@
 import type { Store } from '../app/store';
+import { isSameVerticalTier, resizeHeightWithStack, resizeModuleCascading, syncTierHeight } from '../core/collision';
 import type { Viewer } from '../three/viewer';
 import { clear, h, icon } from './dom';
 
@@ -183,31 +184,46 @@ export function createFloatingHud(container: HTMLElement, store: Store, _viewer:
 
     // Строки: Ширина, Высота, Глубина, От пола
     card.append(
-      stepper('Ширина', 'X', m.w, 300, 3000, 50, (v) => {
+      stepper('Ширина', 'X', m.w, 50, 4000, 50, (v) => {
         store.commit((p) => {
-          const target = p.modules.find((x) => x.id === m.id);
-          if (target) target.w = v;
+          resizeModuleCascading(p.modules, m.id, v, p.room?.w);
         }, 'hud-width');
       }),
-      stepper('Высота', 'Y', m.h, 300, 2800, 50, (v) => {
+      stepper('Высота', 'Y', m.h, 150, 2800, 20, (v) => {
         store.commit((p) => {
-          const target = p.modules.find((x) => x.id === m.id);
-          if (target) target.h = v;
+          resizeHeightWithStack(p.modules, m.id, v);
         }, 'hud-height');
       }),
-      stepper('Глубина', 'Z', m.d, 200, 1200, 50, (v) => {
+      stepper('Глубина', 'Z', m.d, 150, 800, 20, (v) => {
         store.commit((p) => {
           const target = p.modules.find((x) => x.id === m.id);
           if (target) target.d = v;
         }, 'hud-depth');
       }),
-      stepper('От пола', 'Y', m.lift, 0, 2400, 10, (v) => {
+      stepper('От пола', 'Y', m.lift, 0, 2700, 20, (v) => {
         store.commit((p) => {
           const target = p.modules.find((x) => x.id === m.id);
           if (target) target.lift = v;
         }, 'hud-lift');
       }),
     );
+
+    const sameTierMods = store.project.modules.filter((o) => o.id !== m.id && isSameVerticalTier(o, m));
+    if (sameTierMods.length > 0) {
+      card.append(
+        h('button', {
+          type: 'button',
+          class: 'btn ghost sm',
+          style: 'width:100%; font-size:11.5px; padding:4px 8px; margin-top:2px;',
+          title: 'Применить эту высоту ко всем шкафам этого яруса (например, ко всем антресолям или верхним шкафам)',
+          onClick: () => {
+            store.commit((p) => {
+              syncTierHeight(p.modules, m.id);
+            }, 'hud-sync-tier');
+          },
+        }, `Выровнять высоту яруса (${m.h} мм)`),
+      );
+    }
 
     // Цоколь (с чекбоксом)
     const plinthChecked = m.plinth > 0;

@@ -9,7 +9,7 @@ function csp(): Plugin {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
-    "connect-src 'self' blob: data:",
+    "connect-src 'self' blob: data: https://*.supabase.co",
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",

@@ -1,3 +1,4 @@
+import { generateKitchenLayout } from './kitchenWizard';
 import type { Kind, Module, Section } from './types';
 import { uid } from './util';
 
@@ -369,86 +370,29 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
     matTop,
   };
 
-  // Если запрос на кухню — формируем сбалансированный кухонный ряд из нескольких модулей
+  // Если запрос на кухню — формируем сбалансированный кухонный гарнитур по стандартам технолога
   let kitchenModules: Module[] | undefined;
   if (isKitchen && w >= 1200) {
-    kitchenModules = [];
-    let curX = 0;
+    const wantsThreeTiers = /антресол|до потолка|3\s*ярус|трехъярус|трёхъярус|высок/i.test(text) || h >= 2400;
+    const wantsCorner = /углов|г-образ|г образ/i.test(text);
+    const wantsNoTall = /без пенал/i.test(text);
+    const wantsTallRight = /пенал справ/i.test(text);
+    const layoutVariant = wantsNoTall ? 2 : wantsTallRight ? 1 : 0;
 
-    // 1. Модуль мойки 600 или 800 мм
-    const sinkW = Math.min(800, Math.max(600, Math.floor(w * 0.35 / 100) * 100));
-    kitchenModules.push({
-      ...primaryModule,
-      id: uid(),
-      name: `Мойка ${sinkW} мм`,
-      w: sinkW,
-      x: curX,
-      countertop: true,
-      sections: [sec({ shelves: 0, drawers: 0, door: true })],
+    kitchenModules = generateKitchenLayout({
+      wallLength: Math.max(1600, w),
+      tiers: wantsThreeTiers ? 3 : 2,
+      facadeMat: matFacade,
+      corpusMat: matCorpus,
+      topMat: matTop,
+      plinthColor: 'facade',
+      millingMix: milling === 'modern' && wantsThreeTiers ? 'trend' : milling,
+      layoutVariant,
+      shape: wantsCorner ? 'corner-left' : 'linear',
     });
-    curX += sinkW;
 
-    // 2. Модуль с ящиками (столовые приборы / кастрюли)
-    const drawW = Math.min(600, Math.max(400, Math.floor((w - curX) * 0.5 / 100) * 100));
-    if (drawW >= 400 && curX + drawW <= w) {
-      kitchenModules.push({
-        ...primaryModule,
-        id: uid(),
-        name: `Тумба с 3 ящиками ${drawW} мм`,
-        w: drawW,
-        x: curX,
-        countertop: true,
-        doorMode: 'none',
-        sections: [sec({ shelves: 0, drawers: 3, door: false })],
-      });
-      curX += drawW;
-    }
-
-    // 3. Распашной модуль для посуды/запасов
-    const remW = w - curX;
-    if (remW >= 400) {
-      kitchenModules.push({
-        ...primaryModule,
-        id: uid(),
-        name: `Тумба распашная ${remW} мм`,
-        w: remW,
-        x: curX,
-        countertop: true,
-        sections: [sec({ shelves: 1, drawers: 0, door: true })],
-      });
-      curX += remW;
-    }
-
-    // Верхний навесной ряд
-    let upperX = 0;
-    for (const baseMod of [...kitchenModules]) {
-      kitchenModules.push({
-        id: uid(),
-        name: `Верхний шкаф ${baseMod.w} мм`,
-        kind: 'wall',
-        x: upperX,
-        w: baseMod.w,
-        h: 720,
-        d: 320,
-        t: 16,
-        lift: 0,
-        plinth: 0,
-        countertop: false,
-        doorMode: 'hinged',
-        slidingCount: 2,
-        hinge: 'right',
-        sections: [sec({ shelves: 2, drawers: 0, door: true })],
-        drawerH: 200,
-        handles,
-        milling,
-        plinthColor: 'facade',
-        mirror: false,
-        matCorpus,
-        matFacade,
-        matBack: 'b-white',
-        matTop,
-      });
-      upperX += baseMod.w;
+    if (!handles) {
+      kitchenModules.forEach((km) => { km.handles = false; });
     }
   }
 

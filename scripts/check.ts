@@ -390,5 +390,48 @@ group('Зеркало, черный цоколь, CRM-поля проекта и
   ok(proj?.clientName === 'Иван Петров' && proj?.status === 'production', 'CRM-поля заказа потерялись при нормализации');
 }
 
+// 15. Антресоли без провала, двухдверная сушка посуды 800 мм и умные двери 85°
+group('Антресоли 2170 мм, двухдверная сушка для посуды и защита дверей от ударов');
+{
+  const { resizeHeightWithStack, syncTierHeight } = await import('../src/core/collision');
+  const k4000 = generateKitchenLayout({
+    wallLength: 4000,
+    tiers: 3,
+    facadeMat: 'm-ral1015',
+    corpusMat: 'eg-w1000',
+    topMat: 'top-f812',
+    plinthColor: 'facade',
+    millingMix: 'trend',
+    layoutVariant: 0,
+  }).map((m) => normalizeModule(m, mats));
+
+  // Антресоли не должны сбрасываться на lift=2000 и пересекать верхние шкафы
+  const mezzanines = k4000.filter((m) => m.name.toLowerCase().includes('антресоль'));
+  ok(mezzanines.length > 0 && mezzanines.every((m) => m.lift === 2170), `Антресоли должны быть на высоте 2170 мм, получено: ${mezzanines.map((m) => m.lift).join(',')}`);
+
+  // Двухдверная сушка для посуды должна иметь 2 распашные двери и ширину 800 мм
+  const dryer = k4000.find((m) => m.name.toLowerCase().includes('сушка'));
+  ok(!!dryer && dryer.w === 800, `Сушка для посуды на кухне 4000 мм должна быть 800 мм, получено ${dryer?.w}`);
+  if (dryer) {
+    const dryerDoors = buildModule(dryer).parts.filter((p) => p.anim?.type === 'door' && p.mat === 'facade');
+    ok(dryerDoors.length === 2, `У сушки для посуды должно быть 2 двери, получено ${dryerDoors.length}`);
+    ok(dryerDoors.every((d) => Math.abs(d.anim?.ang ?? 0) === 85), 'Угол открывания дверей должен быть ограничен 85°');
+  }
+
+  // Изменение высоты верхнего шкафа должно автоматически поднимать антресоль над ним
+  if (dryer) {
+    resizeHeightWithStack(k4000, dryer.id, 800);
+    const mezzAbove = k4000.find((m) => m.name.toLowerCase().includes('антресоль') && m.x === dryer.x);
+    ok(mezzAbove?.lift === 1450 + 800, `Антресоль над шкафом не поднялась при увеличении высоты (lift=${mezzAbove?.lift})`);
+  }
+
+  // Выравнивание высоты яруса антресолей (например, 250 мм)
+  if (mezzanines[0]) {
+    mezzanines[0].h = 250;
+    syncTierHeight(k4000, mezzanines[0].id);
+    ok(mezzanines.slice(1).every((m) => m.h === 250), 'syncTierHeight не выровнял высоту всех антресолей');
+  }
+}
+
 console.log(failed ? `\n${failed} проверок не пройдено` : '\nВсе проверки пройдены');
 process.exit(failed ? 1 : 0);

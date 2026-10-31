@@ -268,3 +268,4 @@ export async function deleteProjectFromCloud(projectId: string): Promise<void> {
     // ignore network error on background delete
   }
 }
+
