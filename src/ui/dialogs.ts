@@ -61,56 +61,203 @@ const btn = (label: string, cls: string, on: () => void, ic?: string) =>
 // ——— смета ———
 
 export function estimateDialog(store: Store, est: Estimate, viewer: Viewer): void {
-  const d = openDialog('Смета и КП', { wide: true });
+  const d = openDialog('Смета и Коммерческое предложение (КП)', { wide: true });
   const cur = '₸';
+  let viewMode: 'client' | 'workshop' = 'client';
+  const container = h('div', { style: 'display:flex; flex-direction:column; gap:12px;' });
+
   const row = (name: string, qty: string, cost: number, cls = '') =>
     h('tr', { class: cls }, h('td', null, name), h('td', { class: 'r' }, qty), h('td', { class: 'r' }, money(cost, cur)));
 
-  const mods = store.project.modules;
-  const t1 = h('table', { class: 'tbl' }, h('thead', null, h('tr', null, h('th', null, 'Модуль'), h('th', { class: 'r' }, 'Размер, мм'), h('th', { class: 'r' }, 'Цена'))),
-    h('tbody', null, ...mods.map((m) => h('tr', null, h('td', null, m.name), h('td', { class: 'r' }, `${m.w}×${m.h}×${m.d}`), h('td', { class: 'r' }, money(est.perModule[m.id] ?? 0, cur))))));
+  const buildWhatsappText = (): string => {
+    const p = store.project;
+    const lines: string[] = [
+      `📐 *Коммерческое предложение: ${p.name}*`,
+      p.clientName ? `👤 Клиент: ${p.clientName}` : '',
+      '',
+      '*Состав изделия (габариты Ш×В×Г):*',
+      ...p.modules.map((m, idx) => `${idx + 1}. ${m.name} (${m.w}×${m.h}×${m.d} мм) — ${money(est.perModule[m.id] ?? 0, cur)}`),
+      '',
+      `✅ В стоимость включено: плитные материалы EGGER/AGT, кромление ПВХ, фурнитура с доводчиками, изготовление в цехе и сборка.`,
+      `💰 *ИТОГО ПОД КЛЮЧ: ${money(est.total, cur)}*`,
+      store.settings.company.name ? `\nС уважением, ${store.settings.company.name}${store.settings.company.phone ? ' (' + store.settings.company.phone + ')' : ''}` : '',
+    ].filter(Boolean);
+    return lines.join('\n');
+  };
 
-  const t2 = h('table', { class: 'tbl' }, h('thead', null, h('tr', null, h('th', null, 'Статья расходов'), h('th', { class: 'r' }, 'Кол-во'), h('th', { class: 'r' }, 'Сумма'))),
-    h('tbody', null,
-      h('tr', { class: 'grp-r' }, h('td', { colspan: '3' }, 'Материалы (с учётом отходов)')),
-      ...est.materials.map((l) => row(l.name, `${fmtNum(l.qty)} ${l.unit}`, l.cost)),
-      row(est.edge.name, `${fmtNum(est.edge.qty)} ${est.edge.unit}`, est.edge.cost),
-      h('tr', { class: 'grp-r' }, h('td', { colspan: '3' }, 'Фурнитура')),
-      ...est.hardware.map((l) => row(l.name, `${fmtNum(l.qty)} ${l.unit}`, l.cost)),
-      h('tr', { class: 'grp-r' }, h('td', { colspan: '3' }, 'Работы')),
-      ...est.labor.map((l) => row(l.name, '', l.cost)),
-      row(`Наценка (${store.settings.labor.markup}%)`, '', est.markup),
-    ));
+  const renderEst = () => {
+    clear(container);
+    const mods = store.project.modules;
+    const netCost = Math.max(0, est.total - est.markup);
 
-  d.body.append(
-    h('div', { class: 'est-total' }, h('span', null, 'Итого'), h('b', null, money(est.total, cur))),
-    h('p', { class: 'hint' }, `Площадь плитных материалов: ${fmtNum(est.area)} м² (без отходов). Цены и проценты настраиваются в «Настройках».`),
-    h('div', { class: 'scroll-x' }, t1), h('div', { class: 'scroll-x' }, t2));
+    const modeTabs = h('div', { style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;' },
+      h('div', { class: 'seg' },
+        h('button', {
+          type: 'button',
+          class: `seg-b ${viewMode === 'client' ? 'on' : ''}`,
+          onClick: () => { viewMode = 'client'; renderEst(); },
+        }, '1. КП для клиента (без наценки цеха)'),
+        h('button', {
+          type: 'button',
+          class: `seg-b ${viewMode === 'workshop' ? 'on' : ''}`,
+          onClick: () => { viewMode = 'workshop'; renderEst(); },
+        }, '2. Цеховая смета (себестоимость и прибыль)'),
+      ),
+      btn('Скопировать КП для WhatsApp', 'ghost sm', () => {
+        void navigator.clipboard.writeText(buildWhatsappText());
+        toast('Текст КП скопирован — вставьте в WhatsApp или Telegram клиенту');
+      }, 'copy'),
+    );
+
+    const t1 = h('table', { class: 'tbl' },
+      h('thead', null, h('tr', null, h('th', null, '№'), h('th', null, 'Модуль / Изделие'), h('th', { class: 'r' }, 'Габариты (Ш×В×Г), мм'), h('th', { class: 'r' }, 'Стоимость'))),
+      h('tbody', null, ...mods.map((m, idx) => h('tr', null,
+        h('td', null, String(idx + 1)),
+        h('td', { style: 'font-weight:600;' }, m.name),
+        h('td', { class: 'r' }, `${m.w} × ${m.h} × ${m.d}`),
+        h('td', { class: 'r', style: 'font-weight:600;' }, money(est.perModule[m.id] ?? 0, cur)),
+      ))),
+    );
+
+    container.append(modeTabs);
+
+    if (viewMode === 'client') {
+      const kpiCards = h('div', {
+        style: 'display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; padding:12px 14px; background:var(--panel-2); border:1px solid var(--line); border-radius:10px;',
+      },
+        h('div', null,
+          h('div', { style: 'font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600;' }, 'Итоговая цена для клиента'),
+          h('div', { style: 'font-size:20px; font-weight:800; color:var(--accent);' }, money(est.total, cur)),
+        ),
+        h('div', null,
+          h('div', { style: 'font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600;' }, 'Модулей в проекте'),
+          h('div', { style: 'font-size:16px; font-weight:700; color:var(--ink);' }, `${mods.length} ед.`),
+        ),
+        h('div', null,
+          h('div', { style: 'font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600;' }, 'Площадь деталей'),
+          h('div', { style: 'font-size:16px; font-weight:700; color:var(--ink);' }, `${fmtNum(est.area)} м²`),
+        ),
+        h('div', null,
+          h('div', { style: 'font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600;' }, 'Комплектация'),
+          h('div', { style: 'font-size:13px; font-weight:600; color:var(--ok);' }, 'Под ключ (с фурнитурой и сборкой)'),
+        ),
+      );
+
+      container.append(
+        kpiCards,
+        h('p', { class: 'hint' }, 'В этом режиме скрыты внутренние отходы, раскрой и маржа цеха — экран можно показывать прямо заказчику.'),
+        h('div', { class: 'scroll-x' }, t1),
+      );
+    } else {
+      const profitCards = h('div', {
+        style: 'display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; padding:12px 14px; background:var(--panel-2); border:1px solid var(--line); border-radius:10px;',
+      },
+        h('div', null,
+          h('div', { style: 'font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600;' }, 'Цена продажи'),
+          h('div', { style: 'font-size:18px; font-weight:800; color:var(--ink);' }, money(est.total, cur)),
+        ),
+        h('div', null,
+          h('div', { style: 'font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600;' }, 'Себестоимость (плиты + работы)'),
+          h('div', { style: 'font-size:18px; font-weight:700; color:var(--ink-2);' }, money(netCost, cur)),
+        ),
+        h('div', null,
+          h('div', { style: 'font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600;' }, `Чистая прибыль цеха (${store.settings.labor.markup}%)`),
+          h('div', { style: 'font-size:18px; font-weight:800; color:#16a34a;' }, `+ ${money(est.markup, cur)}`),
+        ),
+      );
+
+      const t2 = h('table', { class: 'tbl' }, h('thead', null, h('tr', null, h('th', null, 'Статья расходов'), h('th', { class: 'r' }, 'Кол-во'), h('th', { class: 'r' }, 'Сумма'))),
+        h('tbody', null,
+          h('tr', { class: 'grp-r' }, h('td', { colspan: '3' }, `Материалы (с учётом отходов ${store.settings.waste}%)`)),
+          ...est.materials.map((l) => row(l.name, `${fmtNum(l.qty)} ${l.unit}`, l.cost)),
+          row(est.edge.name, `${fmtNum(est.edge.qty)} ${est.edge.unit}`, est.edge.cost),
+          h('tr', { class: 'grp-r' }, h('td', { colspan: '3' }, 'Фурнитура и комплектующие')),
+          ...est.hardware.map((l) => row(l.name, `${fmtNum(l.qty)} ${l.unit}`, l.cost)),
+          h('tr', { class: 'grp-r' }, h('td', { colspan: '3' }, 'Производственные работы и логистика')),
+          ...est.labor.map((l) => row(l.name, '', l.cost)),
+          row(`Маржа / наценка цеха (${store.settings.labor.markup}%)`, '', est.markup),
+        ));
+
+      container.append(
+        profitCards,
+        h('p', { class: 'hint' }, `Чистая площадь деталей: ${fmtNum(est.area)} м². Закупочные цены и коэффициенты настраиваются в «Настройках».`),
+        h('div', { class: 'scroll-x' }, t2),
+      );
+    }
+  };
+
+  renderEst();
+  d.body.append(container);
 
   d.foot.append(
-    btn('КП для клиента (PDF)', 'primary', () => { d.close(); printDoc('kp', store, est, viewer); }, 'printer'),
-    btn('Внутренняя смета (PDF)', 'ghost', () => { d.close(); printDoc('estimate', store, est, viewer); }, 'list'),
+    btn('Печать КП для клиента (PDF)', 'primary', () => { d.close(); printDoc('kp', store, est, viewer); }, 'printer'),
+    btn('Внутренняя смета цеха (PDF)', 'ghost', () => { d.close(); printDoc('estimate', store, est, viewer); }, 'list'),
   );
 }
 
 // ——— деталировка ———
 
 export function cutDialog(store: Store, est: Estimate, viewer: Viewer): void {
-  const d = openDialog('Деталировка и карты раскроя (Базис-Раскрой)', { wide: true });
+  const d = openDialog('Деталировка, карты раскроя и бирки для цеха', { wide: true });
   const rows = [...est.cut].sort((a, b) => a.matName.localeCompare(b.matName, 'ru') || b.l - a.l);
   const pieces = rows.reduce((s, r) => s + r.qty, 0);
 
-  let activeTab: 'cut' | 'nesting' = 'cut';
+  let activeTab: 'cut' | 'nesting' | 'labels' = 'cut';
   let sheetFormatIndex = 0;
   let activeSheetIndex = 0;
 
   const container = h('div', { class: 'cut-container', style: 'display:flex; flex-direction:column; gap:12px;' });
 
+  const printLabelsWindow = () => {
+    const w = window.open('', '_blank');
+    if (!w) {
+      toast('Разрешите всплывающие окна в браузере для печати бирок', 'err');
+      return;
+    }
+    const cardsHtml: string[] = [];
+    let stickerNum = 1;
+    rows.forEach((r) => {
+      for (let q = 1; q <= r.qty; q++) {
+        cardsHtml.push(`
+          <div class="lbl">
+            <div class="lbl-top">
+              <b>ADAL Constructor · #${stickerNum++}</b>
+              <span>${q}/${r.qty} шт</span>
+            </div>
+            <div class="lbl-mod">${r.moduleName}</div>
+            <div class="lbl-part">${r.name}</div>
+            <div class="lbl-dims">${r.l} × ${r.w} × ${r.t} мм</div>
+            <div class="lbl-mat">${r.matName}</div>
+            <div class="lbl-edge">Кромка ПВХ: ${r.edgeMm > 0 ? Math.round(r.edgeMm) + ' мм' : 'без кромки'}</div>
+          </div>
+        `);
+      }
+    });
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Бирки на детали — ${store.project.name}</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 10mm; color: #111; }
+        h2 { margin: 0 0 10px 0; font-size: 16px; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+        .lbl { border: 1.5px solid #222; border-radius: 4px; padding: 3.5mm; page-break-inside: avoid; font-size: 11px; }
+        .lbl-top { display: flex; justify-content: space-between; font-size: 10px; color: #555; border-bottom: 1px solid #ddd; padding-bottom: 2px; margin-bottom: 4px; }
+        .lbl-mod { font-weight: 700; font-size: 11px; color: #1e3a8a; }
+        .lbl-part { font-weight: 700; font-size: 13px; margin: 2px 0; }
+        .lbl-dims { font-size: 15px; font-weight: 800; background: #f3f4f6; padding: 2px 6px; border-radius: 3px; display: inline-block; margin: 3px 0; }
+        .lbl-mat { font-size: 10px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lbl-edge { font-size: 10px; font-weight: 700; margin-top: 2px; }
+      </style></head><body>
+      <h2>Бирки маркировки деталей — Заказ: ${store.project.name}${store.project.clientName ? ' (' + store.project.clientName + ')' : ''}</h2>
+      <div class="grid">${cardsHtml.join('')}</div>
+      <script>window.onload = () => window.print();</script>
+      </body></html>`);
+    w.document.close();
+  };
+
   const renderContent = () => {
     clear(container);
 
     const tabsBar = h('div', { style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:6px;' },
-      h('div', { style: 'display:flex; gap:6px;' },
+      h('div', { style: 'display:flex; gap:6px; flex-wrap:wrap;' },
         h('button', {
           type: 'button',
           class: 'seg-b' + (activeTab === 'cut' ? ' on' : ''),
@@ -121,6 +268,11 @@ export function cutDialog(store: Store, est: Estimate, viewer: Viewer): void {
           class: 'seg-b' + (activeTab === 'nesting' ? ' on' : ''),
           onClick: () => { activeTab = 'nesting'; renderContent(); },
         }, '2. Карта раскроя плит'),
+        h('button', {
+          type: 'button',
+          class: 'seg-b' + (activeTab === 'labels' ? ' on' : ''),
+          onClick: () => { activeTab = 'labels'; renderContent(); },
+        }, `3. Бирки (стикеры) для цеха (${pieces} шт)`),
       ),
       activeTab === 'nesting' ? h('div', { style: 'display:flex; align-items:center; gap:8px;' },
         h('span', { style: 'font-size:12.5px; font-weight:600; color:var(--muted);' }, 'Формат плиты:'),
@@ -134,14 +286,14 @@ export function cutDialog(store: Store, est: Estimate, viewer: Viewer): void {
         }, ...DEFAULT_SHEET_FORMATS.map((fmt, idx) =>
           h('option', { value: String(idx), selected: idx === sheetFormatIndex }, fmt.name)
         )),
-      ) : null,
+      ) : activeTab === 'labels' ? btn('Печать листа бирок (А4 / стикеры)', 'primary sm', printLabelsWindow, 'printer') : null,
     );
 
     container.append(tabsBar);
 
     if (activeTab === 'cut') {
       container.append(
-        h('p', { class: 'hint' }, `${rows.length} позиций · ${pieces} деталей. Размеры в мм: длина × ширина × толщина. Для ЧПУ/станка скачайте CSV.`),
+        h('p', { class: 'hint' }, `${rows.length} позиций · ${pieces} деталей. Размеры в мм: длина × ширина × толщина. Для ЧПУ/Excel скачайте CSV-таблицу ниже.`),
         h('div', { class: 'scroll-x' },
           h('table', { class: 'tbl dense' },
             h('thead', null, h('tr', null, ...['№', 'Модуль', 'Деталь', 'Длина', 'Ширина', 'Т', 'Шт', 'Материал', 'Кромка, мм'].map((t, i) => h('th', { class: i >= 3 && i !== 7 ? 'r' : '' }, t)))),
@@ -149,6 +301,31 @@ export function cutDialog(store: Store, est: Estimate, viewer: Viewer): void {
               h('td', null, String(i + 1)), h('td', null, r.moduleName), h('td', null, r.name),
               h('td', { class: 'r' }, String(r.l)), h('td', { class: 'r' }, String(r.w)), h('td', { class: 'r' }, String(r.t)),
               h('td', { class: 'r' }, String(r.qty)), h('td', null, r.matName), h('td', { class: 'r' }, String(Math.round(r.edgeMm))))))))
+      );
+    } else if (activeTab === 'labels') {
+      const grid = h('div', {
+        style: 'display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:10px; max-height:460px; overflow:auto; padding:4px;',
+      });
+      rows.forEach((r, idx) => {
+        grid.append(
+          h('div', {
+            style: 'border:1.5px solid var(--line-2); border-radius:8px; padding:10px 12px; background:var(--panel); display:flex; flex-direction:column; gap:3px;',
+          },
+            h('div', { style: 'display:flex; justify-content:space-between; font-size:11px; color:var(--muted); border-bottom:1px dashed var(--line); padding-bottom:4px;' },
+              h('b', null, `Поз. #${idx + 1}`),
+              h('span', { style: 'font-weight:700; color:var(--accent);' }, `${r.qty} шт`),
+            ),
+            h('div', { style: 'font-size:11.5px; font-weight:700; color:var(--accent); margin-top:2px;' }, r.moduleName),
+            h('div', { style: 'font-size:13.5px; font-weight:700; color:var(--ink);' }, r.name),
+            h('div', { style: 'font-size:15px; font-weight:800; color:var(--ink); background:var(--panel-2); padding:3px 8px; border-radius:6px; align-self:flex-start; margin:2px 0;' }, `${r.l} × ${r.w} × ${r.t} мм`),
+            h('div', { style: 'font-size:11px; color:var(--ink-2);' }, r.matName),
+            h('div', { style: 'font-size:11px; font-weight:600; color:var(--ok);' }, r.edgeMm > 0 ? `Кромка ПВХ: ${Math.round(r.edgeMm)} мм` : 'Без кромления'),
+          ),
+        );
+      });
+      container.append(
+        h('p', { class: 'hint' }, 'Готовые бирки для маркировки распиленных деталей в цехе. Нажмите «Печать листа бирок», чтобы распечатать стикеры.'),
+        grid,
       );
     } else {
       const format = DEFAULT_SHEET_FORMATS[sheetFormatIndex] ?? DEFAULT_SHEET_FORMATS[0];
@@ -227,8 +404,9 @@ export function cutDialog(store: Store, est: Estimate, viewer: Viewer): void {
   d.body.append(container);
 
   d.foot.append(
-    btn('Скачать CSV для распила', 'primary', () => downloadBlob(new Blob([cutListCsv(rows)], { type: 'text/csv;charset=utf-8' }), `${fileName(store.project.name)}-detalirovka.csv`), 'download'),
-    btn('Печать / Экспорт PDF', 'ghost', () => { d.close(); printDoc('cut', store, est, viewer); }, 'printer'),
+    btn('Скачать CSV / Excel (для ЧПУ)', 'primary', () => downloadBlob(new Blob([cutListCsv(rows)], { type: 'text/csv;charset=utf-8' }), `${fileName(store.project.name)}-detalirovka.csv`), 'download'),
+    btn('Печать бирок на детали', 'ghost', printLabelsWindow, 'printer'),
+    btn('Печать раскроя (PDF)', 'ghost', () => { d.close(); printDoc('cut', store, est, viewer); }, 'printer'),
   );
 }
 

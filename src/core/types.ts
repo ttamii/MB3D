@@ -39,7 +39,7 @@ export interface Module {
   matTop: string;
   milling?: 'modern' | 'frame' | 'ribbed';
   plinthColor?: 'corpus' | 'facade' | 'black';
-  hinge?: 'left' | 'right';
+  hinge?: 'left' | 'right' | 'top';
 }
 
 export type ProjectStatus = 'draft' | 'approved' | 'production' | 'done';
@@ -98,10 +98,12 @@ export interface Settings {
 export type PartMat = 'corpus' | 'facade' | 'back' | 'top' | 'metal' | 'handle' | 'black';
 
 export interface PartAnim {
-  type: 'door' | 'drawer' | 'sliding';
+  type: 'door' | 'flap' | 'drawer' | 'sliding';
   key: string;
   /** точка вращения (x, z), мм — только для дверей */
   pivot?: [number, number];
+  /** высота оси вращения (y), мм — для подъёмных фасадов вверх (flap) */
+  pivotY?: number;
   /** угол открытия, градусы — только для дверей */
   ang?: number;
   /** величина выдвижения по Z, мм — только для ящиков */

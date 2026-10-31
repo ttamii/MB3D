@@ -52,7 +52,7 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
   const kindAllowsSliding = kind === 'wardrobe' || kind === 'tall';
   const milling = r.milling === 'frame' || r.milling === 'ribbed' || r.milling === 'modern' ? r.milling : undefined;
   const plinthColor = r.plinthColor === 'facade' || r.plinthColor === 'corpus' || r.plinthColor === 'black' ? r.plinthColor : undefined;
-  const hinge = r.hinge === 'left' || r.hinge === 'right' ? r.hinge : undefined;
+  const hinge = r.hinge === 'left' || r.hinge === 'right' || r.hinge === 'top' ? r.hinge : undefined;
 
   return {
     id: typeof r.id === 'string' && /^[\w-]{1,40}$/.test(r.id) ? r.id : uid(),

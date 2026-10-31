@@ -229,7 +229,7 @@ export function planKitchen(opts: KitchenWizardOptions, room?: RoomConfig): Kitc
         if (!hitsWindow(cx, cx + 600, mezzLift, topY)) {
           modules.push({
             id: uid(),
-            name: 'Антресоль над углом (push-to-open)',
+            name: 'Антресоль над углом (газлифт)',
             kind: 'wall',
             x: cx,
             w: 600,
@@ -239,6 +239,7 @@ export function planKitchen(opts: KitchenWizardOptions, room?: RoomConfig): Kitc
             lift: mezzLift,
             sections: [sec({ shelves: 0, door: true })],
             doorMode: 'hinged',
+            hinge: 'top',
             handles: false,
             countertop: false,
             milling: mezzMilling,
@@ -248,7 +249,7 @@ export function planKitchen(opts: KitchenWizardOptions, room?: RoomConfig): Kitc
         if (!hitsWindow(cx + 600, cx + 900, mezzLift, topY)) {
           modules.push({
             id: uid(),
-            name: 'Антресоль 300 мм (push-to-open)',
+            name: 'Антресоль 300 мм (газлифт)',
             kind: 'wall',
             x: cx + 600,
             w: 300,
@@ -258,6 +259,7 @@ export function planKitchen(opts: KitchenWizardOptions, room?: RoomConfig): Kitc
             lift: mezzLift,
             sections: [sec({ shelves: 0, door: true })],
             doorMode: 'hinged',
+            hinge: 'top',
             handles: false,
             countertop: false,
             milling: mezzMilling,
@@ -382,9 +384,9 @@ export function planKitchen(opts: KitchenWizardOptions, room?: RoomConfig): Kitc
           notes.push(`Антресоль ${x}-${x + w} мм пропущена: окно.`);
         } else {
           modules.push({
-            id: uid(), name: w >= 700 ? `Антресоль двухдверная ${slot + 1} (push-to-open)` : `Антресоль ${slot + 1} (push-to-open)`,
+            id: uid(), name: `Антресоль ${slot + 1} (газлифт вверх)`,
             kind: 'wall', x, w, h: mezzH, d: 560, plinth: 0,
-            lift: mezzLift, sections: [sec({ shelves: 0, door: true })], doorMode: 'hinged', hinge: smartHinge, handles: false,
+            lift: mezzLift, sections: [sec({ shelves: 0, door: true })], doorMode: 'hinged', hinge: 'top', handles: false,
             countertop: false, milling: mezzMilling, ...common,
           });
         }

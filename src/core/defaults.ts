@@ -2,7 +2,7 @@ import type { HardwareItem, Kind, Material, Module, Section, Settings } from './
 import { DEFAULT_ROOM } from './room';
 import { uid } from './util';
 
-export const BRAND = 'Mebel3D';
+export const BRAND = 'ADAL Constructor';
 
 export const KIND_LABEL: Record<Kind, string> = {
   wardrobe: 'Шкаф',
@@ -287,8 +287,8 @@ export const PRESETS: Preset[] = [
   {
     id: 'mezzanine',
     label: 'Антресоль (рейка)',
-    hint: '600 × 360 × 560, рифлёный вельвет',
-    make: () => base('wall', 'Антресоль', { w: 600, h: 360, d: 560, lift: 2170, milling: 'ribbed', handles: false, sections: [sec({ shelves: 0 })] }),
+    hint: '600 × 360 × 560, подъём вверх (газлифт)',
+    make: () => base('wall', 'Антресоль', { w: 600, h: 360, d: 560, lift: 2170, hinge: 'top', milling: 'ribbed', handles: false, sections: [sec({ shelves: 0 })] }),
   },
   {
     id: 'corner',

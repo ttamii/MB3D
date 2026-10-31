@@ -124,7 +124,8 @@ export function computeModuleDrilling(m: Module, builtParts: Part[]): ModuleDril
     for (let k = 0; k < nDoors; k++) {
       let hingeSide: 'left' | 'right';
       if (nDoors === 1) {
-        const desired: 'left' | 'right' = n > 1 ? (i < n / 2 ? 'left' : 'right') : (m.hinge ?? 'left');
+        const baseHinge = m.hinge === 'right' ? 'right' : 'left';
+        const desired: 'left' | 'right' = n > 1 ? (i < n / 2 ? 'left' : 'right') : baseHinge;
         hingeSide = m.mirror ? (desired === 'left' ? 'right' : 'left') : desired;
       } else {
         hingeSide = k === 0 ? 'left' : 'right';
@@ -215,10 +216,11 @@ export function computeModuleDrilling(m: Module, builtParts: Part[]): ModuleDril
 
     // Отверстия под ответные планки петель (отступ 37 мм от переднего края, шаг 32 мм)
     const targetSection = isL ? m.sections[0] : m.sections[m.sections.length - 1];
+    const baseSingleHinge: 'left' | 'right' = m.hinge === 'right' ? 'right' : 'left';
     const outerSingleHinge: 'left' | 'right' = n > 1
       ? (isL ? 'left' : 'right')
-      : (m.mirror ? ((m.hinge ?? 'left') === 'left' ? 'right' : 'left') : (m.hinge ?? 'left'));
-    const hasHingeOnThisWall = cw > 620 || n > 1 || (isL && outerSingleHinge === 'left') || (!isL && outerSingleHinge === 'right');
+      : (m.mirror ? (baseSingleHinge === 'left' ? 'right' : 'left') : baseSingleHinge);
+    const hasHingeOnThisWall = m.hinge !== 'top' && (isDoubleDoorSection(m, cw) || n > 1 || (isL && outerSingleHinge === 'left') || (!isL && outerSingleHinge === 'right'));
 
     if (m.doorMode === 'hinged' && targetSection?.door && hasHingeOnThisWall) {
       const nd = targetSection.drawers;

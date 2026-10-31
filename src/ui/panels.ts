@@ -503,10 +503,11 @@ export function renderProps(root: HTMLElement, store: Store): void {
       if (m.sections.length === 1) {
         const curHinge = m.hinge ?? 'left';
         facadeNodes.push(
-          segmented('Сторона петель (открывание)', [
-            ['left', 'Слева (ручка справа)'],
-            ['right', 'Справа (ручка слева)'],
-          ], curHinge, (v) => set((t) => { t.hinge = v as 'left' | 'right'; })),
+          segmented('Открывание фасада (петли / газлифт)', [
+            ['left', 'Влево'],
+            ['right', 'Вправо'],
+            ['top', 'Вверх (газлифт)'],
+          ], curHinge, (v) => set((t) => { t.hinge = v as 'left' | 'right' | 'top'; })),
         );
       } else {
         facadeNodes.push(

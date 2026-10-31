@@ -31,9 +31,15 @@ export const hingesFor = (h: number) => (h <= 900 ? 2 : h <= 1600 ? 3 : h <= 200
 /** Ручка-скоба на двери (визуально + учёт в фурнитуре). */
 function doorHandle(
   b: Builder, m: Module, anim: PartAnim, x0: number, x1: number, y0: number, y1: number,
-  hinge: 'left' | 'right', zFront: number,
+  hinge: 'left' | 'right' | 'top', zFront: number,
 ): void {
   if (!m.handles) return;
+  if (hinge === 'top') {
+    const hw = Math.max(90, Math.min(240, (x1 - x0) * 0.35));
+    b.decor('Ручка', 'handle', [(x0 + x1 - hw) / 2, y0 + 24, zFront], [hw, 14, 22], anim);
+    b.add('handle');
+    return;
+  }
   const hl = Math.max(100, Math.min(320, (y1 - y0) * 0.25));
   const hx = hinge === 'left' ? x1 - 38 : x0 + 24;
   let y: number;
@@ -45,6 +51,7 @@ function doorHandle(
 }
 
 export function isDoubleDoorSection(m: Module, segW: number): boolean {
+  if (m.hinge === 'top') return false;
   if (segW > 620) return true;
   if (segW >= 540 && /сушк|двухдвер|посуд|2\s*ств|2\s*двер/i.test(m.name)) return true;
   return false;
@@ -52,11 +59,14 @@ export function isDoubleDoorSection(m: Module, segW: number): boolean {
 
 function frontDoor(
   b: Builder, m: Module, label: string, x0: number, x1: number, y0: number, y1: number,
-  hinge: 'left' | 'right', D: number, key: string,
+  hinge: 'left' | 'right' | 'top', D: number, key: string,
 ): void {
-  // Ограничитель угла открывания 85° (Blum Clip Top 86°), чтобы створки не бились о соседние модули, пеналы и стены
-  const ang = hinge === 'left' ? -85 : 85;
-  const anim: PartAnim = { type: 'door', key, pivot: [hinge === 'left' ? x0 : x1, D], ang };
+  const isFlap = hinge === 'top';
+  // Ограничитель угла открывания 85° (Blum Clip Top 86° / Aventos), чтобы створки не бились о соседние модули, пеналы и стены
+  const ang = isFlap ? -85 : (hinge === 'left' ? -85 : 85);
+  const anim: PartAnim = isFlap
+    ? { type: 'flap', key, pivot: [x0, D], pivotY: y1, ang }
+    : { type: 'door', key, pivot: [hinge === 'left' ? x0 : x1, D], ang };
   const dw = x1 - x0;
   const dh = y1 - y0;
   const milling = m.milling ?? 'modern';
@@ -89,8 +99,15 @@ function frontDoor(
     b.box(label, 'facade', [x0, y0, D], [dw, dh, FACADE_T], 2 * (dw + dh), anim);
   }
 
-  b.add('hinge', hingesFor(dh));
-  doorHinges(b, m, anim, x0, x1, y0, y1, hinge, D);
+  b.add('hinge', isFlap ? 2 : hingesFor(dh));
+  if (isFlap) {
+    const t = m.t || 16;
+    const armH = Math.max(60, Math.min(180, dh - 40));
+    b.decor('Подъёмник: газлифт Л', 'metal', [Math.max(t + 2, x0 + 18), y1 - armH - 20, Math.max(40, D - 110)], [8, armH, 12]);
+    b.decor('Подъёмник: газлифт П', 'metal', [Math.min(m.w - t - 10, x1 - 26), y1 - armH - 20, Math.max(40, D - 110)], [8, armH, 12]);
+  } else {
+    doorHinges(b, m, anim, x0, x1, y0, y1, hinge, D);
+  }
   doorHandle(b, m, anim, x0, x1, y0, y1, hinge, D + FACADE_T);
 }
 
@@ -377,16 +394,40 @@ function rectCabinet(b: Builder, m: Module): void {
         b.add('rodHolder', 2);
       }
     } else {
-      // Только полки
+      // Только полки (или двухъярусная хромированная сушка для посуды)
       const zoneH = zTop - zoneTop;
-      for (let k = 1; k <= sec.shelves; k++) {
-        const y = zoneTop + (k * zoneH) / (sec.shelves + 1) - t / 2;
-        b.box('Полка', 'corpus', [x0, y, BK], [cw, t, D - BK - 20], cw);
-        b.add('pin', 4);
+      const isDishDryer = isWall(m.kind) && /сушк/i.test(m.name) && sec.shelves >= 2 && D >= 240;
+      if (isDishDryer) {
+        const yTray = zoneTop + 35;
+        const yPlates = zoneTop + Math.round(zoneH * 0.28);
+        const yCups = zoneTop + Math.round(zoneH * 0.62);
+        b.decor('Поддон сушки (нерж.)', 'metal', [x0 + 4, yTray, BK + 12], [cw - 8, 6, D - BK - 32]);
+        b.decor('Сушилка хромированная (тарелки)', 'metal', [x0 + 2, yPlates, BK + 10], [cw - 4, 14, D - BK - 28]);
+        b.decor('Сушилка хромированная (чашки)', 'metal', [x0 + 2, yCups, BK + 10], [cw - 4, 12, D - BK - 28]);
+        b.add('pin', 8);
+      } else {
+        for (let k = 1; k <= sec.shelves; k++) {
+          const y = zoneTop + (k * zoneH) / (sec.shelves + 1) - t / 2;
+          b.box('Полка', 'corpus', [x0, y, BK], [cw, t, D - BK - 20], cw);
+          b.add('pin', 4);
+        }
       }
     }
 
-    // распашные двери
+    // Встроенный духовой шкаф в тумбе под духовку (isOven)
+    if (isOven && i === 0) {
+      const yOv0 = zoneTop + t;
+      const ovH = zTop - yOv0;
+      if (ovH >= 320 && cw >= 360) {
+        b.decor('Духовой шкаф: корпус', 'black', [x0 + 2, yOv0 + 2, Math.max(BK + 20, D - 45)], [cw - 4, ovH - 4, 42]);
+        b.decor('Духовой шкаф: панель управления', 'metal', [x0 + 4, zTop - 92, D - 2], [cw - 8, 86, 4]);
+        b.decor('Духовой шкаф: дисплей', 'black', [x0 + cw / 2 - 55, zTop - 72, D + 1], [110, 42, 3]);
+        b.decor('Духовой шкаф: панорамное стекло', 'black', [x0 + 4, yOv0 + 6, D - 2], [cw - 8, Math.max(80, ovH - 104), 5]);
+        b.decor('Духовой шкаф: ручка', 'handle', [x0 + 36, zTop - 126, D + 3], [cw - 72, 12, 20]);
+      }
+    }
+
+    // распашные и подъёмные двери
     if (m.doorMode === 'hinged' && sec.door) {
       const y0 = nd > 0 ? P + 2 + Math.round(nd * fhStep) : P + 2;
       const y1 = H - 2;
@@ -397,17 +438,19 @@ function rectCabinet(b: Builder, m: Module): void {
         const dw = (segW - gap * (nDoors - 1)) / nDoors;
         for (let k = 0; k < nDoors; k++) {
           const a = fx0 + k * (dw + gap);
-          let hinge: 'left' | 'right';
+          let hinge: 'left' | 'right' | 'top';
           if (nDoors === 1) {
-            let desired: 'left' | 'right';
-            if (n > 1) {
-              // В многосекционных шкафах и тумбах створки распахиваются от центра наружу:
-              // левая секция — влево, правая — вправо
-              desired = i < n / 2 ? 'left' : 'right';
+            if (m.hinge === 'top') {
+              hinge = 'top';
             } else {
-              desired = m.hinge ?? 'left';
+              let desired: 'left' | 'right';
+              if (n > 1) {
+                desired = i < n / 2 ? 'left' : 'right';
+              } else {
+                desired = m.hinge === 'right' ? 'right' : 'left';
+              }
+              hinge = m.mirror ? (desired === 'left' ? 'right' : 'left') : desired;
             }
-            hinge = m.mirror ? (desired === 'left' ? 'right' : 'left') : desired;
           } else {
             hinge = k === 0 ? 'left' : 'right';
           }
@@ -439,6 +482,30 @@ function rectCabinet(b: Builder, m: Module): void {
 
   if (m.countertop && (m.kind === 'base')) {
     b.box('Столешница', 'top', [0, H, 0], [W, COUNTERTOP_T, D + 30], W);
+    // Врезная мойка на тумбе под мойку
+    if (isSink && W >= 400 && D >= 450) {
+      const sw = Math.min(580, W - 90);
+      const sd = Math.min(430, D - 110);
+      const sx = Math.round((W - sw) / 2);
+      const sz = Math.round((D - sd) / 2) + 10;
+      b.decor('Мойка врезная: бортик', 'metal', [sx, H + COUNTERTOP_T - 1, sz], [sw, 2, sd]);
+      b.decor('Мойка врезная: чаша', 'black', [sx + 22, H + COUNTERTOP_T - 0.5, sz + 44], [sw - 44, 2, sd - 64]);
+      b.decor('Мойка: сливной клапан', 'metal', [W / 2 - 22, H + COUNTERTOP_T, sz + sd / 2], [44, 2, 44], undefined, 'cyl');
+      b.decor('Смеситель: база', 'metal', [W / 2 - 18, H + COUNTERTOP_T, sz + 8], [36, 2, 30]);
+    }
+    // Встроенная индукционная варочная панель над духовкой
+    if (isOven && W >= 450 && D >= 450) {
+      const cwTop = Math.min(560, W - 70);
+      const cdTop = Math.min(460, D - 90);
+      const cxTop = Math.round((W - cwTop) / 2);
+      const czTop = Math.round((D - cdTop) / 2) + 10;
+      b.decor('Варочная панель: стеклокерамика', 'black', [cxTop, H + COUNTERTOP_T - 0.5, czTop], [cwTop, 2, cdTop]);
+      const rZone = Math.min(145, Math.floor(Math.min(cwTop, cdTop) * 0.34));
+      b.decor('Варочная панель: конфорка 1', 'metal', [cxTop + 36, H + COUNTERTOP_T, czTop + 32], [rZone, 1.5, rZone], undefined, 'cyl');
+      b.decor('Варочная панель: конфорка 2', 'metal', [cxTop + cwTop - rZone - 36, H + COUNTERTOP_T, czTop + 32], [rZone, 1.5, rZone], undefined, 'cyl');
+      b.decor('Варочная панель: конфорка 3', 'metal', [cxTop + 36, H + COUNTERTOP_T, czTop + cdTop - rZone - 42], [rZone, 1.5, rZone], undefined, 'cyl');
+      b.decor('Варочная панель: конфорка 4', 'metal', [cxTop + cwTop - rZone - 36, H + COUNTERTOP_T, czTop + cdTop - rZone - 42], [rZone, 1.5, rZone], undefined, 'cyl');
+    }
   }
 }
 

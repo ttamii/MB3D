@@ -41,6 +41,9 @@ function partGeo(p: Part, off: [number, number, number]): BufferGeometry {
       // Цилиндр вдоль оси Z (чашка петли): диаметр в плоскости XY, глубина по Z
       g = new CylinderGeometry(sx / 2, sx / 2, sz, 24);
       g.rotateX(Math.PI / 2);
+    } else if (sy < sx && sy < sz) {
+      // Цилиндр вдоль оси Y (конфорка варочной панели, слив мойки): диаметр в плоскости XZ, высота sy по Y
+      g = new CylinderGeometry(sx / 2, sx / 2, sy, 24);
     } else {
       // Цилиндр вдоль оси X (гардеробная штанга): длина sx по X, диаметр sy в YZ
       g = new CylinderGeometry(sy / 2, sy / 2, sx, 20);
@@ -399,10 +402,15 @@ export class Viewer {
           if (!ag) {
             const group = new Group();
             if (a.type === 'door' && a.pivot) group.position.set(a.pivot[0] * MM, 0, a.pivot[1] * MM);
+            else if (a.type === 'flap' && a.pivot) group.position.set(0, (a.pivotY ?? 0) * MM, a.pivot[1] * MM);
             ag = { group, geos: new Map(), anim: a };
             animGroups.set(a.key, ag);
           }
-          const off: [number, number, number] = a.type === 'door' && a.pivot ? [a.pivot[0] * MM, 0, a.pivot[1] * MM] : [0, 0, 0];
+          const off: [number, number, number] = a.type === 'door' && a.pivot
+            ? [a.pivot[0] * MM, 0, a.pivot[1] * MM]
+            : a.type === 'flap' && a.pivot
+              ? [0, (a.pivotY ?? 0) * MM, a.pivot[1] * MM]
+              : [0, 0, 0];
           const k = mat.uuid;
           const b = ag.geos.get(k) ?? { mat, geos: [] };
           b.geos.push(partGeo(p, off));
@@ -924,6 +932,7 @@ export class Viewer {
   private applyOpen(): void {
     for (const { group, anim, t } of this.anims) {
       if (anim.type === 'door') group.rotation.y = MathUtils.degToRad((anim.ang ?? 0) * t);
+      else if (anim.type === 'flap') group.rotation.x = MathUtils.degToRad((anim.ang ?? -85) * t);
       else if (anim.type === 'sliding') group.position.x = ((anim.travelX ?? 0) * MM) * t;
       else group.position.z = ((anim.travel ?? 0) * MM) * t;
     }
@@ -1176,6 +1185,7 @@ export class Viewer {
           ref.t = ref.target;
         }
         if (ref.anim.type === 'door') ref.group.rotation.y = MathUtils.degToRad((ref.anim.ang ?? 0) * ref.t);
+        else if (ref.anim.type === 'flap') ref.group.rotation.x = MathUtils.degToRad((ref.anim.ang ?? -85) * ref.t);
         else if (ref.anim.type === 'sliding') ref.group.position.x = ((ref.anim.travelX ?? 0) * MM) * ref.t;
         else ref.group.position.z = ((ref.anim.travel ?? 0) * MM) * ref.t;
         animating = true;
