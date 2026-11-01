@@ -467,6 +467,30 @@ group('Цельный нижний цоколь на клипсах, цельн�
 
   applyTopTrimToUpperRow(k2400, 80);
   ok(k2400.filter((m) => m.kind === 'wall' || m.kind === 'tall').every((m) => m.topTrim === 80), 'applyTopTrimToUpperRow(80) не применил высоту 80 мм ко всему верхнему ряду');
+
+  // Боковые планки карниза и цоколя по основному периметру до задней стены
+  ok(spans.some((s) => s.part.name === 'Цоколь боковой L'), 'Нет левого бокового цоколя по периметру');
+  ok(spans.some((s) => s.part.name === 'Цоколь боковой R'), 'Нет правого бокового цоколя по периметру');
+  ok(spans.some((s) => s.part.name === 'Верхняя планка боковая L'), 'Нет левой боковой верхней планки по периметру');
+  ok(spans.some((s) => s.part.name === 'Верхняя планка боковая R'), 'Нет правой боковой верхней планки по периметру');
+}
+
+// 17. Регистрация, вход и допуск по подписке (БД аккаунтов)
+group('Регистрация, вход по логину/паролю и проверка подписки');
+{
+  const { registerAccount, hasActiveSubscription, setAccountSubscription } = await import('../src/core/auth');
+  const reg = registerAccount({
+    login: 'workshop_kz',
+    password: 'pass1234',
+    name: 'Тимур',
+    company: 'Цех Астана',
+  });
+  ok(reg.ok, 'Регистрация нового аккаунта не прошла');
+  if (reg.ok) {
+    ok(!hasActiveSubscription(reg.user), 'У нового аккаунта без оплаты не должно быть активной подписки');
+    const updated = setAccountSubscription(reg.user.id, 'pro');
+    ok(hasActiveSubscription(updated), 'После активации тарифа Pro подписка должна стать активной');
+  }
 }
 
 console.log(failed ? `\n${failed} проверок не пройдено` : '\nВсе проверки пройдены');

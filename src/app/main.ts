@@ -3,7 +3,7 @@ import '../styles/app.css';
 import { estimate, type Estimate } from '../core/estimate';
 import { DEFAULT_ROOM } from '../core/room';
 import { decodeShare, saveToLibrary, syncCloudLibraryToLocal } from '../core/storage';
-import { getCurrentUser, isAccessGateEnabled } from '../core/auth';
+import { getCurrentUser, hasActiveSubscription, isAccessGateEnabled } from '../core/auth';
 import { money, rafThrottle } from '../core/util';
 import { Viewer, type ViewName } from '../three/viewer';
 import { aiConstructorDialog, arDialog, blueprintDialog, cutDialog, estimateDialog, helpDialog, kitchenWizardDialog, projectsDialog, renderDialog, roomDialog, settingsDialog, shareDialog, showAuthGateModal, toast } from '../ui/dialogs';
@@ -30,7 +30,8 @@ async function boot(): Promise<void> {
   const isNew = urlParams.get('new') === '1' || urlParams.get('clear') === '1';
 
   const token = location.hash.match(/^#v=([\w-]+)$/);
-  if (!token && isAccessGateEnabled() && !getCurrentUser()) {
+  const curUser = getCurrentUser();
+  if (!token && isAccessGateEnabled() && (!curUser || !hasActiveSubscription(curUser))) {
     showAuthGateModal(() => {
       location.reload();
     });

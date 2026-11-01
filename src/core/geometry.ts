@@ -949,27 +949,25 @@ export function buildContinuousSpans(modules: Module[], splitForCutlist = false)
       curX += segW;
     }
 
-    // Боковой возврат верхней планки при перепаде глубины (например, между пеналом 560 мм и верхними шкафами 320 мм)
-    const nextRun = trimRuns[ri + 1];
-    if (nextRun && Math.abs((last.x + last.w) - nextRun[0].x) <= 5 && D > nextRun[0].d + 20) {
-      const dDiff = D - nextRun[0].d;
+    // Боковые планки карниза по внешнему периметру (до задней стены z=0) и при перепаде глубины
+    const prevRun = ri > 0 ? trimRuns[ri - 1] : undefined;
+    const leftJoin = prevRun && Math.abs((prevRun[prevRun.length - 1].x + prevRun[prevRun.length - 1].w) - first.x) <= 5;
+    if (!leftJoin && D > 50) {
       spans.push({
-        refModule: last,
+        refModule: first,
         groupName,
         groupId,
         part: {
-          name: 'Боковой возврат верхней планки',
+          name: 'Верхняя планка боковая L',
           mat: 'facade',
-          pos: [last.x + last.w - FACADE_T, topY, nextRun[0].d],
-          size: [FACADE_T, trimH, dDiff],
-          edgeMm: 2 * (dDiff + trimH),
+          pos: [first.x, topY, 0],
+          size: [FACADE_T, trimH, D],
+          edgeMm: 2 * (D + trimH),
           sheet: true,
           shape: 'box',
         },
       });
-    }
-    const prevRun = ri > 0 ? trimRuns[ri - 1] : undefined;
-    if (prevRun && Math.abs((prevRun[prevRun.length - 1].x + prevRun[prevRun.length - 1].w) - first.x) <= 5 && D > prevRun[0].d + 20) {
+    } else if (leftJoin && prevRun && D > prevRun[0].d + 20) {
       const dDiff = D - prevRun[0].d;
       spans.push({
         refModule: first,
@@ -979,6 +977,41 @@ export function buildContinuousSpans(modules: Module[], splitForCutlist = false)
           name: 'Боковой возврат верхней планки',
           mat: 'facade',
           pos: [first.x, topY, prevRun[0].d],
+          size: [FACADE_T, trimH, dDiff],
+          edgeMm: 2 * (dDiff + trimH),
+          sheet: true,
+          shape: 'box',
+        },
+      });
+    }
+
+    const nextRun = trimRuns[ri + 1];
+    const rightJoin = nextRun && Math.abs((last.x + last.w) - nextRun[0].x) <= 5;
+    if (!rightJoin && D > 50) {
+      spans.push({
+        refModule: last,
+        groupName,
+        groupId,
+        part: {
+          name: 'Верхняя планка боковая R',
+          mat: 'facade',
+          pos: [last.x + last.w - FACADE_T, topY, 0],
+          size: [FACADE_T, trimH, D],
+          edgeMm: 2 * (D + trimH),
+          sheet: true,
+          shape: 'box',
+        },
+      });
+    } else if (rightJoin && nextRun && D > nextRun[0].d + 20) {
+      const dDiff = D - nextRun[0].d;
+      spans.push({
+        refModule: last,
+        groupName,
+        groupId,
+        part: {
+          name: 'Боковой возврат верхней планки',
+          mat: 'facade',
+          pos: [last.x + last.w - FACADE_T, topY, nextRun[0].d],
           size: [FACADE_T, trimH, dDiff],
           edgeMm: 2 * (dDiff + trimH),
           sheet: true,

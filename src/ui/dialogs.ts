@@ -8,10 +8,11 @@ import { computeNesting, renderSheetSvg, DEFAULT_SHEET_FORMATS } from '../core/n
 import { DEFAULT_ROOM, renderRoomPlanSvg, type RoomConfig } from '../core/room';
 import type { ProjectStatus, Settings } from '../core/types';
 import {
-  createAccount, deleteAccount, getCloudConfig, getCurrentUser, isAccessGateEnabled,
-  isCloudConfigured, loadAccounts, loginWithCredentials, logoutCurrentUser,
-  pullProjectsFromCloud, pushProjectToCloud, setAccessGateEnabled, setCloudConfig,
-  toggleAccountActive, updateAccountPassword,
+  createAccount, deleteAccount, getCloudConfig, getCurrentUser, hasActiveSubscription,
+  isAccessGateEnabled, isCloudConfigured, loadAccounts, loginWithCredentials,
+  logoutCurrentUser, pullProjectsFromCloud, pushProjectToCloud, registerAccount,
+  setAccessGateEnabled, setAccountSubscription, setCloudConfig, toggleAccountActive,
+  updateAccountPassword, type SubscriptionPlan,
 } from '../core/auth';
 import { downloadBlob, fileName, fmtNum, money } from '../core/util';
 import {
@@ -752,74 +753,215 @@ const STATUS_LABELS: Record<ProjectStatus, { text: string; bg: string; color: st
   done: { text: 'Сдан клиенту', bg: '#dcfce7', color: '#15803d' },
 };
 
-export function showAuthGateModal(onAuthenticated: () => void): void {
+export function showAuthGateModal(onAuthenticated: () => void, initialMode?: 'login' | 'register' | 'paywall'): void {
   const overlay = h('div', {
-    style: 'position:fixed; inset:0; z-index:9999; background:radial-gradient(circle at 50% 25%, #1e1b4b 0%, #07090f 85%); display:flex; align-items:center; justify-content:center; padding:16px;',
+    style: 'position:fixed; inset:0; z-index:9999; background:rgba(15,23,42,0.55); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; padding:16px; font-family:Inter,system-ui,sans-serif;',
   });
 
-  const loginInput = h('input', {
-    type: 'text',
-    placeholder: 'Логин (например: admin)',
-    autocomplete: 'username',
-    style: 'width:100%; padding:11px 13px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06); color:#fff; font-size:14px; outline:none;',
-  });
-  const passInput = h('input', {
-    type: 'password',
-    placeholder: 'Пароль',
-    autocomplete: 'current-password',
-    style: 'width:100%; padding:11px 13px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06); color:#fff; font-size:14px; outline:none;',
-  });
-  const errBox = h('div', {
-    style: 'color:#f87171; font-size:12.5px; min-height:18px; font-weight:500;',
-  });
-
-  const submit = () => {
-    const res = loginWithCredentials(loginInput.value, passInput.value);
-    if (!res.ok) {
-      errBox.textContent = res.error;
-      return;
-    }
-    overlay.remove();
-    toast(`Добро пожаловать, ${res.user.name}`);
-    onAuthenticated();
-  };
-
-  loginInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') passInput.focus(); });
-  passInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  const existingUser = getCurrentUser();
+  let mode: 'login' | 'register' | 'paywall' =
+    initialMode ?? (existingUser && !hasActiveSubscription(existingUser) ? 'paywall' : 'login');
+  let selectedPlan: 'pro' | 'factory' = 'pro';
 
   const card = h('div', {
-    style: 'width:100%; max-width:390px; background:rgba(15,23,42,0.92); border:1px solid rgba(255,255,255,0.14); border-radius:16px; padding:28px 24px; color:#f8fafc; box-shadow:0 24px 60px rgba(0,0,0,0.65); display:flex; flex-direction:column; gap:14px;',
-  },
-    h('div', { style: 'display:flex; align-items:center; gap:10px;' },
-      h('span', { style: 'display:inline-flex; width:34px; height:34px; border-radius:9px; background:linear-gradient(135deg,#6366f1,#8b5cf6); align-items:center; justify-content:center; font-weight:800;' }, 'M'),
-      h('div', null,
-        h('div', { style: 'font-size:17px; font-weight:800;' }, 'Вход в Mebel3D Pro'),
-        h('div', { style: 'font-size:12px; color:#94a3b8;' }, 'Закрытая система проектирования и раскроя'),
-      ),
-    ),
-    h('div', { style: 'display:flex; flex-direction:column; gap:6px; margin-top:4px;' },
-      h('label', { style: 'font-size:12px; color:#cbd5e1; font-weight:600;' }, 'Логин сотрудника или мастера'),
-      loginInput,
-    ),
-    h('div', { style: 'display:flex; flex-direction:column; gap:6px;' },
-      h('label', { style: 'font-size:12px; color:#cbd5e1; font-weight:600;' }, 'Пароль доступа'),
-      passInput,
-    ),
-    errBox,
-    h('button', {
-      type: 'button',
-      style: 'width:100%; padding:12px; border-radius:9px; border:0; background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; font-weight:700; font-size:14px; cursor:pointer;',
-      onClick: submit,
-    }, 'Войти в конструктор'),
-    h('a', {
-      href: './',
-      style: 'text-align:center; font-size:12.5px; color:#94a3b8; text-decoration:none; margin-top:4px;',
-    }, '← Вернуться на главную страницу'),
-  );
+    style: 'width:100%; max-width:440px; background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:26px 24px; color:#0f172a; box-shadow:0 24px 60px rgba(15,23,42,0.22); display:flex; flex-direction:column; gap:14px;',
+  });
 
+  const inpStyle = 'width:100%; padding:10px 12px; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; color:#0f172a; font-size:14px; outline:none;';
+
+  const renderModal = () => {
+    clear(card);
+    const curUser = getCurrentUser();
+
+    const header = h('div', { style: 'display:flex; align-items:center; justify-content:space-between; gap:10px;' },
+      h('div', { style: 'display:flex; align-items:center; gap:10px;' },
+        h('span', { style: 'display:inline-flex; width:34px; height:34px; border-radius:9px; background:#2563eb; color:#fff; align-items:center; justify-content:center; font-weight:800; font-size:15px;' }, 'A'),
+        h('div', null,
+          h('div', { style: 'font-size:16.5px; font-weight:800; color:#0f172a;' }, 'ADAL Constructor'),
+          h('div', { style: 'font-size:12px; color:#64748b;' },
+            mode === 'paywall' ? 'Активация подписки для доступа к 3D-конструктору' : 'Авторизация в базе данных платформы'),
+        ),
+      ),
+    );
+    card.append(header);
+
+    if (mode === 'paywall' && curUser) {
+      const userBanner = h('div', {
+        style: 'background:#f1f5f9; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; font-size:12.5px;',
+      },
+        h('div', null,
+          h('div', { style: 'font-weight:700; color:#0f172a;' }, `${curUser.name} (${curUser.login})`),
+          h('div', { style: 'color:#dc2626; font-weight:600; margin-top:2px;' }, 'Статус: Подписка не оплачена — конструктор закрыт'),
+        ),
+        h('button', {
+          type: 'button',
+          style: 'border:1px solid #cbd5e1; background:#fff; border-radius:6px; padding:4px 8px; font-size:11.5px; cursor:pointer; font-weight:600;',
+          onClick: () => {
+            logoutCurrentUser();
+            mode = 'login';
+            renderModal();
+          },
+        }, 'Выйти'),
+      );
+
+      const planBox = h('div', { style: 'display:grid; grid-template-columns:1fr 1fr; gap:8px;' },
+        h('div', {
+          style: `border:${selectedPlan === 'pro' ? '2px solid #2563eb' : '1px solid #cbd5e1'}; background:${selectedPlan === 'pro' ? '#eff6ff' : '#fff'}; border-radius:10px; padding:10px; cursor:pointer;`,
+          onClick: () => { selectedPlan = 'pro'; renderModal(); },
+        },
+          h('div', { style: 'font-weight:800; font-size:13.5px; color:#0f172a;' }, 'Цех Pro'),
+          h('div', { style: 'font-weight:800; font-size:16px; color:#2563eb; margin:2px 0;' }, '14 900 ₸ / мес'),
+          h('div', { style: 'font-size:11px; color:#475569;' }, '3D-конструктор, раскрой, бирки, смета и договор'),
+        ),
+        h('div', {
+          style: `border:${selectedPlan === 'factory' ? '2px solid #2563eb' : '1px solid #cbd5e1'}; background:${selectedPlan === 'factory' ? '#eff6ff' : '#fff'}; border-radius:10px; padding:10px; cursor:pointer;`,
+          onClick: () => { selectedPlan = 'factory'; renderModal(); },
+        },
+          h('div', { style: 'font-weight:800; font-size:13.5px; color:#0f172a;' }, 'Фабрика'),
+          h('div', { style: 'font-weight:800; font-size:16px; color:#2563eb; margin:2px 0;' }, '39 900 ₸ / мес'),
+          h('div', { style: 'font-size:11px; color:#475569;' }, 'До 10 аккаунтов + единая облачная БД'),
+        ),
+      );
+
+      const payBtn = h('button', {
+        type: 'button',
+        style: 'width:100%; padding:12px; border-radius:9px; border:0; background:#059669; color:#fff; font-weight:700; font-size:14px; cursor:pointer;',
+        onClick: () => {
+          setAccountSubscription(curUser.id, selectedPlan);
+          overlay.remove();
+          toast(`Подписка «${selectedPlan === 'pro' ? 'Цех Pro' : 'Фабрика'}» активирована!`);
+          onAuthenticated();
+        },
+      }, `Оплатить ${selectedPlan === 'pro' ? '14 900 ₸' : '39 900 ₸'} (Kaspi QR / Карта) и войти →`);
+
+      card.append(
+        userBanner,
+        h('p', { style: 'margin:0; font-size:13px; color:#475569; line-height:1.45;' },
+          'Ваш аккаунт зарегистрирован в базе данных. Чтобы проектировать мебель, делать раскрой и печатать бирки, оформите подписку:'),
+        planBox,
+        payBtn,
+        h('a', {
+          href: './',
+          style: 'text-align:center; font-size:12.5px; color:#64748b; text-decoration:none;',
+        }, '← Вернуться на главную страницу'),
+      );
+      return;
+    }
+
+    const modeSwitch = h('div', { style: 'display:grid; grid-template-columns:1fr 1fr; background:#f1f5f9; padding:3px; border-radius:9px; gap:4px;' },
+      h('button', {
+        type: 'button',
+        style: `padding:7px; border-radius:7px; border:0; font-weight:700; font-size:13px; cursor:pointer; background:${mode === 'login' ? '#fff' : 'transparent'}; color:${mode === 'login' ? '#0f172a' : '#64748b'};`,
+        onClick: () => { mode = 'login'; renderModal(); },
+      }, 'Вход по паролю'),
+      h('button', {
+        type: 'button',
+        style: `padding:7px; border-radius:7px; border:0; font-weight:700; font-size:13px; cursor:pointer; background:${mode === 'register' ? '#fff' : 'transparent'}; color:${mode === 'register' ? '#0f172a' : '#64748b'};`,
+        onClick: () => { mode = 'register'; renderModal(); },
+      }, 'Регистрация'),
+    );
+
+    const errBox = h('div', { style: 'color:#dc2626; font-size:12.5px; min-height:16px; font-weight:600;' });
+
+    if (mode === 'login') {
+      const loginInput = h('input', { type: 'text', placeholder: 'Логин или телефон (например: admin)', autocomplete: 'username', style: inpStyle });
+      const passInput = h('input', { type: 'password', placeholder: 'Пароль', autocomplete: 'current-password', style: inpStyle });
+
+      const submitLogin = () => {
+        const res = loginWithCredentials(loginInput.value, passInput.value);
+        if (!res.ok) {
+          errBox.textContent = res.error;
+          return;
+        }
+        if (!hasActiveSubscription(res.user)) {
+          mode = 'paywall';
+          renderModal();
+          return;
+        }
+        overlay.remove();
+        toast(`Добро пожаловать, ${res.user.name}`);
+        onAuthenticated();
+      };
+
+      loginInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') passInput.focus(); });
+      passInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLogin(); });
+
+      card.append(
+        modeSwitch,
+        h('div', { style: 'display:flex; flex-direction:column; gap:5px;' },
+          h('label', { style: 'font-size:12px; color:#334155; font-weight:600;' }, 'Логин'),
+          loginInput,
+        ),
+        h('div', { style: 'display:flex; flex-direction:column; gap:5px;' },
+          h('label', { style: 'font-size:12px; color:#334155; font-weight:600;' }, 'Пароль'),
+          passInput,
+        ),
+        errBox,
+        h('button', {
+          type: 'button',
+          style: 'width:100%; padding:11px; border-radius:9px; border:0; background:#2563eb; color:#fff; font-weight:700; font-size:14px; cursor:pointer;',
+          onClick: submitLogin,
+        }, 'Войти в систему'),
+        h('a', {
+          href: './',
+          style: 'text-align:center; font-size:12.5px; color:#64748b; text-decoration:none;',
+        }, '← Вернуться на главную страницу'),
+      );
+      setTimeout(() => loginInput.focus(), 40);
+    } else {
+      const nameInput = h('input', { type: 'text', placeholder: 'Ваше имя (например: Тимур Ахметов)', style: inpStyle });
+      const compInput = h('input', { type: 'text', placeholder: 'Название цеха / ИП', style: inpStyle });
+      const loginInput = h('input', { type: 'text', placeholder: 'Логин (телефон или email)', style: inpStyle });
+      const passInput = h('input', { type: 'password', placeholder: 'Придумайте пароль (мин. 4 символа)', style: inpStyle });
+
+      const submitReg = () => {
+        const res = registerAccount({
+          name: nameInput.value,
+          company: compInput.value,
+          login: loginInput.value,
+          password: passInput.value,
+        });
+        if (!res.ok) {
+          errBox.textContent = res.error;
+          return;
+        }
+        toast('Аккаунт создан и сохранён в БД. Оформите подписку для входа в конструктор.');
+        mode = 'paywall';
+        renderModal();
+      };
+
+      card.append(
+        modeSwitch,
+        h('div', { style: 'display:flex; flex-direction:column; gap:5px;' },
+          h('label', { style: 'font-size:12px; color:#334155; font-weight:600;' }, 'Имя и Фамилия'),
+          nameInput,
+        ),
+        h('div', { style: 'display:flex; flex-direction:column; gap:5px;' },
+          h('label', { style: 'font-size:12px; color:#334155; font-weight:600;' }, 'Цех / Компания'),
+          compInput,
+        ),
+        h('div', { style: 'display:flex; flex-direction:column; gap:5px;' },
+          h('label', { style: 'font-size:12px; color:#334155; font-weight:600;' }, 'Логин (телефон или email)'),
+          loginInput,
+        ),
+        h('div', { style: 'display:flex; flex-direction:column; gap:5px;' },
+          h('label', { style: 'font-size:12px; color:#334155; font-weight:600;' }, 'Пароль'),
+          passInput,
+        ),
+        errBox,
+        h('button', {
+          type: 'button',
+          style: 'width:100%; padding:11px; border-radius:9px; border:0; background:#2563eb; color:#fff; font-weight:700; font-size:14px; cursor:pointer;',
+          onClick: submitReg,
+        }, 'Зарегистрироваться'),
+      );
+      setTimeout(() => nameInput.focus(), 40);
+    }
+  };
+
+  renderModal();
   overlay.append(card);
   document.body.appendChild(overlay);
-  setTimeout(() => loginInput.focus(), 50);
 }
 
 export function projectsDialog(store: Store, onChanged: () => void, initialTab: 'projects' | 'access' | 'cloud' = 'projects'): void {
@@ -1094,18 +1236,19 @@ export function projectsDialog(store: Store, onChanged: () => void, initialTab: 
           h('label', { class: 'fld wide' }, h('span', { class: 'fld-l' }, 'Имя пользователя / Компания'), newName),
         ),
         h('div', null,
-          btn('+ Добавить пользователя', 'sm primary', () => {
+          btn('+ Добавить пользователя (с подпиской Pro)', 'sm primary', () => {
             const res = createAccount({
               login: newLogin.value,
               password: newPass.value,
               name: newName.value,
               role: 'pro',
+              subscription: 'pro',
             });
             if (typeof res === 'string') {
               toast(res, 'err');
               return;
             }
-            toast(`Создан доступ для: ${res.login}`);
+            toast(`Создан доступ с подпиской Pro для: ${res.login}`);
             render();
           }),
         ),
@@ -1117,16 +1260,33 @@ export function projectsDialog(store: Store, onChanged: () => void, initialTab: 
             h('th', null, 'Логин'),
             h('th', null, 'Пароль'),
             h('th', null, 'Имя / Цех'),
-            h('th', null, 'Роль'),
-            h('th', null, 'Статус доступа'),
+            h('th', null, 'Подписка (Доступ)'),
+            h('th', null, 'Статус'),
             h('th', null, 'Действия'),
           )),
-          h('tbody', null, ...accounts.map((acc) =>
-            h('tr', null,
+          h('tbody', null, ...accounts.map((acc) => {
+            const sub = acc.role === 'admin' ? 'factory' : (acc.subscription ?? 'none');
+            return h('tr', null,
               h('td', { style: 'font-weight:700;' }, acc.login),
               h('td', { style: 'font-family:monospace;' }, acc.password),
-              h('td', null, acc.name),
-              h('td', null, acc.role === 'admin' ? 'Администратор' : 'Подписчик Pro'),
+              h('td', null, `${acc.name}${acc.company ? ' · ' + acc.company : ''}`),
+              h('td', null,
+                acc.role === 'admin'
+                  ? h('span', { style: 'color:var(--ok); font-weight:700;' }, 'Администратор (Полный)')
+                  : h('select', {
+                      style: 'padding:3px 6px; border-radius:6px; border:1px solid var(--line); font-size:12px; font-weight:600;',
+                      onChange: (e: Event) => {
+                        const nextPlan = (e.target as HTMLSelectElement).value as SubscriptionPlan;
+                        setAccountSubscription(acc.id, nextPlan);
+                        toast(`Подписка ${acc.login}: ${nextPlan === 'none' ? 'Отключена' : nextPlan.toUpperCase()}`);
+                        render();
+                      },
+                    },
+                      h('option', { value: 'none', selected: sub === 'none' }, 'Нет подписки (Закрыт)'),
+                      h('option', { value: 'pro', selected: sub === 'pro' }, 'Цех Pro (14 900 ₸)'),
+                      h('option', { value: 'factory', selected: sub === 'factory' }, 'Фабрика (39 900 ₸)'),
+                    ),
+              ),
               h('td', null, acc.active ? 'Активен' : 'Приостановлен'),
               h('td', { style: 'display:flex; gap:6px;' },
                 h('button', {
@@ -1159,8 +1319,8 @@ export function projectsDialog(store: Store, onChanged: () => void, initialTab: 
                   },
                 }, icon('trash', 15)) : null,
               ),
-            ),
-          )),
+            );
+          })),
         ),
       );
 

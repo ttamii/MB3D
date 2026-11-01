@@ -2,6 +2,8 @@ import type { Project, Settings } from './types';
 import { normalizeProject } from './validate';
 import { uid } from './util';
 
+export type SubscriptionPlan = 'none' | 'pro' | 'factory';
+
 export interface UserAccount {
   id: string;
   login: string;
@@ -9,6 +11,8 @@ export interface UserAccount {
   name: string;
   company: string;
   role: 'admin' | 'pro';
+  subscription?: SubscriptionPlan;
+  subscriptionUntil?: number;
   active: boolean;
   createdAt: number;
 }
@@ -27,16 +31,19 @@ const DEFAULT_ADMIN: UserAccount = {
   id: 'usr_admin',
   login: 'admin',
   password: 'mebel2026',
-  name: 'Администратор цеха',
-  company: 'Mebel3D Studio',
+  name: 'Администратор ADAL',
+  company: 'ADAL Constructor',
   role: 'admin',
+  subscription: 'factory',
   active: true,
   createdAt: Date.now(),
 };
 
+const memStore = new Map<string, string>();
+
 function readJson<T>(key: string, fallback: T): T {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : (memStore.get(key) ?? null);
     return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
     return fallback;
@@ -45,7 +52,9 @@ function readJson<T>(key: string, fallback: T): T {
 
 function writeJson(key: string, val: unknown): void {
   try {
-    localStorage.setItem(key, JSON.stringify(val));
+    const str = JSON.stringify(val);
+    if (typeof localStorage !== 'undefined') localStorage.setItem(key, str);
+    else memStore.set(key, str);
   } catch {
     // ignore storage quota errors
   }
@@ -65,14 +74,34 @@ export function saveAccounts(accounts: UserAccount[]): void {
   writeJson(K_ACCOUNTS, accounts);
 }
 
-export function createAccount(data: { login: string; password: string; name: string; company?: string; role?: 'admin' | 'pro' }): UserAccount | string {
+/** Проверка: есть ли у пользователя активная оплаченная подписка на конструктор */
+export function hasActiveSubscription(user: UserAccount | null): boolean {
+  if (!user || !user.active) return false;
+  if (user.role === 'admin' || user.id === 'usr_admin') return true;
+  const plan = user.subscription ?? 'none';
+  if (plan === 'pro' || plan === 'factory') {
+    if (user.subscriptionUntil && user.subscriptionUntil < Date.now()) return false;
+    return true;
+  }
+  return false;
+}
+
+export function createAccount(data: {
+  login: string;
+  password: string;
+  name: string;
+  company?: string;
+  role?: 'admin' | 'pro';
+  subscription?: SubscriptionPlan;
+}): UserAccount | string {
   const cleanLogin = data.login.trim().toLowerCase();
   if (cleanLogin.length < 3) return 'Логин должен содержать минимум 3 символа';
   if (data.password.trim().length < 4) return 'Пароль должен содержать минимум 4 символа';
   const accounts = loadAccounts();
   if (accounts.some((a) => a.login.toLowerCase() === cleanLogin)) {
-    return 'Пользователь с таким логином уже существует';
+    return 'Пользователь с таким логином уже зарегистрирован';
   }
+  const sub: SubscriptionPlan = data.subscription ?? (data.role === 'admin' ? 'factory' : 'none');
   const acc: UserAccount = {
     id: `usr_${uid()}`,
     login: cleanLogin,
@@ -80,12 +109,49 @@ export function createAccount(data: { login: string; password: string; name: str
     name: data.name.trim() || cleanLogin,
     company: data.company?.trim() || 'Мебельный цех',
     role: data.role ?? 'pro',
+    subscription: sub,
+    subscriptionUntil: sub !== 'none' ? Date.now() + 30 * 86400_000 : undefined,
     active: true,
     createdAt: Date.now(),
   };
   accounts.push(acc);
   saveAccounts(accounts);
+  void pushAccountToCloud(acc);
   return acc;
+}
+
+/** Самостоятельная регистрация пользователя (создаёт аккаунт в БД без подписки и выполняет вход) */
+export function registerAccount(data: {
+  login: string;
+  password: string;
+  name: string;
+  company?: string;
+}): { ok: true; user: UserAccount } | { ok: false; error: string } {
+  const res = createAccount({
+    login: data.login,
+    password: data.password,
+    name: data.name,
+    company: data.company,
+    role: 'pro',
+    subscription: 'none',
+  });
+  if (typeof res === 'string') {
+    return { ok: false, error: res };
+  }
+  writeJson(K_SESSION, res.id);
+  return { ok: true, user: res };
+}
+
+/** Активация или смена тарифа подписки для аккаунта в БД */
+export function setAccountSubscription(id: string, plan: SubscriptionPlan): UserAccount | null {
+  const accounts = loadAccounts();
+  const target = accounts.find((a) => a.id === id);
+  if (!target) return null;
+  target.subscription = plan;
+  target.subscriptionUntil = plan === 'none' ? undefined : Date.now() + 30 * 86400_000;
+  saveAccounts(accounts);
+  void pushAccountToCloud(target);
+  return target;
 }
 
 export function deleteAccount(id: string): boolean {
@@ -102,6 +168,7 @@ export function toggleAccountActive(id: string, active: boolean): void {
   if (target && target.id !== 'usr_admin') {
     target.active = active;
     saveAccounts(accounts);
+    void pushAccountToCloud(target);
   }
 }
 
@@ -112,6 +179,7 @@ export function updateAccountPassword(id: string, newPass: string): boolean {
   if (!target) return false;
   target.password = newPass.trim();
   saveAccounts(accounts);
+  void pushAccountToCloud(target);
   return true;
 }
 
@@ -119,7 +187,6 @@ export function getCurrentUser(): UserAccount | null {
   const sessionUserId = readJson<string | null>(K_SESSION, null);
   const accounts = loadAccounts();
   if (!sessionUserId) {
-    // Если обязательный пароль при входе ещё не включён, работаем от имени администратора по умолчанию
     if (!isAccessGateEnabled()) return accounts[0] ?? DEFAULT_ADMIN;
     return null;
   }
@@ -150,16 +217,13 @@ export function logoutCurrentUser(): void {
   }
 }
 
-/** Включён ли закрытый вход по паролю на странице конструктора */
+/** Включён ли обязательный вход по логину/паролю и подписке (по умолчанию включён) */
 export function isAccessGateEnabled(): boolean {
-  return readJson<boolean>(K_GATE, false);
+  return readJson<boolean>(K_GATE, true);
 }
 
 export function setAccessGateEnabled(enabled: boolean): void {
   writeJson(K_GATE, enabled);
-  if (enabled && !readJson<string | null>(K_SESSION, null)) {
-    writeJson(K_SESSION, DEFAULT_ADMIN.id);
-  }
 }
 
 /** Суффикс ключей хранилища для изоляции проектов каждого пользователя */
@@ -266,6 +330,34 @@ export async function deleteProjectFromCloud(projectId: string): Promise<void> {
     });
   } catch {
     // ignore network error on background delete
+  }
+}
+
+export async function pushAccountToCloud(account: UserAccount): Promise<void> {
+  const cfg = getCloudConfig();
+  if (!cfg.url || !cfg.anonKey) return;
+  try {
+    await fetch(`${cfg.url}/rest/v1/mebel_accounts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: cfg.anonKey,
+        Authorization: `Bearer ${cfg.anonKey}`,
+        Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({
+        id: account.id,
+        login: account.login,
+        name: account.name,
+        company: account.company,
+        role: account.role,
+        subscription: account.subscription ?? 'none',
+        active: account.active,
+        payload: account,
+      }),
+    });
+  } catch {
+    // ignore background sync error if table not created yet
   }
 }
 
