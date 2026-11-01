@@ -3,29 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#07090f" />
-    <meta name="description" content="ADAL Constructor — Профессиональная 3D-платформа и AI-конструктор мебели для производства и клиентов. Шкафы и кухни в 3D, автоматический раскрой плит Базис, карты присадки, бирки для цеха, точная смета в KZT и примерка в AR." />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="description" content="ADAL Constructor — профессиональная облачная 3D CAD/CAM платформа и AI-конструктор корпусной мебели. Кухни и шкафы в 3D, раскрой плит ЛДСП, печать бирок для цеха, карты присадки, КП в WhatsApp, договор и смета в тенге." />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-    <title>ADAL Constructor — Онлайн 3D-конструктор мебели, AI и автоматизация производства</title>
+    <title>ADAL Constructor — 3D-конструктор мебели, раскрой, бирки и смета для цеха</title>
   </head>
   <body>
-    <div class="grid-bg"></div>
-
-    <header class="nav">
-      <div class="brand-wrap">
-        <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><use href="favicon.svg#logo" /></svg>
-        <span class="brand-name">ADAL Constructor</span>
-        <span class="brand-badge">CAD & AI</span>
-      </div>
-      <nav class="nav-links">
-        <a href="#features" class="nav-link">Возможности</a>
-        <a href="#b2b" class="nav-link">Для цехов</a>
-        <a href="#b2c" class="nav-link">Для клиентов</a>
-        <a href="#grant" class="nav-link">She's Next 2026</a>
-      </nav>
-      <div class="nav-actions">
-        <a href="constructor.html?new=1" class="btn-clean" title="Начать проектирование с чистого листа">С чистого листа</a>
-        <a href="constructor.html" class="btn-open">Открыть 3D</a>
+    <header class="nav-wrap">
+      <div class="nav">
+        <a href="index.html" class="brand-wrap">
+          <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><use href="favicon.svg#logo" /></svg>
+          <span class="brand-name">ADAL Constructor</span>
+          <span class="brand-badge">PRO CAD · KZ</span>
+        </a>
+        <nav class="nav-links" aria-label="Навигация">
+          <a href="#workflow" class="nav-link">Как это работает</a>
+          <a href="#features" class="nav-link">Для цеха</a>
+          <a href="#pricing" class="nav-link">Тарифы</a>
+          <a href="#grant" class="nav-link">She’s Next 2026</a>
+        </nav>
+        <div class="nav-actions">
+          <a href="constructor.html?new=1" class="btn-clean" title="Создать новый заказ с пустой сцены">Новый заказ</a>
+          <a href="constructor.html" class="btn-open">Открыть 3D-конструктор</a>
+        </div>
       </div>
     </header>
 
@@ -35,108 +35,155 @@
         <div class="hero-left">
           <div class="badge">
             <span class="pulse-dot"></span>
-            Проектирование мебели нового поколения
+            Облачная CAD/CAM платформа для мебельщиков Казахстана
           </div>
 
           <h1>
-            Проектируйте мебель в 3D <br />
-            <span class="grad-text">от идеи до цеха за минуты</span>
+            От замера у клиента до <span class="grad-text">карт раскроя, бирок и КП в WhatsApp</span> за 3 минуты
           </h1>
 
           <p class="hero-desc">
-            Параметрические шкафы и кухонные гарнитуры. Автоматический 2D-раскрой плит, сборочные чертежи, точная смета в KZT, AI-генерация и презентация клиенту в AR прямо в браузере.
+            Проектируйте кухни до потолка и шкафы-купе в честном 3D прямо в браузере. Цельный цоколь на ножках, единая столешница, антресоли на газлифтах, авто-раскрой листов EGGER, печать стикеров на детали и готовый договор в тенге (₸).
           </p>
 
           <!-- Interactive AI Prompt Bar -->
           <div class="ai-hero-box">
-            <div class="ai-input-wrap">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ai-icon">
+            <div class="ai-box-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
               </svg>
+              <span>AI-Технолог: опишите заказ своими словами</span>
+            </div>
+            <div class="ai-input-wrap">
               <input
                 id="hero-ai-input"
                 type="text"
                 autocomplete="off"
-                placeholder="Опишите мебель: например, Шкаф 2.4м на 1.8м кашемир с рейками"
-                value="Шкаф 2.4м на 1.8м на 60см трехдверный кашемир с рейками"
+                placeholder="Например: Кухня 3.2м до потолка кашемир с пеналом, мойкой, духовкой и верхней планкой"
+                value="Кухня 3 метра до потолка с пеналом, двухдверной мойкой, духовкой и антресолями кашемир"
               />
               <button id="hero-ai-btn" type="button" class="btn-ai-submit">
-                <span>Создать в 3D</span>
+                <span>Собрать проект</span>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
             </div>
 
             <div class="ai-quick-tags">
-              <span class="tag-label">Быстрый старт:</span>
-              <button type="button" class="prompt-chip" data-prompt="Шкаф-купе 2400х1800 в прихожую с зеркалом и 4 ящиками">Шкаф-купе с зеркалом</button>
-              <button type="button" class="prompt-chip" data-prompt="Кухня 3.6м до потолка с антресолями, пеналом, мойкой и духовкой">Кухня 3.6м с антресолями</button>
-              <button type="button" class="prompt-chip" data-prompt="Подвесная тумба ТВ 1800мм на 2 ящика push-to-open">ТВ-тумба парящая</button>
-              <button type="button" class="prompt-chip" data-prompt="Комод 1000х900х450 на 4 ящика графит">Комод графит</button>
+              <span class="tag-label">Готовые шаблоны:</span>
+              <button type="button" class="prompt-chip" data-prompt="Кухня 3 метра до потолка с пеналом, двухдверной мойкой, духовкой и антресолями кашемир">Кухня 3м до потолка</button>
+              <button type="button" class="prompt-chip" data-prompt="Шкаф-купе 2400х1800х600 в прихожую с зеркалом и 4 ящиками">Шкаф-купе с зеркалом</button>
+              <button type="button" class="prompt-chip" data-prompt="Распашной шкаф 2.4м на 1.8м кашемир с рейками и 2 штангами">Гардероб с рейками</button>
+              <button type="button" class="prompt-chip" data-prompt="Подвесная тумба ТВ 1800мм на 3 ящика дуб галифакс">Парящая ТВ-тумба</button>
             </div>
           </div>
 
           <div class="hero-actions">
             <a href="constructor.html" class="btn-hero-main">
-              <span>Запустить конструктор</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              <span>Перейти в 3D-конструктор</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </a>
             <a href="constructor.html?new=1" class="btn-hero-clean">
-              <span>С чистого листа</span>
+              <span>Начать с чистого листа</span>
             </a>
+          </div>
+
+          <div class="hero-trust">
+            <div class="trust-item">
+              <strong>EGGER · AGT · Blum</strong>
+              <span>Актуальная база декоров и фурнитуры РК</span>
+            </div>
+            <div class="trust-divider"></div>
+            <div class="trust-item">
+              <strong>2800 × 2070 мм</strong>
+              <span>Точный раскрой листов и печать бирок</span>
+            </div>
+            <div class="trust-divider"></div>
+            <div class="trust-item">
+              <strong>КП в WhatsApp + Договор</strong>
+              <span>Расчёт себестоимости и чистой прибыли цеха</span>
+            </div>
           </div>
         </div>
 
-        <!-- 3D Interactive Card -->
+        <!-- 3D Interactive Showcase Card -->
         <div class="hero-canvas-wrap">
           <div class="canvas-header">
-            <div class="canvas-status">
-              <span class="live-dot"></span>
-              <span>Интерактивная 3D-модель</span>
+            <div class="model-switcher" role="tablist" aria-label="Выбор 3D-модели">
+              <button type="button" class="model-pill on" data-model="kitchen">Кухня 3 яруса (встрой-техника)</button>
+              <button type="button" class="model-pill" data-model="wardrobe">Шкаф-гардероб (2 секции)</button>
             </div>
             <div class="canvas-actions">
               <button id="toggle-doors-btn" type="button" class="canvas-btn">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/></svg>
-                <span id="doors-btn-label">Открыть двери</span>
+                <span id="doors-btn-label">Открыть фасады</span>
               </button>
             </div>
           </div>
 
-          <div id="hero-3d-canvas"></div>
+          <div id="hero-3d-canvas" aria-label="Интерактивное 3D превью мебели"></div>
 
           <div class="canvas-toolbar">
             <div class="material-pills">
-              <button type="button" class="mat-pill on" data-mat="cashmere">Кашемир</button>
-              <button type="button" class="mat-pill" data-mat="graphite">Графит</button>
-              <button type="button" class="mat-pill" data-mat="wood">Дуб Сонома</button>
-              <button type="button" class="mat-pill" data-mat="white">Белый</button>
+              <span class="mat-label">Декор:</span>
+              <button type="button" class="mat-pill on" data-mat="cashmere">Кашемир U702</button>
+              <button type="button" class="mat-pill" data-mat="white">Белый W1100</button>
+              <button type="button" class="mat-pill" data-mat="wood">Дуб Галифакс</button>
+              <button type="button" class="mat-pill" data-mat="graphite">Графит U961</button>
             </div>
-            <div class="canvas-hint">Вращайте 360° мышкой или касанием</div>
+            <div class="canvas-hint">Крутите 3D-модель мышкой или пальцем</div>
           </div>
         </div>
       </section>
 
-      <!-- Key Metrics -->
+      <!-- Key Metrics Strip -->
       <section class="metrics-sec">
         <div class="metrics-grid">
           <div class="metric-card">
-            <div class="metric-val">4.5 ч</div>
-            <div class="metric-lbl">Экономия времени на каждый заказ</div>
-            <div class="metric-sub">Вместо долгого ручного черчения и раскроя</div>
+            <div class="metric-val">3 мин</div>
+            <div class="metric-lbl">Вместо 4 часов работы технолога</div>
+            <div class="metric-sub">От пожеланий клиента до готовой карты раскроя и КП</div>
           </div>
           <div class="metric-card">
-            <div class="metric-val">94%</div>
-            <div class="metric-lbl">Коэффициент раскроя (КУМ)</div>
-            <div class="metric-sub">Минимум отходов дорогостоящего ЛДСП</div>
+            <div class="metric-val">100%</div>
+            <div class="metric-lbl">Реальные мебельные стандарты</div>
+            <div class="metric-sub">Цельный цоколь на клипсах, единая столешница, доборы и карниз</div>
           </div>
           <div class="metric-card">
-            <div class="metric-val">0</div>
-            <div class="metric-lbl">Ошибок при сборке и распиле</div>
-            <div class="metric-sub">Точные миллиметровые спецификации</div>
+            <div class="metric-val">Бирки + ЧПУ</div>
+            <div class="metric-lbl">Готовность к передаче в цех</div>
+            <div class="metric-sub">Печать стикеров со схемой кромки ПВХ и чертежи сверловки Ø35</div>
           </div>
           <div class="metric-card">
-            <div class="metric-val">1:1</div>
-            <div class="metric-lbl">WebAR-примерка в комнате</div>
-            <div class="metric-sub">Прямо с любого смартфона без приложений</div>
+            <div class="metric-val">2 режима</div>
+            <div class="metric-lbl">КП клиенту и смета цеха</div>
+            <div class="metric-sub">Чистая презентация для WhatsApp + расчёт маржи и прибыли</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step-by-Step Workflow -->
+      <section id="workflow" class="workflow-sec">
+        <div class="sec-title">
+          <div class="sec-pill">От замера до монтажа</div>
+          <h2>Как работает ADAL Constructor на реальном заказе</h2>
+          <p>Весь цикл мебельного производства — прямо на ноутбуке или планшете замерщика и технолога.</p>
+        </div>
+
+        <div class="workflow-grid">
+          <div class="step-card">
+            <div class="step-badge">Шаг 1 · Замер и 3D</div>
+            <h3>Сборка кухни или шкафа за 2 минуты</h3>
+            <p>Задайте габариты стены, окна и двери. Мастер кухни или AI-технолог сам расставит пенал, двухдверную мойку 800 мм, сушку для посуды, духовку, антресоли на газлифтах и цельную верхнюю планку под потолок.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-badge">Шаг 2 · Клиент и Договор</div>
+            <h3>КП в WhatsApp и печать Договора</h3>
+            <p>Покажите клиенту 3D-модель с открыванием всех ящиков и дверей, примерьте через камеру телефона в AR, отправьте КП в WhatsApp одной кнопкой и распечатайте готовый Договор с авансом 70%.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-badge">Шаг 3 · Распил и Сборка</div>
+            <h3>Карта раскроя, бирки и присадка в цех</h3>
+            <p>Получите раскладку деталей на листах ЛДСП 2800×2070 мм, скачайте CSV для станка, распечатайте лист стикеров-бирок на каждую деталь и сборочные чертежи с координатами сверловки.</p>
           </div>
         </div>
       </section>
@@ -144,152 +191,128 @@
       <!-- Features Section -->
       <section id="features" class="features-sec">
         <div class="sec-title">
-          <div class="sec-pill">Полный производственный цикл</div>
-          <h2>Всё для мебельного бизнеса в одной вкладке</h2>
-          <p>Автоматизация от первого звонка клиента до распила на станке и сборки на объекте.</p>
+          <div class="sec-pill">Инженерная точность</div>
+          <h2>Все инструменты технолога, цеха и отдела продаж</h2>
+          <p>Мы учли реальные нюансы работы мебельщиков, чтобы исключить ошибки при распиле и монтаже.</p>
         </div>
 
         <div class="grid-3">
           <div class="card">
-            <div class="card-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            <div class="card-top">
+              <div class="card-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              </div>
+              <span class="card-tag">3D Геометрия</span>
             </div>
-            <div class="card-num">01</div>
-            <h3>3D-моделирование в браузере</h3>
-            <p>Шкафы-купе, распашные шкафы, прямые и угловые кухни. Мгновенное изменение размеров, полок, ящиков, штанг и цоколей с авто-проверкой коллизий.</p>
+            <h3>Цельный цоколь, столешница и карниз</h3>
+            <p>Никаких разрозненных кусков: цоколь формируется единой планкой на клипсах к регулируемым опорам, столешница 38 мм идёт монолитным полотном, а сверху ставится доборная планка под потолок.</p>
           </div>
 
           <div class="card">
-            <div class="card-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            <div class="card-top">
+              <div class="card-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              </div>
+              <span class="card-tag">Базис-Раскрой</span>
             </div>
-            <div class="card-num">02</div>
-            <h3>2D-раскрой плит (Базис)</h3>
-            <p>Алгоритм гильотинного раскроя с оптимизацией обрезков. Карты укладки деталей, учёт толщины пропила и кромления, экспорт спецификации в CSV.</p>
+            <h3>Раскрой плит и бирки (стикеры) на детали</h3>
+            <p>2D-укладка деталей на формат 2800×2070 мм с учётом пропила 4 мм и текстуры дерева. Печать листа этикеток (№ детали, модуль, размер Д×Ш×Т, кромка ПВХ) для наклейки после пилы.</p>
           </div>
 
           <div class="card">
-            <div class="card-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <div class="card-top">
+              <div class="card-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+              <span class="card-tag">Финансы и КП</span>
             </div>
-            <div class="card-num">03</div>
-            <h3>Точная смета в тенге (₸)</h3>
-            <p>Автоматический расчёт ЛДСП, МДФ, кромки, петель, направляющих, ручек, работ по распилу, сборке и доставке с гибкой настройкой цен цеха.</p>
+            <h3>КП для WhatsApp + Цеховая смета</h3>
+            <p>Переключайтесь в 1 клик между презентабельным КП для клиента (с кнопкой копирования в WhatsApp) и закрытой цеховой сметой с расчётом себестоимости, отходов и чистой прибыли в тенге.</p>
           </div>
 
           <div class="card">
-            <div class="card-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <div class="card-top">
+              <div class="card-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              </div>
+              <span class="card-tag">Документооборот РК</span>
             </div>
-            <div class="card-num">04</div>
-            <h3>Сборочные чертежи и присадка</h3>
-            <p>Карты сверловки под евровинты, конфирматы, эксцентрики и направляющие ящиков. Полная деталировка для сборщиков на объекте.</p>
+            <h3>Готовый Договор и Паспорт заказа в PDF</h3>
+            <p>Автоматическое формирование Договора на изготовление мебели с реквизитами, ФИО клиента, адресом монтажа, суммой предоплаты 70%, сроками и полной спецификацией модулей.</p>
           </div>
 
           <div class="card">
-            <div class="card-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <div class="card-top">
+              <div class="card-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              </div>
+              <span class="card-tag">Присадка и Рентген</span>
             </div>
-            <div class="card-num">05</div>
-            <h3>Примерка в AR на смартфоне</h3>
-            <p>Клиент наводит камеру смартфона и видит гарнитур или шкаф в реальном размере 1:1 прямо у себя в комнате до заключения договора.</p>
+            <h3>Карты сверловки, газлифты и защита от ударов</h3>
+            <p>Точная присадка чашек петель Ø35 мм, газлифты Aventos для откидных антресолей, ограничители открывания 85° и автоматическое предупреждение о пристенных доборах 50 мм.</p>
           </div>
 
           <div class="card">
-            <div class="card-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <div class="card-top">
+              <div class="card-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <span class="card-tag">Облако и Доступ</span>
             </div>
-            <div class="card-num">06</div>
-            <h3>AI-генерация по описанию</h3>
-            <p>Напишите «Шкаф 2.4м графит с зеркалом и 4 ящиками» — нейросеть за 2 секунды создаст готовую параметрическую модель с наполнением.</p>
+            <h3>CRM база заказов и закрытый доступ по логинам</h3>
+            <p>Храните проекты со статусами («В распиле», «Готов к монтажу»), выдавайте персональные логины и пароли сотрудникам или подписчикам и синхронизируйте базу через облако Supabase.</p>
           </div>
         </div>
       </section>
 
-      <!-- B2B Section -->
-      <section id="b2b" class="solution-sec">
-        <div class="solution-grid">
-          <div class="solution-content">
-            <div class="sec-pill">Для мебельных производств и мастеров</div>
-            <h2>Превратите замер в готовые карты раскроя за 5 минут</h2>
-            <p>
-              Откажитесь от громоздких офисных программ и ошибок ручных расчётов. Mebel3D работает прямо в цеху на любом ноутбуке или планшете:
-            </p>
-            <ul class="solution-list">
-              <li>
-                <strong>Экспорт в CSV для форматно-раскроечных станков:</strong> полные размеры всех щитов, тип кромки (0.4 / 2 мм) и ориентация волокон.
-              </li>
-              <li>
-                <strong>Точный учёт себестоимости:</strong> настройка прайс-листа плит (EGGER, Kronospan, Kastamonu) и фурнитуры под ваш город.
-              </li>
-              <li>
-                <strong>Фирменное КП в PDF:</strong> брендированное коммерческое предложение с 3D-рендером, логотипом цеха и спецификацией для клиента.
-              </li>
-              <li>
-                <strong>Режим рентгена (X-Ray):</strong> визуализация крепежа, евровинтов и направляющих скрытого монтажа.
-              </li>
-            </ul>
-            <a href="constructor.html" class="btn-hero-main">
-              <span>Попробовать для цеха</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </a>
-          </div>
-          <div class="solution-card-preview">
-            <div class="preview-box">
-              <div class="box-badge">Базис-Раскрой 2D</div>
-              <div class="box-header">Автоматическая раскладка на лист 2800×2070 мм</div>
-              <div class="box-bars">
-                <div class="bar-row">
-                  <span>Эффективность листа:</span>
-                  <strong>94.2%</strong>
-                </div>
-                <div class="bar-progress"><div class="bar-fill" style="width: 94.2%;"></div></div>
-                <div class="bar-row">
-                  <span>Деталей на листе:</span>
-                  <strong>18 шт (шкаф + ящики)</strong>
-                </div>
-                <div class="bar-row">
-                  <span>Длина пропила:</span>
-                  <strong>42.8 пог. м</strong>
-                </div>
-              </div>
-            </div>
-          </div>
+      <!-- SaaS Pricing / Access Plans -->
+      <section id="pricing" class="pricing-sec">
+        <div class="sec-title">
+          <div class="sec-pill">Тарифы и доступ к платформе</div>
+          <h2>Гибкий формат: для собственного цеха или по подписке</h2>
+          <p>Никаких дорогих ключей и сложных установок — система работает в браузере с персональным логином.</p>
         </div>
-      </section>
 
-      <!-- B2C Section -->
-      <section id="b2c" class="solution-sec alt">
-        <div class="solution-grid reverse">
-          <div class="solution-content">
-            <div class="sec-pill">Для дизайнеров и новосёлов</div>
-            <h2>Идеальная мебель под ваши размеры без переплат посредникам</h2>
-            <p>
-              Создайте проект сами или вместе с дизайнером, примерьте в интерьере и закажите напрямую в цеху по честной производственной смете:
-            </p>
-            <ul class="solution-list">
-              <li>
-                <strong>Никаких сюрпризов:</strong> вы точно знаете высоту полок, вместимость ящиков и цвета до покупки.
-              </li>
-              <li>
-                <strong>AR-примерка в реальной комнате:</strong> проверьте, как шкаф встанет между дверью и окном, прямо через камеру телефона.
-              </li>
-              <li>
-                <strong>Премиальные декоры:</strong> реальные текстуры EGGER (кашемир, графит, дуб сонома, зеркала, рифленый вельвет).
-              </li>
+        <div class="pricing-grid">
+          <div class="price-card">
+            <div class="price-tier">Старт / Дизайнер</div>
+            <div class="price-amount">Бесплатно <span>/ демо</span></div>
+            <p class="price-desc">Для знакомства с 3D-конструктором, планировки кухни и примерки в интерьере через WebAR.</p>
+            <ul class="price-features">
+              <li>3D-проектирование кухонь и шкафов</li>
+              <li>AI-генерация и Мастер кухни</li>
+              <li>Палитра декоров EGGER и AGT</li>
+              <li>WebAR примерка с телефона 1:1</li>
             </ul>
-            <a href="constructor.html?new=1" class="btn-hero-clean">
-              <span>Спроектировать мебель бесплатно</span>
-            </a>
+            <a href="constructor.html?new=1" class="btn-price-ghost">Попробовать в 3D</a>
           </div>
-          <div class="solution-card-preview ar-card">
-            <div class="ar-badge-box">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-              <div>
-                <div style="font-weight: 700; font-size: 16px;">Дополненная реальность 1:1</div>
-                <div style="font-size: 13px; color: var(--muted); margin-top: 2px;">Работает на iOS и Android без приложений</div>
-              </div>
-            </div>
+
+          <div class="price-card featured">
+            <div class="featured-ribbon">Выбор мебельщиков</div>
+            <div class="price-tier">Цех Pro</div>
+            <div class="price-amount">14 900 ₸ <span>/ мес</span></div>
+            <p class="price-desc">Полный производственный пакет для мебельного цеха, ИП и технологов на каждый день.</p>
+            <ul class="price-features">
+              <li><strong>Карты раскроя 2D</strong> на листах 2800×2070 мм + CSV</li>
+              <li><strong>Печать бирок (стикеров)</strong> со схемой кромки ПВХ</li>
+              <li><strong>КП для WhatsApp</strong> + Цеховая смета с прибылью</li>
+              <li><strong>Генератор Договора РК</strong> и чертежи присадки</li>
+              <li>Свой прайс-лист материалов и фурнитуры</li>
+            </ul>
+            <a href="constructor.html" class="btn-price-main">Открыть Цех Pro</a>
+          </div>
+
+          <div class="price-card">
+            <div class="price-tier">Мебельная фабрика</div>
+            <div class="price-amount">39 900 ₸ <span>/ мес</span></div>
+            <p class="price-desc">Командная работа нескольких замерщиков, менеджеров салона и технологов с общей базой.</p>
+            <ul class="price-features">
+              <li>До 10 аккаунтов сотрудников по логину/паролю</li>
+              <li>Единая облачная БД заказов (Supabase Cloud)</li>
+              <li>Брендирование КП, паспортов и договоров</li>
+              <li>Контроль статусов заказов от замера до сдачи</li>
+            </ul>
+            <a href="constructor.html" class="btn-price-ghost">Подключить команду</a>
           </div>
         </div>
       </section>
@@ -297,26 +320,26 @@
       <!-- Grant She's Next 2026 Pitch -->
       <section id="grant" class="grant-sec">
         <div class="grant-box">
-          <div class="grant-badge">Инновационный проект · She's Next 2026</div>
-          <h2>Цифровая трансформация малого мебельного бизнеса</h2>
+          <div class="grant-badge">Инновационный IT-продукт из Казахстана · She’s Next 2026</div>
+          <h2>Цифровизация и рост малого мебельного бизнеса</h2>
           <p class="grant-lead">
-            В Казахстане работают тысячи малых мебельных цехов и мастеров, не имеющих возможности покупать зарубежные САПР за миллионы тенге. ADAL Constructor даёт каждому производителю честный, прозрачный облачный САПР с AI-генератором, печатью бирок, раскроем и WebAR прямо в веб-браузере.
+            В Казахстане работают более 4 000 малых мебельных цехов и индивидуальных мастеров. Традиционные десктопные САПР требуют мощных ПК, сложного обучения и стоят сотни тысяч тенге. <strong>ADAL Constructor</strong> делает профессиональное мебельное проектирование доступным в один клик с любого ноутбука или планшета.
           </p>
           <div class="grant-grid">
             <div class="grant-point">
               <div class="point-num">01</div>
-              <h4>Доступность для МСБ</h4>
-              <p>Работает на любом устройстве без покупки мощных рабочих станций и лицензий Базис/AutoCAD.</p>
+              <h4>Ускорение приёма заказа в 10 раз</h4>
+              <p>Мебельщик прямо на замере у клиента за 3 минуты собирает 3D-кухню, показывает смету, отправляет КП в WhatsApp и подписывает договор.</p>
             </div>
             <div class="grant-point">
               <div class="point-num">02</div>
-              <h4>Экологичность и безотходность</h4>
-              <p>Оптимизация раскроя плит сокращает производственные отходы ЛДСП на 15–20%, снижая вред экологии.</p>
+              <h4>Снижение брака и отходов ЛДСП</h4>
+              <p>Автоматический расчёт цельного цоколя, столешницы, карт раскроя и печатных бирок снижает перерасход плитных материалов на 15–20%.</p>
             </div>
             <div class="grant-point">
               <div class="point-num">03</div>
-              <h4>Поддержка локального бизнеса</h4>
-              <p>Расчет в тенге (KZT) с учетом поставщиков Казахстана (EGGER, Hafele, Blum) и региональных цен.</p>
+              <h4>Масштабируемая SaaS-модель</h4>
+              <p>Облачная архитектура с многопользовательским доступом готова к масштабированию на мебельные цеха и студии дизайна по всему Казахстану и Центральной Азии.</p>
             </div>
           </div>
         </div>
@@ -324,16 +347,18 @@
 
       <!-- Final CTA -->
       <section class="cta-sec">
-        <h2>Готовы начать проектирование?</h2>
-        <p>Создайте первый шкаф или кухонный гарнитур прямо сейчас за 2 минуты в 3D.</p>
-        <div class="cta-buttons">
-          <a href="constructor.html" class="btn-hero-main">
-            <span>Открыть 3D-конструктор</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </a>
-          <a href="constructor.html?new=1" class="btn-hero-clean">
-            <span>С чистого листа</span>
-          </a>
+        <div class="cta-inner">
+          <h2>Соберите свой первый проект в ADAL Constructor прямо сейчас</h2>
+          <p>Проверьте в деле 3D-конструктор, Мастер кухни, печать бирок, карту раскроя и генерацию КП.</p>
+          <div class="cta-buttons">
+            <a href="constructor.html" class="btn-hero-main">
+              <span>Запустить 3D-конструктор</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+            <a href="constructor.html?new=1" class="btn-hero-clean">
+              <span>Открыть пустую сцену</span>
+            </a>
+          </div>
         </div>
       </section>
     </main>
@@ -345,10 +370,10 @@
             <svg viewBox="0 0 32 32" width="24" height="24" aria-hidden="true"><use href="favicon.svg#logo" /></svg>
             <span class="brand-name">ADAL Constructor</span>
           </div>
-          <p>Облачная параметрическая CAD/CAM система для мебельных производств и дизайнеров.</p>
+          <p>Профессиональная облачная 3D CAD/CAM система для мебельных производств, технологов и дизайнеров интерьера.</p>
         </div>
         <div class="footer-copy">
-          <p>© 2026 ADAL Constructor. Сделано для мебельного бизнеса Казахстана и СНГ.</p>
+          <p>© 2026 ADAL Constructor · Казахстан. Все расчёты в тенге (₸).</p>
         </div>
       </div>
     </footer>

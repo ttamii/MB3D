@@ -85,6 +85,98 @@ export function estimateDialog(store: Store, est: Estimate, viewer: Viewer): voi
     return lines.join('\n');
   };
 
+  const printClientContract = () => {
+    const w = window.open('', '_blank');
+    if (!w) {
+      toast('Разрешите всплывающие окна в браузере для печати Договора', 'err');
+      return;
+    }
+    const p = store.project;
+    const comp = store.settings.company;
+    const matMap = new Map(store.settings.materials.map((m) => [m.id, m.name]));
+    const firstMod = p.modules[0];
+    const corpusName = firstMod ? (matMap.get(firstMod.matCorpus) ?? 'ЛДСП 16 мм') : 'ЛДСП 16 мм';
+    const facadeName = firstMod ? (matMap.get(firstMod.matFacade) ?? 'МДФ 18 мм') : 'МДФ 18 мм';
+    const topName = firstMod ? (matMap.get(firstMod.matTop) ?? 'Столешница 38 мм') : 'Столешница 38 мм';
+    const advance70 = Math.round(est.total * 0.7);
+    const balance30 = Math.max(0, est.total - advance70);
+    const today = new Date().toLocaleDateString('ru-RU');
+    const contractNum = `${new Date().getFullYear()}-${String(p.modules.length).padStart(2, '0')}`;
+
+    const rowsHtml = p.modules.map((m, idx) => `
+      <tr>
+        <td style="text-align:center;">${idx + 1}</td>
+        <td><b>${m.name}</b></td>
+        <td style="text-align:center;">${m.w} × ${m.h} × ${m.d}</td>
+        <td style="text-align:right;">${money(est.perModule[m.id] ?? 0, cur)}</td>
+      </tr>
+    `).join('');
+
+    w.document.write(`<!doctype html><html lang="ru"><head><meta charset="utf-8">
+      <title>Договор бытового подряда № ${contractNum} — ${p.name}</title>
+      <style>
+        body { font-family: "Times New Roman", Times, serif; margin: 14mm 16mm; color: #111; font-size: 12pt; line-height: 1.4; }
+        h1 { font-size: 14pt; text-align: center; margin: 0 0 4px 0; text-transform: uppercase; }
+        .sub { text-align: center; font-size: 11pt; margin-bottom: 14px; color: #333; }
+        .meta { display: flex; justify-content: space-between; margin-bottom: 14px; font-weight: bold; }
+        h3 { font-size: 12pt; margin: 12px 0 4px 0; text-transform: uppercase; }
+        p { margin: 4px 0; text-align: justify; }
+        table { width: 100%; border-collapse: collapse; margin: 8px 0 12px 0; font-family: Arial, sans-serif; font-size: 10pt; }
+        th, td { border: 1px solid #222; padding: 5px 8px; }
+        th { background: #f3f4f6; }
+        .summary-box { border: 1.5px solid #111; padding: 8px 12px; margin: 10px 0; background: #fafafa; font-family: Arial, sans-serif; font-size: 10.5pt; }
+        .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; page-break-inside: avoid; }
+        .sig-block { border-top: 1px solid #333; padding-top: 8px; font-size: 11pt; }
+      </style></head><body>
+      <h1>Договор бытового подряда № ${contractNum}</h1>
+      <div class="sub">на изготовление и монтаж корпусной мебели по индивидуальному проекту</div>
+      <div class="meta">
+        <span>Республика Казахстан</span>
+        <span>Дата: ${today} г.</span>
+      </div>
+      <p><b>${comp.name || 'ИП / ТОО «Мебельное производство»'}</b>${comp.phone ? ' (тел.: ' + comp.phone + ')' : ''}, именуемое в дальнейшем <b>«Исполнитель»</b>, с одной стороны, и <b>${p.clientName || '__________________________________________'}</b>${p.clientPhone ? ' (тел.: ' + p.clientPhone + ')' : ''}, именуемый(-ая) в дальнейшем <b>«Заказчик»</b>, с другой стороны, заключили настоящий Договор о нижеследующем:</p>
+
+      <h3>1. Предмет договора и спецификация изделия</h3>
+      <p>1.1. Исполнитель обязуется изготовить, доставить и установить комплект корпусной мебели по проекту <b>«${p.name}»</b>${p.clientAddress ? ' по адресу монтажа: <b>' + p.clientAddress + '</b>' : ''}, а Заказчик обязуется принять и оплатить изделие.</p>
+      <p>1.2. Материалы проекта: корпус — <b>${corpusName}</b>, фасады — <b>${facadeName}</b>, столешница / крышка — <b>${topName}</b>, кромка ПВХ в цвет.</p>
+      <table>
+        <thead>
+          <tr><th style="width:36px;">№</th><th>Наименование модуля / секции</th><th style="width:140px;">Габариты (Ш×В×Г), мм</th><th style="width:120px;">Стоимость</th></tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+
+      <h3>2. Стоимость договора и порядок расчётов</h3>
+      <div class="summary-box">
+        <div><b>Общая стоимость заказа под ключ:</b> ${money(est.total, cur)}</div>
+        <div><b>Предоплата при подписании Договора (70%):</b> ${money(advance70, cur)}</div>
+        <div><b>Окончательный расчёт после монтажа и подписания Акта приёмки (30%):</b> ${money(balance30, cur)}</div>
+      </div>
+
+      <h3>3. Сроки изготовления и гарантийные обязательства</h3>
+      <p>3.1. Срок изготовления мебели составляет <b>от 14 до 25 рабочих дней</b> с момента внесения предоплаты 70% и утверждения итогового эскиза.</p>
+      <p>3.2. Гарантийный срок на изготовленную мебель и монтаж составляет <b>12 (двенадцать) месяцев</b> со дня установки при соблюдении правил эксплуатации.</p>
+
+      <div class="sigs">
+        <div class="sig-block">
+          <b>ИСПОЛНИТЕЛЬ:</b><br>
+          ${comp.name || 'Производственный цех'}<br>
+          ${comp.phone ? 'Тел.: ' + comp.phone + '<br>' : ''}
+          <br>Подпись / М.П.: _______________________
+        </div>
+        <div class="sig-block">
+          <b>ЗАКАЗЧИК:</b><br>
+          ФИО: ${p.clientName || '_______________________________'}<br>
+          Тел.: ${p.clientPhone || '_______________________________'}<br>
+          Адрес: ${p.clientAddress || '_____________________________'}<br>
+          <br>Подпись: _____________________________
+        </div>
+      </div>
+      <script>window.onload = () => window.print();</script>
+      </body></html>`);
+    w.document.close();
+  };
+
   const renderEst = () => {
     clear(container);
     const mods = store.project.modules;
@@ -191,6 +283,7 @@ export function estimateDialog(store: Store, est: Estimate, viewer: Viewer): voi
 
   d.foot.append(
     btn('Печать КП для клиента (PDF)', 'primary', () => { d.close(); printDoc('kp', store, est, viewer); }, 'printer'),
+    btn('Договор с клиентом (РК, PDF)', 'ghost', printClientContract, 'file'),
     btn('Внутренняя смета цеха (PDF)', 'ghost', () => { d.close(); printDoc('estimate', store, est, viewer); }, 'list'),
   );
 }
@@ -292,7 +385,50 @@ export function cutDialog(store: Store, est: Estimate, viewer: Viewer): void {
     container.append(tabsBar);
 
     if (activeTab === 'cut') {
+      const mods = store.project.modules;
+      const wideShelfMods = mods.filter((m) => (m.w / Math.max(1, m.sections.length)) > 950 && m.sections.some((s) => s.shelves > 0) && !m.name.includes('Фальш'));
+      const hasContinuousPlinth = rows.some((r) => r.name.includes('Цоколь цельный'));
+      const hasContinuousTop = rows.some((r) => r.name.includes('Столешница цельная'));
+      const hasTopTrim = rows.some((r) => r.name.includes('Верхняя планка'));
+      const hasWallFillers = mods.some((m) => m.w <= 80 && m.name.toLowerCase().includes('фальш'));
+      const maxPartLen = rows.reduce((mx, r) => Math.max(mx, r.l), 0);
+
+      const qcItems: { ok: boolean; text: string }[] = [
+        {
+          ok: wideShelfMods.length === 0,
+          text: wideShelfMods.length === 0
+            ? 'Прогиб полок: все секции ≤ 950 мм (безопасно для ЛДСП 16 мм)'
+            : `Внимание: у ${wideShelfMods.length} мод. пролёт полки > 950 мм — рекомендуется вертикальная перегородка или 22 мм`,
+        },
+        {
+          ok: maxPartLen <= 2770 || rows.some((r) => r.name.includes('Столешница') && r.l <= 3050),
+          text: `Габариты раскроя: макс. деталь ${maxPartLen} мм — помещается в стандартный лист`,
+        },
+      ];
+      if (hasContinuousPlinth || hasContinuousTop) {
+        qcItems.push({
+          ok: true,
+          text: `Цельные узлы: ${[hasContinuousPlinth ? 'единый цоколь на клипсах' : '', hasContinuousTop ? 'цельная столешница' : '', hasTopTrim ? 'верхний карниз' : ''].filter(Boolean).join(', ')}`,
+        });
+      }
+      if (hasWallFillers) {
+        qcItems.push({
+          ok: true,
+          text: 'Защита от битья фасадов: предусмотрены пристенные доборы (фальш-планки)',
+        });
+      }
+
+      const qcBanner = h('div', {
+        style: 'display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:8px; padding:10px 12px; background:var(--panel-2); border:1px solid var(--line); border-radius:8px;',
+      }, ...qcItems.map((it) =>
+        h('div', { style: 'display:flex; align-items:flex-start; gap:6px; font-size:12px; line-height:1.35;' },
+          h('span', { style: `font-weight:800; color:${it.ok ? 'var(--ok)' : '#d97706'};` }, it.ok ? '✓' : '⚠'),
+          h('span', { style: 'color:var(--ink-2); font-weight:500;' }, it.text),
+        )
+      ));
+
       container.append(
+        qcBanner,
         h('p', { class: 'hint' }, `${rows.length} позиций · ${pieces} деталей. Размеры в мм: длина × ширина × толщина. Для ЧПУ/Excel скачайте CSV-таблицу ниже.`),
         h('div', { class: 'scroll-x' },
           h('table', { class: 'tbl dense' },

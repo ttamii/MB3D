@@ -816,7 +816,64 @@ export function buildContinuousSpans(modules: Module[], splitForCutlist = false)
           shape: 'box',
         },
       });
+      // Пристенный бортик (плинтус столешницы) у стены
+      spans.push({
+        refModule: first,
+        groupName,
+        groupId,
+        part: {
+          name: 'Пристенный бортик столешницы',
+          mat: 'top',
+          pos: [curX, H + COUNTERTOP_T, 0],
+          size: [segW, 24, 16],
+          edgeMm: 0,
+          sheet: false,
+          shape: 'box',
+        },
+      });
       curX += segW;
+    }
+  }
+
+  // 2б. Профиль LED-подсветки рабочей зоны под верхними шкафами
+  const wallMods = modules
+    .filter((m) => m.kind === 'wall' && !isCorner(m.kind))
+    .sort((a, b) => a.x - b.x);
+  const wallRuns: Module[][] = [];
+  for (const m of wallMods) {
+    const prevRun = wallRuns[wallRuns.length - 1];
+    const prev = prevRun ? prevRun[prevRun.length - 1] : null;
+    if (
+      prev &&
+      Math.abs((prev.x + prev.w) - m.x) <= 5 &&
+      Math.abs((prev.lift ?? 0) - (m.lift ?? 0)) <= 2 &&
+      prev.d === m.d
+    ) {
+      prevRun.push(m);
+    } else {
+      wallRuns.push([m]);
+    }
+  }
+  for (const run of wallRuns) {
+    const first = run[0];
+    const last = run[run.length - 1];
+    const totalW = Math.round((last.x + last.w) - first.x);
+    const botY = first.lift ?? 0;
+    if (botY >= 1000 && totalW >= 300) {
+      spans.push({
+        refModule: first,
+        groupName: run.length > 1 ? `LED-профиль (${run.length} мод.)` : first.name,
+        groupId: `span-led-${first.id}`,
+        part: {
+          name: 'Профиль LED-подсветки рабочей зоны',
+          mat: 'metal',
+          pos: [first.x + 8, botY - 5, Math.max(40, first.d - 65)],
+          size: [totalW - 16, 5, 16],
+          edgeMm: 0,
+          sheet: false,
+          shape: 'box',
+        },
+      });
     }
   }
 

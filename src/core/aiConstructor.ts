@@ -299,16 +299,22 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
   // 6. Материалы и декоры
   let matFacade = 'eg-w1000';
   let matCorpus = 'eg-w1000';
-  const matTop = 'top-f812';
+  let matTop = 'top-f812';
 
   if (/графит|черн|антрацит|темн/i.test(text)) {
     matFacade = 'eg-u999';
     matCorpus = 'eg-u999';
+    matTop = 'top-f206';
     features.push('Цвет: Графит глубокий матовый');
   } else if (/кашемир|бежев|песочн|крем|латте/i.test(text)) {
     matFacade = 'eg-u702';
     matCorpus = 'eg-u702';
     features.push('Цвет: Кашемир серый / бежевый');
+  } else if (/галифакс/i.test(text)) {
+    matFacade = 'eg-h1180';
+    matCorpus = 'eg-w1000';
+    matTop = 'top-h1180';
+    features.push('Фасады: Дуб Галифакс натуральный');
   } else if (/дуб|дерев|соном|эко/i.test(text)) {
     matFacade = 'eg-h3303';
     matCorpus = 'eg-w1000';
@@ -317,6 +323,10 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
     matFacade = 'eg-h3730';
     matCorpus = 'eg-w1000';
     features.push('Фасады: Натуральный дуб хикори');
+  } else if (/изумруд|зелен|фьорд/i.test(text)) {
+    matFacade = 'm-emerald';
+    matCorpus = 'eg-w1000';
+    features.push('Фасады: МДФ Эмаль Изумруд');
   } else {
     features.push('Цвет: Белый премиум (EGGER W1000)');
   }
@@ -327,9 +337,10 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
     features.push('Зеркальные фасады');
   }
 
-  // 7. Ручки и фрезеровка
+  // 7. Ручки, фрезеровка и верхняя планка (карниз)
   let handles = true;
   let milling: 'modern' | 'frame' | 'ribbed' = 'modern';
+  const wantsTopTrim = /карниз|верхн\w*\s*планк|до потолк|под потолок/i.test(text);
 
   if (/без ручек|push|нажат|скрыт|интегрирован|tip-on/i.test(text)) {
     handles = false;
@@ -341,6 +352,9 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
   } else if (/вельвет|рифлен|рейк|рейчат/i.test(text)) {
     milling = 'ribbed';
     features.push('Фрезеровка: Рифлёный вельвет');
+  }
+  if (wantsTopTrim) {
+    features.push('Цельная верхняя доборная планка (карниз 60 мм)');
   }
 
   const primaryModule: Module = {
@@ -368,6 +382,7 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
     matFacade,
     matBack: 'b-white',
     matTop,
+    ...(wantsTopTrim && kind !== 'base' ? { topTrim: 60 } : {}),
   };
 
   // Если запрос на кухню — формируем сбалансированный кухонный гарнитур по стандартам технолога
@@ -389,6 +404,7 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
       millingMix: milling === 'modern' && wantsThreeTiers ? 'trend' : milling,
       layoutVariant,
       shape: wantsCorner ? 'corner-left' : 'linear',
+      topTrimH: wantsTopTrim || wantsThreeTiers ? 60 : 0,
     });
 
     if (!handles) {
