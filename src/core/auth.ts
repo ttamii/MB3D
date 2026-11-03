@@ -273,6 +273,54 @@ export function logoutCurrentUser(): void {
 }
 
 /** Включён ли обязательный вход по логину/паролю и подписке (по умолчанию включён) */
+export function signInWithGoogleOAuth(): void {
+  const cfg = getCloudConfig();
+  if (!cfg.url) return;
+  const redirectUrl = window.location.origin + window.location.pathname;
+  window.location.href = `${cfg.url}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}`;
+}
+
+export function handleAuthRedirectCallback(): boolean {
+  if (!window.location.hash) return false;
+  const hash = window.location.hash.substring(1);
+  const params = new URLSearchParams(hash);
+  const token = params.get('access_token');
+  if (!token) return false;
+
+  try {
+    const payloadBase64 = token.split('.')[1];
+    const decoded = JSON.parse(atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/')));
+    const email = decoded.email?.trim().toLowerCase();
+    if (email) {
+      const name = decoded.user_metadata?.full_name || decoded.user_metadata?.name || email.split('@')[0];
+      const accounts = loadAccounts();
+      let user = accounts.find((a) => a.login.toLowerCase() === email);
+      if (!user) {
+        user = {
+          id: `usr_${uid()}`,
+          login: email,
+          password: 'oauth:google',
+          name,
+          company: '',
+          role: 'pro',
+          subscription: 'none',
+          active: true,
+          createdAt: Date.now(),
+        };
+        accounts.push(user);
+        saveAccounts(accounts);
+        void pushAccountToCloud(user);
+      }
+      writeJson(K_SESSION, user.id);
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      return true;
+    }
+  } catch {
+    // ignore parse error
+  }
+  return false;
+}
+
 export function isAccessGateEnabled(): boolean {
   return readJson<boolean>(K_GATE, true);
 }

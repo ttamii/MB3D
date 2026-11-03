@@ -11,8 +11,8 @@ import {
   createAccount, deleteAccount, getCloudConfig, getCurrentUser, hasActiveSubscription,
   isAccessGateEnabled, isCloudConfigured, loadAccounts, loginWithCredentials,
   logoutCurrentUser, pullProjectsFromCloud, pushProjectToCloud, registerAccount,
-  setAccessGateEnabled, setAccountSubscription, setCloudConfig, syncAccountFromCloud, toggleAccountActive,
-  updateAccountPassword, type SubscriptionPlan,
+  setAccessGateEnabled, setAccountSubscription, setCloudConfig, signInWithGoogleOAuth,
+  syncAccountFromCloud, toggleAccountActive, updateAccountPassword, type SubscriptionPlan,
 } from '../core/auth';
 import { downloadBlob, fileName, fmtNum, money } from '../core/util';
 import {
@@ -893,7 +893,7 @@ export function showAuthGateModal(onAuthenticated: () => void, initialMode?: 'lo
       type: 'button',
       style: 'width:100%; padding:10px 14px; border-radius:9px; border:1px solid #cbd5e1; background:#ffffff; color:#1e293b; font-weight:600; font-size:13.5px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:9px;',
       onClick: () => {
-        toast('Вход через Google: настройте OAuth в Supabase Auth для автоматической авторизации', 'ok');
+        signInWithGoogleOAuth();
       },
     });
     googleBtn.innerHTML = `

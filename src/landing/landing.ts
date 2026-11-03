@@ -2,6 +2,7 @@ import '@fontsource-variable/inter';
 import '../styles/landing.css';
 import {
   getCurrentUser,
+  handleAuthRedirectCallback,
   hasActiveSubscription,
   logoutCurrentUser,
 } from '../core/auth';
@@ -236,6 +237,13 @@ function initHero3D(): void {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  if (handleAuthRedirectCallback()) {
+    const user = getCurrentUser();
+    if (user && hasActiveSubscription(user)) {
+      window.location.href = 'constructor.html';
+      return;
+    }
+  }
   initAuthControls();
   initHero3D();
 });
