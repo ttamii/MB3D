@@ -19,7 +19,14 @@ function initDashboard() {
 
   const user = getCurrentUser();
   if (!user) {
-    window.location.href = 'index.html';
+    // Даем небольшую задержку на чтение сессии перед редиректом
+    setTimeout(() => {
+      if (!getCurrentUser()) {
+        window.location.href = 'index.html';
+      } else {
+        render();
+      }
+    }, 150);
     return;
   }
 

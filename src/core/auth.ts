@@ -281,9 +281,13 @@ export function signInWithGoogleOAuth(): void {
 }
 
 export function handleAuthRedirectCallback(): boolean {
-  if (!window.location.hash) return false;
-  const hash = window.location.hash.substring(1);
-  const params = new URLSearchParams(hash);
+  // Проверяем как hash (#access_token=...), так и query params (?access_token=... или code=...)
+  const rawParams = window.location.hash
+    ? window.location.hash.substring(1)
+    : window.location.search.substring(1);
+  if (!rawParams) return false;
+
+  const params = new URLSearchParams(rawParams);
   const token = params.get('access_token');
   if (!token) return false;
 
@@ -308,11 +312,12 @@ export function handleAuthRedirectCallback(): boolean {
           createdAt: Date.now(),
         };
         accounts.push(user);
-        saveAccounts(accounts);
-        void pushAccountToCloud(user);
       }
       writeJson(K_SESSION, user.id);
-      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      saveAccounts(accounts);
+      void pushAccountToCloud(user);
+      // Очищаем URL от токенов, оставляя чистый путь
+      window.history.replaceState(null, '', window.location.pathname);
       return true;
     }
   } catch {
