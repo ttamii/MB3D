@@ -303,7 +303,8 @@ export function handleAuthRedirectCallback(): boolean {
           name,
           company: '',
           role: 'pro',
-          subscription: 'none',
+          subscription: 'pro',
+          subscriptionUntil: Date.now() + 30 * 86400_000,
           active: true,
           createdAt: Date.now(),
         };
