@@ -11,7 +11,7 @@ import {
   createAccount, deleteAccount, getCloudConfig, getCurrentUser, hasActiveSubscription,
   isAccessGateEnabled, isCloudConfigured, loadAccounts, loginWithCredentials,
   logoutCurrentUser, pullProjectsFromCloud, pushProjectToCloud, registerAccount,
-  setAccessGateEnabled, setAccountSubscription, setCloudConfig, toggleAccountActive,
+  setAccessGateEnabled, setAccountSubscription, setCloudConfig, syncAccountFromCloud, toggleAccountActive,
   updateAccountPassword, type SubscriptionPlan,
 } from '../core/auth';
 import { downloadBlob, fileName, fmtNum, money } from '../core/util';
@@ -867,7 +867,8 @@ export function showAuthGateModal(onAuthenticated: () => void, initialMode?: 'lo
       const loginInput = h('input', { type: 'text', placeholder: 'Логин или телефон (например: admin)', autocomplete: 'username', style: inpStyle });
       const passInput = h('input', { type: 'password', placeholder: 'Пароль', autocomplete: 'current-password', style: inpStyle });
 
-      const submitLogin = () => {
+      const submitLogin = async () => {
+        await syncAccountFromCloud(loginInput.value);
         const res = loginWithCredentials(loginInput.value, passInput.value);
         if (!res.ok) {
           errBox.textContent = res.error;
@@ -914,7 +915,8 @@ export function showAuthGateModal(onAuthenticated: () => void, initialMode?: 'lo
       const loginInput = h('input', { type: 'text', placeholder: 'Логин (телефон или email)', style: inpStyle });
       const passInput = h('input', { type: 'password', placeholder: 'Придумайте пароль (мин. 4 символа)', style: inpStyle });
 
-      const submitReg = () => {
+      const submitReg = async () => {
+        await syncAccountFromCloud(loginInput.value);
         const res = registerAccount({
           name: nameInput.value,
           company: compInput.value,
@@ -1268,7 +1270,7 @@ export function projectsDialog(store: Store, onChanged: () => void, initialTab: 
             const sub = acc.role === 'admin' ? 'factory' : (acc.subscription ?? 'none');
             return h('tr', null,
               h('td', { style: 'font-weight:700;' }, acc.login),
-              h('td', { style: 'font-family:monospace;' }, acc.password),
+              h('td', { style: 'font-family:monospace;' }, '••••••'),
               h('td', null, `${acc.name}${acc.company ? ' · ' + acc.company : ''}`),
               h('td', null,
                 acc.role === 'admin'
@@ -1293,7 +1295,7 @@ export function projectsDialog(store: Store, onChanged: () => void, initialTab: 
                   type: 'button',
                   class: 'btn sm ghost',
                   onClick: () => {
-                    const np = prompt(`Новый пароль для пользователя «${acc.login}»:`, acc.password);
+                    const np = prompt(`Новый пароль для пользователя «${acc.login}»:`, '');
                     if (np && updateAccountPassword(acc.id, np)) {
                       toast('Пароль обновлён');
                       render();
