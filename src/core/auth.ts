@@ -276,7 +276,7 @@ export function logoutCurrentUser(): void {
 export function signInWithGoogleOAuth(): void {
   const cfg = getCloudConfig();
   if (!cfg.url) return;
-  const redirectUrl = window.location.origin + window.location.pathname;
+  const redirectUrl = window.location.origin + '/dashboard.html';
   window.location.href = `${cfg.url}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}`;
 }
 
@@ -303,8 +303,7 @@ export function handleAuthRedirectCallback(): boolean {
           name,
           company: '',
           role: 'pro',
-          subscription: 'pro',
-          subscriptionUntil: Date.now() + 30 * 86400_000,
+          subscription: 'none',
           active: true,
           createdAt: Date.now(),
         };

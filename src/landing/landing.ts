@@ -57,12 +57,12 @@ function initAuthControls(): void {
 
   const goToConstructor = () => {
     const user = getCurrentUser();
-    if (user && hasActiveSubscription(user)) {
-      window.location.href = 'constructor.html';
+    if (user) {
+      window.location.href = 'dashboard.html';
       return;
     }
     showAuthGateModal(() => {
-      window.location.href = 'constructor.html';
+      window.location.href = 'dashboard.html';
     });
   };
 
@@ -80,8 +80,8 @@ function initAuthControls(): void {
         const enterBtn = document.createElement('button');
         enterBtn.type = 'button';
         enterBtn.className = 'btn btn-primary';
-        enterBtn.textContent = subOk ? 'В конструктор →' : 'Оформить подписку';
-        enterBtn.onclick = goToConstructor;
+        enterBtn.textContent = 'Личный кабинет →';
+        enterBtn.onclick = () => window.location.href = 'dashboard.html';
 
         const outBtn = document.createElement('button');
         outBtn.type = 'button';
@@ -238,11 +238,8 @@ function initHero3D(): void {
 
 window.addEventListener('DOMContentLoaded', () => {
   if (handleAuthRedirectCallback()) {
-    const user = getCurrentUser();
-    if (user && hasActiveSubscription(user)) {
-      window.location.href = 'constructor.html';
-      return;
-    }
+    window.location.href = 'dashboard.html';
+    return;
   }
   initAuthControls();
   initHero3D();
