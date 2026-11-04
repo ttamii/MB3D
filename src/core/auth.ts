@@ -233,6 +233,17 @@ export function updateAccountPassword(id: string, newPass: string): boolean {
   return true;
 }
 
+export function updateAccountProfile(id: string, patch: { name?: string; company?: string }): UserAccount | null {
+  const accounts = loadAccounts();
+  const target = accounts.find((a) => a.id === id);
+  if (!target) return null;
+  if (patch.name !== undefined) target.name = patch.name.trim() || target.login;
+  if (patch.company !== undefined) target.company = patch.company.trim();
+  saveAccounts(accounts);
+  void pushAccountToCloud(target);
+  return target;
+}
+
 export function getCurrentUser(): UserAccount | null {
   const sessionUserId = readJson<string | null>(K_SESSION, null);
   const accounts = loadAccounts();
@@ -281,10 +292,9 @@ export function signInWithGoogleOAuth(): void {
 }
 
 export function handleAuthRedirectCallback(): boolean {
-  // Проверяем как hash (#access_token=...), так и query params (?access_token=... или code=...)
-  const rawParams = window.location.hash
-    ? window.location.hash.substring(1)
-    : window.location.search.substring(1);
+  const hashPart = window.location.hash ? window.location.hash.substring(1) : '';
+  const searchPart = window.location.search ? window.location.search.substring(1) : '';
+  const rawParams = hashPart.includes('access_token=') ? hashPart : (searchPart || hashPart);
   if (!rawParams) return false;
 
   const params = new URLSearchParams(rawParams);
@@ -293,7 +303,9 @@ export function handleAuthRedirectCallback(): boolean {
 
   try {
     const payloadBase64 = token.split('.')[1];
-    const decoded = JSON.parse(atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/')));
+    const binStr = atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/'));
+    const utf8Json = new TextDecoder().decode(Uint8Array.from(binStr, (c) => c.charCodeAt(0)));
+    const decoded = JSON.parse(utf8Json);
     const email = decoded.email?.trim().toLowerCase();
     if (email) {
       const name = decoded.user_metadata?.full_name || decoded.user_metadata?.name || email.split('@')[0];
@@ -312,11 +324,23 @@ export function handleAuthRedirectCallback(): boolean {
           createdAt: Date.now(),
         };
         accounts.push(user);
+        saveAccounts(accounts);
+        void syncAccountFromCloud(email).then(() => {
+          const synced = loadAccounts().find((a) => a.login.toLowerCase() === email);
+          if (synced) {
+            writeJson(K_SESSION, synced.id);
+          } else if (user) {
+            void pushAccountToCloud(user);
+          }
+        });
+      } else {
+        if (name && (!user.name || user.name === email.split('@')[0])) {
+          user.name = name;
+        }
+        saveAccounts(accounts);
+        void syncAccountFromCloud(email);
       }
       writeJson(K_SESSION, user.id);
-      saveAccounts(accounts);
-      void pushAccountToCloud(user);
-      // Очищаем URL от токенов, оставляя чистый путь
       window.history.replaceState(null, '', window.location.pathname);
       return true;
     }

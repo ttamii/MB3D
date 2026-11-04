@@ -755,7 +755,7 @@ const STATUS_LABELS: Record<ProjectStatus, { text: string; bg: string; color: st
 
 export function showAuthGateModal(onAuthenticated: () => void, initialMode?: 'login' | 'register' | 'paywall'): void {
   const overlay = h('div', {
-    style: 'position:fixed; inset:0; z-index:9999; background:rgba(15,23,42,0.55); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; padding:16px; font-family:Inter,system-ui,sans-serif;',
+    style: 'position:fixed; inset:0; z-index:9999; background:rgba(15,20,36,0.68); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; padding:16px; font-family:Inter,system-ui,sans-serif;',
   });
 
   const existingUser = getCurrentUser();
@@ -764,105 +764,119 @@ export function showAuthGateModal(onAuthenticated: () => void, initialMode?: 'lo
   let selectedPlan: 'pro' | 'factory' = 'pro';
 
   const card = h('div', {
-    style: 'width:100%; max-width:440px; background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:26px 24px; color:#0f172a; box-shadow:0 24px 60px rgba(15,23,42,0.22); display:flex; flex-direction:column; gap:14px;',
+    style: 'width:100%; max-width:420px; background:#ffffff; border:1px solid #d0d5dd; border-radius:10px; padding:24px; color:#101828; box-shadow:0 20px 48px rgba(15,20,36,0.28); display:flex; flex-direction:column; gap:14px;',
   });
 
-  const inpStyle = 'width:100%; padding:10px 12px; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; color:#0f172a; font-size:14px; outline:none;';
+  const inpStyle = 'width:100%; padding:10px 12px; border-radius:6px; border:1px solid #d0d5dd; background:#ffffff; color:#101828; font-size:13.5px; outline:none;';
+
+  const closeOverlay = () => {
+    overlay.remove();
+  };
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay && !location.pathname.endsWith('constructor.html')) {
+      closeOverlay();
+    }
+  });
 
   const renderModal = () => {
     clear(card);
     const curUser = getCurrentUser();
 
-    const header = h('div', { style: 'display:flex; align-items:center; justify-content:space-between; gap:10px;' },
+    const header = h('div', { style: 'display:flex; align-items:center; justify-content:space-between; gap:10px; padding-bottom:10px; border-bottom:1px solid #eaecf0;' },
       h('div', { style: 'display:flex; align-items:center; gap:10px;' },
-        h('span', { style: 'display:inline-flex; width:34px; height:34px; border-radius:9px; background:#2563eb; color:#fff; align-items:center; justify-content:center; font-weight:800; font-size:15px;' }, 'A'),
+        h('span', { style: 'display:inline-flex; width:30px; height:30px; border-radius:6px; background:#0f1424; color:#fff; align-items:center; justify-content:center; font-weight:800; font-size:13px; letter-spacing:0.02em;' }, 'AD'),
         h('div', null,
-          h('div', { style: 'font-size:16.5px; font-weight:800; color:#0f172a;' }, 'ADAL Constructor'),
-          h('div', { style: 'font-size:12px; color:#64748b;' },
-            mode === 'paywall' ? 'Активация подписки для доступа к 3D-конструктору' : 'Авторизация в базе данных платформы'),
+          h('div', { style: 'font-size:15px; font-weight:700; color:#101828; letter-spacing:-0.01em;' }, 'ADAL Constructor CAD'),
+          h('div', { style: 'font-size:11.5px; color:#667085;' },
+            mode === 'paywall' ? 'Требуется активный тариф для запуска 3D-цеха' : 'Вход в рабочее пространство цеха'),
         ),
       ),
+      !location.pathname.endsWith('constructor.html')
+        ? h('button', {
+            type: 'button',
+            style: 'border:0; background:transparent; color:#667085; cursor:pointer; padding:4px;',
+            onClick: closeOverlay,
+          }, icon('x', 16))
+        : null,
     );
     card.append(header);
 
     if (mode === 'paywall' && curUser) {
       const userBanner = h('div', {
-        style: 'background:#f1f5f9; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; font-size:12.5px;',
+        style: 'background:#f9fafb; border:1px solid #eaecf0; border-radius:6px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; font-size:12.5px;',
       },
         h('div', null,
-          h('div', { style: 'font-weight:700; color:#0f172a;' }, `${curUser.name} (${curUser.login})`),
-          h('div', { style: 'color:#dc2626; font-weight:600; margin-top:2px;' }, 'Статус: Подписка не оплачена — конструктор закрыт'),
+          h('div', { style: 'font-weight:700; color:#101828;' }, `${curUser.name} (${curUser.login})`),
+          h('div', { style: 'color:#b42318; font-weight:600; margin-top:2px; font-size:11.5px;' }, 'Тариф не активирован — доступ к 3D-конструктору закрыт'),
         ),
         h('button', {
           type: 'button',
-          style: 'border:1px solid #cbd5e1; background:#fff; border-radius:6px; padding:4px 8px; font-size:11.5px; cursor:pointer; font-weight:600;',
+          style: 'border:1px solid #d0d5dd; background:#fff; border-radius:5px; padding:4px 8px; font-size:11.5px; cursor:pointer; font-weight:600;',
           onClick: () => {
             logoutCurrentUser();
             mode = 'login';
             renderModal();
           },
-        }, 'Выйти'),
+        }, 'Сменить'),
       );
 
       const planBox = h('div', { style: 'display:grid; grid-template-columns:1fr 1fr; gap:8px;' },
         h('div', {
-          style: `border:${selectedPlan === 'pro' ? '2px solid #2563eb' : '1px solid #cbd5e1'}; background:${selectedPlan === 'pro' ? '#eff6ff' : '#fff'}; border-radius:10px; padding:10px; cursor:pointer;`,
+          style: `border:${selectedPlan === 'pro' ? '1.5px solid #0f1424' : '1px solid #d0d5dd'}; background:${selectedPlan === 'pro' ? '#f8fafc' : '#fff'}; border-radius:6px; padding:10px; cursor:pointer;`,
           onClick: () => { selectedPlan = 'pro'; renderModal(); },
         },
-          h('div', { style: 'font-weight:800; font-size:13.5px; color:#0f172a;' }, 'Цех Pro'),
-          h('div', { style: 'font-weight:800; font-size:16px; color:#2563eb; margin:2px 0;' }, '14 900 ₸ / мес'),
-          h('div', { style: 'font-size:11px; color:#475569;' }, '3D-конструктор, раскрой, бирки, смета и договор'),
+          h('div', { style: 'font-weight:700; font-size:13px; color:#101828;' }, 'Цех Pro'),
+          h('div', { style: 'font-weight:800; font-size:15px; color:#0f1424; margin:3px 0; font-variant-numeric:tabular-nums;' }, '14 900 ₸ / мес'),
+          h('div', { style: 'font-size:11px; color:#475467; line-height:1.35;' }, '3D-сцена, раскрой 2800×2070, бирки, смета и договор РК'),
         ),
         h('div', {
-          style: `border:${selectedPlan === 'factory' ? '2px solid #2563eb' : '1px solid #cbd5e1'}; background:${selectedPlan === 'factory' ? '#eff6ff' : '#fff'}; border-radius:10px; padding:10px; cursor:pointer;`,
+          style: `border:${selectedPlan === 'factory' ? '1.5px solid #0f1424' : '1px solid #d0d5dd'}; background:${selectedPlan === 'factory' ? '#f8fafc' : '#fff'}; border-radius:6px; padding:10px; cursor:pointer;`,
           onClick: () => { selectedPlan = 'factory'; renderModal(); },
         },
-          h('div', { style: 'font-weight:800; font-size:13.5px; color:#0f172a;' }, 'Фабрика'),
-          h('div', { style: 'font-weight:800; font-size:16px; color:#2563eb; margin:2px 0;' }, '39 900 ₸ / мес'),
-          h('div', { style: 'font-size:11px; color:#475569;' }, 'До 10 аккаунтов + единая облачная БД'),
+          h('div', { style: 'font-weight:700; font-size:13px; color:#101828;' }, 'Мебельная Фабрика'),
+          h('div', { style: 'font-weight:800; font-size:15px; color:#0f1424; margin:3px 0; font-variant-numeric:tabular-nums;' }, '39 900 ₸ / мес'),
+          h('div', { style: 'font-size:11px; color:#475467; line-height:1.35;' }, 'До 10 технологов + облачная база заказов'),
         ),
       );
 
       const payBtn = h('button', {
         type: 'button',
-        style: 'width:100%; padding:12px; border-radius:9px; border:0; background:#059669; color:#fff; font-weight:700; font-size:14px; cursor:pointer;',
+        style: 'width:100%; padding:11px; border-radius:6px; border:0; background:#0f1424; color:#fff; font-weight:600; font-size:13.5px; cursor:pointer;',
         onClick: () => {
-          setAccountSubscription(curUser.id, selectedPlan);
-          overlay.remove();
-          toast(`Подписка «${selectedPlan === 'pro' ? 'Цех Pro' : 'Фабрика'}» активирована!`);
-          onAuthenticated();
+          window.location.href = `dashboard.html?tab=subscription&plan=${selectedPlan}`;
         },
-      }, `Оплатить ${selectedPlan === 'pro' ? '14 900 ₸' : '39 900 ₸'} (Kaspi QR / Карта) и войти →`);
+      }, 'Перейти к оплате в Личном кабинете →');
 
       card.append(
         userBanner,
-        h('p', { style: 'margin:0; font-size:13px; color:#475569; line-height:1.45;' },
-          'Ваш аккаунт зарегистрирован в базе данных. Чтобы проектировать мебель, делать раскрой и печатать бирки, оформите подписку:'),
+        h('p', { style: 'margin:0; font-size:12.5px; color:#475467; line-height:1.45;' },
+          'В личном кабинете вы можете ознакомиться с тарифами, настроить прайс-лист цеха и активировать подписку:'),
         planBox,
         payBtn,
         h('a', {
-          href: './',
-          style: 'text-align:center; font-size:12.5px; color:#64748b; text-decoration:none;',
-        }, '← Вернуться на главную страницу'),
+          href: 'dashboard.html',
+          style: 'text-align:center; font-size:12px; color:#475467; text-decoration:none; font-weight:600;',
+        }, '← Вернуться в Личный кабинет'),
       );
       return;
     }
 
-    const modeSwitch = h('div', { style: 'display:grid; grid-template-columns:1fr 1fr; background:#f1f5f9; padding:3px; border-radius:9px; gap:4px;' },
+    const modeSwitch = h('div', { style: 'display:grid; grid-template-columns:1fr 1fr; background:#f2f4f7; padding:3px; border-radius:6px; gap:3px;' },
       h('button', {
         type: 'button',
-        style: `padding:7px; border-radius:7px; border:0; font-weight:700; font-size:13px; cursor:pointer; background:${mode === 'login' ? '#fff' : 'transparent'}; color:${mode === 'login' ? '#0f172a' : '#64748b'};`,
+        style: `padding:6px; border-radius:4px; border:0; font-weight:600; font-size:12.5px; cursor:pointer; background:${mode === 'login' ? '#fff' : 'transparent'}; color:${mode === 'login' ? '#101828' : '#667085'}; box-shadow:${mode === 'login' ? '0 1px 2px rgba(16,24,40,0.06)' : 'none'};`,
         onClick: () => { mode = 'login'; renderModal(); },
-      }, 'Вход по паролю'),
+      }, 'Вход в аккаунт'),
       h('button', {
         type: 'button',
-        style: `padding:7px; border-radius:7px; border:0; font-weight:700; font-size:13px; cursor:pointer; background:${mode === 'register' ? '#fff' : 'transparent'}; color:${mode === 'register' ? '#0f172a' : '#64748b'};`,
+        style: `padding:6px; border-radius:4px; border:0; font-weight:600; font-size:12.5px; cursor:pointer; background:${mode === 'register' ? '#fff' : 'transparent'}; color:${mode === 'register' ? '#101828' : '#667085'}; box-shadow:${mode === 'register' ? '0 1px 2px rgba(16,24,40,0.06)' : 'none'};`,
         onClick: () => { mode = 'register'; renderModal(); },
-      }, 'Регистрация'),
+      }, 'Регистрация цеха'),
     );
 
     const errBox = h('div', {
-      style: 'color:#dc2626; font-size:12.5px; font-weight:600; display:none; padding:8px 10px; background:#fef2f2; border:1px solid #fecaca; border-radius:8px;',
+      style: 'color:#b42318; font-size:12px; font-weight:600; display:none; padding:8px 10px; background:#fef3f2; border:1px solid #fecdca; border-radius:6px;',
     });
 
     const setErr = (msg: string) => {
@@ -878,38 +892,38 @@ export function showAuthGateModal(onAuthenticated: () => void, initialMode?: 'lo
     const withEye = (inp: HTMLInputElement): HTMLElement => {
       const eye = h('button', {
         type: 'button',
-        style: 'position:absolute; right:10px; top:50%; transform:translateY(-50%); border:0; background:transparent; color:#64748b; font-size:12.5px; font-weight:600; cursor:pointer;',
+        style: 'position:absolute; right:10px; top:50%; transform:translateY(-50%); border:0; background:transparent; color:#667085; font-size:11.5px; font-weight:600; cursor:pointer;',
         onClick: () => {
           const show = inp.type === 'password';
           inp.type = show ? 'text' : 'password';
           eye.textContent = show ? 'Скрыть' : 'Показать';
         },
       }, 'Показать');
-      inp.style.paddingRight = '74px';
+      inp.style.paddingRight = '68px';
       return h('div', { style: 'position:relative;' }, inp, eye);
     };
 
     const googleBtn = h('button', {
       type: 'button',
-      style: 'width:100%; padding:10px 14px; border-radius:9px; border:1px solid #cbd5e1; background:#ffffff; color:#1e293b; font-weight:600; font-size:13.5px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:9px;',
+      style: 'width:100%; padding:9px 14px; border-radius:6px; border:1px solid #d0d5dd; background:#ffffff; color:#101828; font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:9px;',
       onClick: () => {
         signInWithGoogleOAuth();
       },
     });
     googleBtn.innerHTML = `
-      <svg viewBox="0 0 24 24" width="18" height="18">
+      <svg viewBox="0 0 24 24" width="16" height="16">
         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
         <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
         <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
       </svg>
-      <span>Войти через Google</span>
+      <span>Продолжить через Google</span>
     `;
 
-    const divider = h('div', { style: 'display:flex; align-items:center; gap:10px; margin:2px 0;' },
-      h('div', { style: 'flex:1; height:1px; background:#e2e8f0;' }),
-      h('span', { style: 'font-size:11.5px; color:#94a3b8; font-weight:600; text-transform:uppercase;' }, 'или через email'),
-      h('div', { style: 'flex:1; height:1px; background:#e2e8f0;' }),
+    const divider = h('div', { style: 'display:flex; align-items:center; gap:10px; margin:1px 0;' },
+      h('div', { style: 'flex:1; height:1px; background:#eaecf0;' }),
+      h('span', { style: 'font-size:11px; color:#98a2b3; font-weight:600; text-transform:uppercase; letter-spacing:0.04em;' }, 'или по email / логину'),
+      h('div', { style: 'flex:1; height:1px; background:#eaecf0;' }),
     );
 
     if (mode === 'login') {
@@ -919,10 +933,10 @@ export function showAuthGateModal(onAuthenticated: () => void, initialMode?: 'lo
       const forgotLink = h('div', { style: 'display:flex; justify-content:flex-end; margin-top:-6px;' },
         h('button', {
           type: 'button',
-          style: 'border:0; background:transparent; font-size:12px; color:#2563eb; cursor:pointer; font-weight:600; padding:0;',
+          style: 'border:0; background:transparent; font-size:11.5px; color:#475467; cursor:pointer; font-weight:600; padding:0;',
           onClick: () => {
             const email = loginInput.value.trim() || prompt('Укажите ваш Email для сброса пароля:');
-            if (email) toast(`Инструкция по восстановлению отправлена на ${email}`, 'ok');
+            if (email) toast(`Запрос на восстановление пароля отправлен для ${email}`, 'ok');
           },
         }, 'Забыли пароль?'),
       );
@@ -944,13 +958,12 @@ export function showAuthGateModal(onAuthenticated: () => void, initialMode?: 'lo
           setErr(res.error);
           return;
         }
-        if (!hasActiveSubscription(res.user)) {
+        if (location.pathname.endsWith('constructor.html') && !hasActiveSubscription(res.user)) {
           mode = 'paywall';
           renderModal();
           return;
         }
         overlay.remove();
-        toast(`Добро пожаловать, ${res.user.name}`);
         onAuthenticated();
       };
 
@@ -967,34 +980,32 @@ export function showAuthGateModal(onAuthenticated: () => void, initialMode?: 'lo
         errBox,
         h('button', {
           type: 'button',
-          style: 'width:100%; padding:11px; border-radius:9px; border:0; background:#2563eb; color:#fff; font-weight:700; font-size:14px; cursor:pointer;',
+          style: 'width:100%; padding:10px; border-radius:6px; border:0; background:#0f1424; color:#fff; font-weight:600; font-size:13.5px; cursor:pointer;',
           onClick: () => void submitLogin(),
-        }, 'Войти'),
-        h('a', {
-          href: './',
-          style: 'text-align:center; font-size:12.5px; color:#64748b; text-decoration:none;',
-        }, '← На главную'),
+        }, 'Войти в кабинет'),
       );
       setTimeout(() => loginInput.focus(), 40);
     } else {
-      const loginInput = h('input', { type: 'email', placeholder: 'Email', autocomplete: 'email', style: inpStyle });
-      const passInput = h('input', { type: 'password', placeholder: 'Придумайте пароль (мин. 6 символов)', autocomplete: 'new-password', style: inpStyle });
+      const nameInput = h('input', { type: 'text', placeholder: 'Имя или название цеха (например: ИП Астана Мебель)', autocomplete: 'organization', style: inpStyle });
+      const loginInput = h('input', { type: 'email', placeholder: 'Рабочий Email', autocomplete: 'email', style: inpStyle });
+      const passInput = h('input', { type: 'password', placeholder: 'Пароль (не менее 6 символов)', autocomplete: 'new-password', style: inpStyle });
 
       const submitReg = async () => {
         setErr('');
         const email = loginInput.value.trim().toLowerCase();
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
-          setErr('Введите корректный email (например, user@mail.kz)');
+          setErr('Введите корректный email (например, ceh@mail.kz)');
           return;
         }
         if (passInput.value.length < 6) {
-          setErr('Пароль должен быть не короче 6 символов');
+          setErr('Пароль должен содержать минимум 6 символов');
           return;
         }
         await syncAccountFromCloud(email);
+        const rawTitle = nameInput.value.trim();
         const res = registerAccount({
-          name: email.split('@')[0],
-          company: '',
+          name: rawTitle || email.split('@')[0],
+          company: rawTitle || 'Мебельное производство',
           login: email,
           password: passInput.value,
         });
@@ -1002,10 +1013,16 @@ export function showAuthGateModal(onAuthenticated: () => void, initialMode?: 'lo
           setErr(res.error);
           return;
         }
-        mode = 'paywall';
-        renderModal();
+        if (location.pathname.endsWith('constructor.html')) {
+          mode = 'paywall';
+          renderModal();
+          return;
+        }
+        overlay.remove();
+        onAuthenticated();
       };
 
+      nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginInput.focus(); });
       loginInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') passInput.focus(); });
       passInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') void submitReg(); });
 
@@ -1013,20 +1030,17 @@ export function showAuthGateModal(onAuthenticated: () => void, initialMode?: 'lo
         modeSwitch,
         googleBtn,
         divider,
+        nameInput,
         loginInput,
         withEye(passInput),
         errBox,
         h('button', {
           type: 'button',
-          style: 'width:100%; padding:11px; border-radius:9px; border:0; background:#2563eb; color:#fff; font-weight:700; font-size:14px; cursor:pointer;',
+          style: 'width:100%; padding:10px; border-radius:6px; border:0; background:#0f1424; color:#fff; font-weight:600; font-size:13.5px; cursor:pointer;',
           onClick: () => void submitReg(),
-        }, 'Создать аккаунт'),
-        h('a', {
-          href: './',
-          style: 'text-align:center; font-size:12.5px; color:#64748b; text-decoration:none;',
-        }, '← На главную'),
+        }, 'Создать аккаунт и открыть кабинет'),
       );
-      setTimeout(() => loginInput.focus(), 40);
+      setTimeout(() => nameInput.focus(), 40);
     }
   };
 

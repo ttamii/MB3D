@@ -55,15 +55,19 @@ function initAuthControls(): void {
   const heroEnterBtn = document.getElementById('hero-enter-btn');
   const heroRegBtn = document.getElementById('hero-reg-btn');
 
+  const goToDashboard = (query = '') => {
+    window.location.href = 'dashboard.html' + query;
+  };
+
   const goToConstructor = () => {
     const user = getCurrentUser();
     if (user) {
-      window.location.href = 'dashboard.html';
+      goToDashboard();
       return;
     }
     showAuthGateModal(() => {
-      window.location.href = 'dashboard.html';
-    });
+      goToDashboard();
+    }, 'login');
   };
 
   const refreshAuthUI = () => {
@@ -74,14 +78,14 @@ function initAuthControls(): void {
       headerArea.innerHTML = '';
       if (user) {
         const badge = document.createElement('span');
-        badge.style.cssText = 'font-size:12.5px; font-weight:600; color:#334155; padding:6px 10px; background:#f1f5f9; border-radius:8px;';
-        badge.textContent = `${user.name} · ${subOk ? 'Подписка активна' : 'Нет подписки'}`;
+        badge.style.cssText = 'font-size:12px; font-weight:600; color:#101828; padding:6px 10px; background:#f2f4f7; border:1px solid #d0d5dd; border-radius:6px;';
+        badge.textContent = `${user.name} · ${subOk ? 'PRO Доступ' : 'Базовый кабинет'}`;
 
         const enterBtn = document.createElement('button');
         enterBtn.type = 'button';
         enterBtn.className = 'btn btn-primary';
-        enterBtn.textContent = 'Личный кабинет →';
-        enterBtn.onclick = () => window.location.href = 'dashboard.html';
+        enterBtn.textContent = 'Рабочий кабинет →';
+        enterBtn.onclick = () => goToDashboard();
 
         const outBtn = document.createElement('button');
         outBtn.type = 'button';
@@ -98,13 +102,13 @@ function initAuthControls(): void {
         loginBtn.type = 'button';
         loginBtn.className = 'btn btn-outline';
         loginBtn.textContent = 'Войти';
-        loginBtn.onclick = () => showAuthGateModal(() => refreshAuthUI(), 'login');
+        loginBtn.onclick = () => showAuthGateModal(() => goToDashboard(), 'login');
 
         const regBtn = document.createElement('button');
         regBtn.type = 'button';
         regBtn.className = 'btn btn-outline';
         regBtn.textContent = 'Регистрация';
-        regBtn.onclick = () => showAuthGateModal(() => refreshAuthUI(), 'register');
+        regBtn.onclick = () => showAuthGateModal(() => goToDashboard(), 'register');
 
         const enterBtn = document.createElement('button');
         enterBtn.type = 'button';
@@ -119,26 +123,23 @@ function initAuthControls(): void {
     if (heroBanner) {
       if (user) {
         heroBanner.innerHTML = subOk
-          ? `Вы вошли как <b>${user.name} (${user.login})</b> · <span style="color:#059669;font-weight:700;">Подписка активна — доступ открыт</span>`
-          : `Вы вошли как <b>${user.name} (${user.login})</b> · <span style="color:#dc2626;font-weight:700;">Подписка не активна — оформите тариф для входа в конструктор</span>`;
+          ? `Аккаунт цеха: <b>${user.name} (${user.login})</b> · <span style="color:#067647;font-weight:700;">Тариф активен — 3D-конструктор открыт</span>`
+          : `Аккаунт цеха: <b>${user.name} (${user.login})</b> · <span style="color:#b42318;font-weight:600;">3D-конструктор ожидает активации тарифа в кабинете</span>`;
       } else {
-        heroBanner.innerHTML = `Для работы в конструкторе требуется вход в аккаунт и активная подписка.`;
+        heroBanner.innerHTML = `Единая среда проектирования: 3D-модель, карты раскроя 2800×2070 мм, смета и договор подряда РК.`;
       }
     }
 
     if (heroRegBtn) {
       if (user && !subOk) {
-        heroRegBtn.textContent = 'Активировать подписку';
-        heroRegBtn.onclick = () => showAuthGateModal(() => refreshAuthUI(), 'paywall');
+        heroRegBtn.textContent = 'Выбрать тариф в кабинете';
+        heroRegBtn.onclick = () => goToDashboard('?tab=subscription');
       } else if (user && subOk) {
-        heroRegBtn.textContent = 'Сменить аккаунт';
-        heroRegBtn.onclick = () => {
-          logoutCurrentUser();
-          showAuthGateModal(() => refreshAuthUI(), 'login');
-        };
+        heroRegBtn.textContent = 'Перейти в проекты цеха';
+        heroRegBtn.onclick = () => goToDashboard('?tab=projects');
       } else {
-        heroRegBtn.textContent = 'Создать аккаунт';
-        heroRegBtn.onclick = () => showAuthGateModal(() => refreshAuthUI(), 'register');
+        heroRegBtn.textContent = 'Регистрация производства';
+        heroRegBtn.onclick = () => showAuthGateModal(() => goToDashboard(), 'register');
       }
     }
   };
@@ -149,11 +150,15 @@ function initAuthControls(): void {
 
   document.querySelectorAll<HTMLButtonElement>('[data-subscribe]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      const plan = btn.dataset.subscribe || 'pro';
       const user = getCurrentUser();
+      if (user) {
+        goToDashboard(`?tab=subscription&plan=${plan}`);
+        return;
+      }
       showAuthGateModal(() => {
-        refreshAuthUI();
-        window.location.href = 'constructor.html';
-      }, user ? 'paywall' : 'register');
+        goToDashboard(`?tab=subscription&plan=${plan}`);
+      }, 'register');
     });
   });
 

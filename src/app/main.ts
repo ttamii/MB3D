@@ -2,7 +2,7 @@ import '@fontsource-variable/inter';
 import '../styles/app.css';
 import { estimate, type Estimate } from '../core/estimate';
 import { DEFAULT_ROOM } from '../core/room';
-import { decodeShare, saveToLibrary, syncCloudLibraryToLocal } from '../core/storage';
+import { decodeShare, loadLibrary, saveToLibrary, syncCloudLibraryToLocal } from '../core/storage';
 import { getCurrentUser, handleAuthRedirectCallback, hasActiveSubscription, isAccessGateEnabled } from '../core/auth';
 import { money, rafThrottle } from '../core/util';
 import { Viewer, type ViewName } from '../three/viewer';
@@ -27,6 +27,7 @@ async function boot(): Promise<void> {
 
   const urlParams = new URLSearchParams(location.search);
   const aiQuery = urlParams.get('ai');
+  const projId = urlParams.get('project');
   const isNew = urlParams.get('new') === '1' || urlParams.get('clear') === '1';
 
   handleAuthRedirectCallback();
@@ -50,6 +51,11 @@ async function boot(): Promise<void> {
       company = r.company;
       app.classList.add('share');
       document.title = `${r.project.name} — ${r.company.name || 'Mebel3D'}`;
+    }
+  } else if (projId) {
+    const found = loadLibrary(store.settings).find((p) => p.id === projId);
+    if (found) {
+      store.loadProject(found);
     }
   } else if (aiQuery) {
     const res = parseFurniturePrompt(aiQuery);
@@ -175,6 +181,12 @@ async function boot(): Promise<void> {
 
   if (!store.readOnly) {
     actions.append(
+      act('Кабинет', 'folder', () => {
+        if (store.project.modules.length > 0) {
+          saveToLibrary(store.project, store.settings);
+        }
+        window.location.href = 'dashboard.html';
+      }, 'keep-label'),
       newProjBtn,
       undoBtn, redoBtn, h('span', { class: 'sep' }),
       act('Стены', 'grid', () => {
