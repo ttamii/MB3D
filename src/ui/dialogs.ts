@@ -503,7 +503,7 @@ export function cutDialog(store: Store, est: Estimate, viewer: Viewer): void {
             type: 'button',
             class: `btn sm ${idx === activeSheetIndex ? 'primary' : 'ghost'}`,
             onClick: () => { activeSheetIndex = idx; renderContent(); },
-          }, `Лист ${s.sheetIndex}: ${s.matName} (${s.efficiencyPercent}%)`)
+          }, `Лист ${s.sheetIndex}/${s.matSheetCount ?? 1}: ${s.matName} (${s.efficiencyPercent}%)`)
         ),
       );
 

@@ -220,14 +220,15 @@ export function printDoc(kind: PrintKind, store: Store, est: Estimate, viewer: V
           h('td', null, String(r.t)), h('td', null, String(r.qty)), h('td', null, r.matName), h('td', null, String(Math.round(r.edgeMm))))))));
 
       const nesting = computeNesting(rows, s.materials);
-      nesting.sheets.forEach((sheet) => {
+      nesting.sheets.forEach((sheet, globalIdx) => {
+        const matTotal = sheet.matSheetCount ?? nesting.totalSheets;
         const sheetPage = h('div', { class: 'pr-page', style: 'page-break-before:always;' });
         sheetPage.append(
           h('header', { class: 'pr-head' },
             h('div', null, h('div', { class: 'pr-co' }, s.company.name)),
-            h('div', { class: 'pr-r' }, h('div', { class: 'pr-sm' }, `Карта раскроя · Лист ${sheet.sheetIndex}/${nesting.totalSheets} · ${fmtD(date)}`))),
+            h('div', { class: 'pr-r' }, h('div', { class: 'pr-sm' }, `Карта раскроя · Лист ${globalIdx + 1}/${nesting.totalSheets} · ${fmtD(date)}`))),
           h('h1', { class: 'pr-h1' }, `Карта раскроя: ${sheet.matName} (${sheet.format.w}×${sheet.format.h} мм)`),
-          h('div', { class: 'pr-proj' }, `Лист ${sheet.sheetIndex} из ${nesting.totalSheets} · КУМ: ${sheet.efficiencyPercent}% · Деталей: ${sheet.parts.length} шт · Полезная площадь: ${sheet.usedAreaM2} м²`),
+          h('div', { class: 'pr-proj' }, `Лист материала ${sheet.sheetIndex} из ${matTotal} (общий ${globalIdx + 1} из ${nesting.totalSheets}) · КУМ: ${sheet.efficiencyPercent}% · Деталей: ${sheet.parts.length} шт · Полезная площадь: ${sheet.usedAreaM2} м²`),
         );
         const svgBox = h('div', { class: 'pr-svg-wrap' });
         svgBox.innerHTML = renderSheetSvg(sheet);
