@@ -170,12 +170,46 @@ export function cutListCsv(rows: CutRow[]): string {
     let s = String(v);
     // защита от CSV-инъекций в Excel
     if (/^[=+\-@]/.test(s)) s = "'" + s;
-    return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    return /[;",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const head = ['№', 'Модуль', 'Деталь', 'Длина, мм', 'Ширина, мм', 'Толщина, мм', 'Кол-во', 'Материал', 'Кромка, мм (на деталь)'];
-  const lines = [head.join(';')];
+  const edgeScheme = (r: CutRow): string => {
+    if (r.edgeMm <= 0) return 'Без кромки';
+    const peri = 2 * (r.l + r.w);
+    if (r.edgeMm >= peri * 0.75) return 'Кругом 4 ст. (2Д + 2Ш)';
+    if (r.edgeMm >= r.l * 1.75) return '2 длинные ст. (2Д)';
+    return '1 длинная ст. (1Д)';
+  };
+  const head = [
+    '№',
+    'Модуль',
+    'Деталь',
+    'Длина (мм)',
+    'Ширина (мм)',
+    'Толщина (мм)',
+    'Кол-во (шт)',
+    'Материал',
+    'Схема кромления',
+    'Кромка ПВХ (мм на 1 дет.)',
+  ];
+  // Директива sep=; указывает Microsoft Excel автоматически разбивать столбцы по точке с запятой на любой локали Windows/Mac
+  const lines = ['sep=;', head.map(esc).join(';')];
   rows.forEach((r, i) => {
-    lines.push([i + 1, r.moduleName, r.name, r.l, r.w, r.t, r.qty, r.matName, Math.round(r.edgeMm)].map(esc).join(';'));
+    lines.push(
+      [
+        i + 1,
+        r.moduleName,
+        r.name,
+        r.l,
+        r.w,
+        r.t,
+        r.qty,
+        r.matName,
+        edgeScheme(r),
+        Math.round(r.edgeMm),
+      ]
+        .map(esc)
+        .join(';'),
+    );
   });
   return '\uFEFF' + lines.join('\r\n');
 }
