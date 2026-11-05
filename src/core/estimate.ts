@@ -170,7 +170,7 @@ export function cutListCsv(rows: CutRow[]): string {
     let s = String(v);
     // защита от CSV-инъекций в Excel
     if (/^[=+\-@]/.test(s)) s = "'" + s;
-    return /[;",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    return /[",;\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const edgeScheme = (r: CutRow): string => {
     if (r.edgeMm <= 0) return 'Без кромки';
@@ -191,8 +191,9 @@ export function cutListCsv(rows: CutRow[]): string {
     'Схема кромления',
     'Кромка ПВХ (мм на 1 дет.)',
   ];
-  // Директива sep=; указывает Microsoft Excel автоматически разбивать столбцы по точке с запятой на любой локали Windows/Mac
-  const lines = ['sep=;', head.map(esc).join(';')];
+  // Стандарт CSV UTF-8 (разделитель — запятая) с UTF-8 BOM (\uFEFF):
+  // открывается в Microsoft Excel с корректной кириллицей и автоматической разбивкой по столбцам A..J
+  const lines = [head.map(esc).join(',')];
   rows.forEach((r, i) => {
     lines.push(
       [
@@ -208,7 +209,7 @@ export function cutListCsv(rows: CutRow[]): string {
         Math.round(r.edgeMm),
       ]
         .map(esc)
-        .join(';'),
+        .join(','),
     );
   });
   return '\uFEFF' + lines.join('\r\n');
