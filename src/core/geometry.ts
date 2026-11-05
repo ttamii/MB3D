@@ -249,16 +249,18 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
         b.box('Цоколь боковой R', plinthMat, [W - 16, 0, BK], [16, P, sidePlinthDepth], sidePlinthDepth);
       }
     }
-    // 3D Регулируемые кухонные ножки-опоры с клипсами, к которым защелкивается цельная планка цоколя
+    // 3D Регулируемые кухонные ножки-опоры с клипсами позади цокольной планки
     if (W >= 200 && D >= 240 && P >= 35) {
-      const zFrontLeg = Math.max(BK + 10, plinthZ - 32);
+      const zFrontLeg = Math.max(BK + 10, plinthZ - 38);
       const zBackLeg = Math.max(BK + 10, Math.min(zFrontLeg - 40, BK + 45));
       const xL = Math.min(55, Math.floor(W * 0.18));
       const xR = Math.max(xL + 40, W - xL - 30);
       const legXs = W >= 800 ? [xL, Math.round(W / 2 - 15), xR] : [xL, xR];
+      const clipZ = zFrontLeg + 24;
+      const clipDepth = Math.max(4, plinthZ - 2 - clipZ);
       for (const lx of legXs) {
         b.decor('Опора регулируемая', 'black', [lx, 0, zFrontLeg], [30, P, 30], undefined, 'cyl');
-        b.decor('Опора: клипса цоколя', 'black', [lx + 7, Math.round(P * 0.5), plinthZ + 16], [16, Math.min(18, Math.floor(P * 0.35)), Math.max(4, zFrontLeg - (plinthZ + 16) + 8)]);
+        b.decor('Опора: клипса цоколя', 'black', [lx + 7, Math.round(P * 0.5), clipZ], [16, Math.min(18, Math.floor(P * 0.35)), clipDepth]);
         b.decor('Опора регулируемая', 'black', [lx, 0, zBackLeg], [30, P, 30], undefined, 'cyl');
       }
     }
