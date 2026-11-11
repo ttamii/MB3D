@@ -216,6 +216,7 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
 
   const isSink = m.kind === 'base' && (m.name.toLowerCase().includes('мойк') || m.name.toLowerCase().includes('раковин') || (n === 1 && m.sections[0].shelves === 0 && m.sections[0].drawers === 0 && m.doorMode === 'hinged'));
   const isOven = m.kind === 'base' && (m.name.toLowerCase().includes('духов') || (n === 1 && m.sections[0].drawers === 1 && m.sections[0].shelves === 1 && m.doorMode === 'none'));
+  const isTallOven = m.kind === 'tall' && /духов|свч/i.test(m.name);
 
   b.box('Боковина левая', 'corpus', [0, P, BK], [t, bodyH, D - BK], bodyH);
   b.box('Боковина правая', 'corpus', [W - t, P, BK], [t, bodyH, D - BK], bodyH);
@@ -284,7 +285,7 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
     const fullHeight = H - P - 4;
     const isFullHeight = (m.doorMode === 'none' || !sec.door) && sec.shelves === 0 && (sec.rods ?? 0) === 0 && !sec.rod;
     const fhStep = nd > 0
-      ? (isFullHeight ? fullHeight / nd : Math.min(m.drawerH, fullHeight / nd))
+      ? (isTallOven ? Math.max(m.drawerH, Math.round(440 / nd)) : isFullHeight ? fullHeight / nd : Math.min(m.drawerH, fullHeight / nd))
       : 0;
     const zoneTop = nd > 0 ? P + Math.round(nd * fhStep) : P + t;
 
@@ -350,14 +351,53 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
       }
 
       // Если над ящиками есть полки или штанга, ставим разделительный горизонт
-      if (!isFullHeight && (sec.shelves > 0 || (sec.rods ?? 0) > 0 || sec.rod)) {
-        b.box('Горизонт над ящиками', 'corpus', [x0, zoneTop, BK], [cw, t, D - BK - 20], cw);
+      if (!isFullHeight && (isTallOven || sec.shelves > 0 || (sec.rods ?? 0) > 0 || sec.rod)) {
+        b.box(isTallOven ? 'Горизонт под духовку' : 'Горизонт над ящиками', 'corpus', [x0, zoneTop, BK], [cw, t, D - BK - (isTallOven ? 0 : 20)], cw);
         b.add('confirmat', 4);
       }
     }
 
-    // полки и штанги
+    // Расчёт открытой ниши под встроенную духовку (595 мм) и СВЧ (380 мм) в пенале
     const zTop = H - t;
+    let upperZoneBottom = zoneTop;
+    if (isTallOven && i === 0) {
+      const yOv0 = nd > 0 ? zoneTop + t : P + 450 + t;
+      if (nd === 0) {
+        b.box('Горизонт под духовку', 'corpus', [x0, P + 450, BK], [cw, t, D - BK], cw);
+        b.add('confirmat', 4);
+      }
+      const ovH = 595;
+      const yOv1 = yOv0 + ovH;
+      if (yOv1 + t < zTop - 180) {
+        b.box('Горизонт над духовкой', 'corpus', [x0, yOv1, BK], [cw, t, D - BK], cw);
+        b.add('confirmat', 4);
+        if (cw >= 360) {
+          b.decor('Духовой шкаф: корпус', 'black', [x0 + 2, yOv0 + 2, Math.max(BK + 20, D - 45)], [cw - 4, ovH - 4, 42]);
+          b.decor('Духовой шкаф: панель управления', 'metal', [x0 + 4, yOv1 - 92, D - 2], [cw - 8, 86, 4]);
+          b.decor('Духовой шкаф: дисплей', 'black', [x0 + cw / 2 - 55, yOv1 - 72, D + 1], [110, 42, 3]);
+          b.decor('Духовой шкаф: панорамное стекло', 'black', [x0 + 4, yOv0 + 6, D - 2], [cw - 8, Math.max(80, ovH - 104), 5]);
+          b.decor('Духовой шкаф: ручка', 'handle', [x0 + 36, yOv1 - 126, D + 3], [cw - 72, 12, 20]);
+        }
+        upperZoneBottom = yOv1 + t;
+
+        // Вторая ниша под СВЧ (380 мм), если позволяет высота пенала
+        const mwH = 380;
+        const yMw0 = yOv1 + t;
+        const yMw1 = yMw0 + mwH;
+        if (/свч/i.test(m.name) && yMw1 + t < zTop - 220) {
+          b.box('Горизонт над СВЧ', 'corpus', [x0, yMw1, BK], [cw, t, D - BK], cw);
+          b.add('confirmat', 4);
+          if (cw >= 360) {
+            b.decor('СВЧ встроенная: рамка', 'metal', [x0 + 2, yMw0 + 2, D - 3], [cw - 4, mwH - 4, 4]);
+            b.decor('СВЧ встроенная: стекло дверцы', 'black', [x0 + 18, yMw0 + 18, D + 1], [Math.max(120, cw - 130), mwH - 36, 3]);
+            b.decor('СВЧ встроенная: панель управления', 'black', [x0 + cw - 102, yMw0 + 18, D + 1], [84, mwH - 36, 3]);
+          }
+          upperZoneBottom = yMw1 + t;
+        }
+      }
+    }
+
+    // полки и штанги
     const rodsCount = typeof sec.rods === 'number' ? sec.rods : (sec.rod ? 1 : 0);
 
     if (rodsCount === 2) {
@@ -419,19 +459,21 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
       }
     } else {
       // Только полки (или двухъярусная хромированная сушка для посуды)
-      const zoneH = zTop - zoneTop;
+      const shelfZoneBase = isTallOven && i === 0 ? upperZoneBottom : zoneTop;
+      const zoneH = zTop - shelfZoneBase;
       const isDishDryer = isWall(m.kind) && /сушк/i.test(m.name) && sec.shelves >= 2 && D >= 240;
       if (isDishDryer) {
-        const yTray = zoneTop + 35;
-        const yPlates = zoneTop + Math.round(zoneH * 0.28);
-        const yCups = zoneTop + Math.round(zoneH * 0.62);
+        const yTray = shelfZoneBase + 35;
+        const yPlates = shelfZoneBase + Math.round(zoneH * 0.28);
+        const yCups = shelfZoneBase + Math.round(zoneH * 0.62);
         b.decor('Поддон сушки (нерж.)', 'metal', [x0 + 4, yTray, BK + 12], [cw - 8, 6, D - BK - 32]);
         b.decor('Сушилка хромированная (тарелки)', 'metal', [x0 + 2, yPlates, BK + 10], [cw - 4, 14, D - BK - 28]);
         b.decor('Сушилка хромированная (чашки)', 'metal', [x0 + 2, yCups, BK + 10], [cw - 4, 12, D - BK - 28]);
         b.add('pin', 8);
       } else {
-        for (let k = 1; k <= sec.shelves; k++) {
-          const y = zoneTop + (k * zoneH) / (sec.shelves + 1) - t / 2;
+        const nShelvesToPlace = isTallOven && i === 0 ? Math.max(1, sec.shelves - 2) : sec.shelves;
+        for (let k = 1; k <= nShelvesToPlace; k++) {
+          const y = shelfZoneBase + (k * zoneH) / (nShelvesToPlace + 1) - t / 2;
           b.box('Полка', 'corpus', [x0, y, BK], [cw, t, D - BK - 20], cw);
           b.add('pin', 4);
         }
@@ -453,7 +495,9 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
 
     // распашные и подъёмные двери
     if (m.doorMode === 'hinged' && sec.door) {
-      const y0 = nd > 0 ? P + 2 + Math.round(nd * fhStep) : P + 2;
+      const y0 = isTallOven && i === 0 && upperZoneBottom > zoneTop
+        ? upperZoneBottom - Math.round(t / 2) + 1
+        : (nd > 0 ? P + 2 + Math.round(nd * fhStep) : P + 2);
       const y1 = H - 2;
       if (y1 - y0 > 100) {
         const segW = fx1 - fx0;

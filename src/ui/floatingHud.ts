@@ -17,7 +17,7 @@ export function createFloatingHud(container: HTMLElement, store: Store, _viewer:
   const root = h('div', { class: 'hud-float', style: 'display:none;' });
   container.appendChild(root);
 
-  let isCollapsed = false;
+  let isCollapsed = true;
   let customPos: { x: number; y: number } | null = null;
   let dragStart: { mouseX: number; mouseY: number; elemX: number; elemY: number } | null = null;
   let didDrag = false;

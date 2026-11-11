@@ -53,7 +53,7 @@ function segmented<T extends string | number>(label: string, opts: [T, string][]
 }
 
 function selectField(
-  label: string, fkey: string, opts: { id: string; name: string; category?: string }[],
+  label: string, fkey: string, opts: { id: string; name: string; color?: string; category?: string }[],
   value: string, onChange: (v: string) => void,
 ): HTMLElement {
   const sel = h('select', { 'data-f': fkey, onChange: (e: Event) => onChange((e.target as HTMLSelectElement).value) });
@@ -79,12 +79,18 @@ function selectField(
       }
     });
   }
-  return h('label', { class: 'fld wide' }, h('span', { class: 'fld-l' }, label), sel);
+  const activeColor = opts.find((o) => o.id === value)?.color ?? '#e2e8f0';
+  const swatch = h('span', { class: 'mat-swatch', style: `background:${activeColor};`, title: value });
+  return h('label', { class: 'fld wide' },
+    h('span', { class: 'fld-l' }, label),
+    h('div', { class: 'mat-select-row' }, swatch, sel),
+  );
 }
 
-// ——— список модулей ———
+// ——— список модулей (CAD Outliner + Каталог) ———
 
 const openGroups = new Set<string>(['kitchen']);
+let leftViewMode: 'split' | 'tree' | 'catalog' = 'split';
 
 export function renderModules(root: HTMLElement, store: Store, est: Estimate): void {
   const keepScroll = root.scrollTop;
@@ -112,7 +118,30 @@ export function renderModules(root: HTMLElement, store: Store, est: Estimate): v
     }
   }
 
-  const list = h('ul', { class: 'mod-list', role: 'listbox', 'aria-label': 'Модули проекта' });
+  const modeBar = h('div', { class: 'seg' },
+    h('button', {
+      type: 'button',
+      class: 'seg-b' + (leftViewMode === 'split' ? ' on' : ''),
+      onClick: () => { leftViewMode = 'split'; renderModules(root, store, est); },
+    }, `Все (${mods.length})`),
+    h('button', {
+      type: 'button',
+      class: 'seg-b' + (leftViewMode === 'tree' ? ' on' : ''),
+      onClick: () => { leftViewMode = 'tree'; renderModules(root, store, est); },
+    }, 'Дерево'),
+    h('button', {
+      type: 'button',
+      class: 'seg-b' + (leftViewMode === 'catalog' ? ' on' : ''),
+      onClick: () => { leftViewMode = 'catalog'; renderModules(root, store, est); },
+    }, '+ Каталог'),
+  );
+
+  const list = h('ul', {
+    class: 'mod-list',
+    role: 'listbox',
+    'aria-label': 'Модули проекта',
+    style: leftViewMode === 'split' && mods.length > 5 ? 'max-height:36vh; overflow-y:auto; padding-right:2px;' : '',
+  });
   mods.forEach((m, i) => {
     const on = m.id === store.selectedId;
     list.append(h('li', {
@@ -121,19 +150,23 @@ export function renderModules(root: HTMLElement, store: Store, est: Estimate): v
       onKeydown: (e: Event) => { const k = (e as KeyboardEvent).key; if (k === 'Enter' || k === ' ') { e.preventDefault(); store.select(m.id); } },
     },
       h('div', { class: 'mod-top' },
+        h('span', { class: 'mod-idx' }, String(i + 1)),
         h('span', { class: 'mod-name' }, m.name),
         h('span', { class: 'mod-price' }, money(est.perModule[m.id] ?? 0))),
-      h('div', { class: 'mod-sub' }, `${KIND_LABEL[m.kind]} · ${m.w}×${m.h}×${m.d}`,
-        overlaps.has(m.id) ? h('em', { class: 'warn', title: 'Модуль пересекается с соседним — измените позицию X или нажмите «Выстроить в ряд»' }, 'пересечение') : null),
-      h('div', { class: 'mod-act' },
-        h('button', { type: 'button', class: 'ib', title: 'Выше в списке', 'aria-label': 'Выше', disabled: i === 0, onClick: (e: Event) => { e.stopPropagation(); store.move(m.id, -1); } }, icon('up', 16)),
-        h('button', { type: 'button', class: 'ib', title: 'Ниже в списке', 'aria-label': 'Ниже', disabled: i === mods.length - 1, onClick: (e: Event) => { e.stopPropagation(); store.move(m.id, 1); } }, icon('down', 16)),
-        h('button', { type: 'button', class: 'ib', title: 'Дублировать', 'aria-label': 'Дублировать', onClick: (e: Event) => { e.stopPropagation(); store.duplicate(m.id); } }, icon('copy', 16)),
-        h('button', { type: 'button', class: 'ib danger', title: 'Удалить', 'aria-label': 'Удалить', onClick: (e: Event) => { e.stopPropagation(); store.remove(m.id); } }, icon('trash', 16)))));
+      h('div', { class: 'mod-bottom' },
+        h('div', { class: 'mod-sub' }, `${KIND_LABEL[m.kind]} · ${m.w}×${m.h}×${m.d} · X:${m.x}`,
+          overlaps.has(m.id) ? h('em', { class: 'warn', title: 'Модуль пересекается с соседним — измените позицию X или нажмите «В ряд»' }, 'пересечение') : null),
+        h('div', { class: 'mod-act' },
+          h('button', { type: 'button', class: 'ib', title: 'Выше в списке', 'aria-label': 'Выше', disabled: i === 0, onClick: (e: Event) => { e.stopPropagation(); store.move(m.id, -1); } }, icon('up', 13)),
+          h('button', { type: 'button', class: 'ib', title: 'Ниже в списке', 'aria-label': 'Ниже', disabled: i === mods.length - 1, onClick: (e: Event) => { e.stopPropagation(); store.move(m.id, 1); } }, icon('down', 13)),
+          h('button', { type: 'button', class: 'ib', title: 'Дублировать', 'aria-label': 'Дублировать', onClick: (e: Event) => { e.stopPropagation(); store.duplicate(m.id); } }, icon('copy', 13)),
+          h('button', { type: 'button', class: 'ib danger', title: 'Удалить', 'aria-label': 'Удалить', onClick: (e: Event) => { e.stopPropagation(); store.remove(m.id); } }, icon('trash', 13))),
+      )));
   });
 
-  const head = h('div', { class: 'sec-h' }, h('h2', null, 'Модули'),
-    h('button', { type: 'button', class: 'btn sm ghost', disabled: mods.length < 2, onClick: () => store.autoLayout(), title: 'Расставить нижние и верхние модули подряд, без зазоров' }, icon('rows', 15), 'В ряд'));
+  const head = h('div', { class: 'sec-h' },
+    h('h2', null, `Сцена · ${mods.length} мод.`),
+    h('button', { type: 'button', class: 'btn sm ghost', disabled: mods.length < 2, onClick: () => store.autoLayout(), title: 'Расставить нижние и верхние модули подряд, без зазоров' }, icon('rows', 13), 'В ряд'));
 
   const groupSections = PRESET_GROUPS.map((g) => {
     const items = g.ids.map((id) => PRESETS.find((p) => p.id === id)).filter((p): p is (typeof PRESETS)[number] => !!p);
@@ -141,14 +174,23 @@ export function renderModules(root: HTMLElement, store: Store, est: Estimate): v
       h('summary', null, g.label, h('small', null, String(items.length))),
       h('div', { class: 'lib-grid' },
         ...items.map((p) => h('button', { type: 'button', class: 'lib-b', onClick: () => store.addPreset(p.id) },
-          h('span', { class: 'lib-ic' }, icon('plus', 14)), h('b', null, p.label), h('small', null, p.hint)))));
+          h('span', { class: 'lib-ic' }, icon('plus', 12)), h('b', null, p.label), h('small', null, p.hint)))));
     if (openGroups.has(g.id)) det.setAttribute('open', '');
     det.addEventListener('toggle', () => { if ((det as HTMLDetailsElement).open) openGroups.add(g.id); else openGroups.delete(g.id); });
     return det;
   });
-  const lib = h('div', { class: 'lib' }, h('h2', null, 'Добавить в проект'), ...groupSections);
+  const lib = h('div', { class: 'lib', style: leftViewMode === 'catalog' ? 'border-top:0; margin-top:0; padding-top:0;' : '' },
+    h('h2', null, 'Каталог модулей'),
+    ...groupSections,
+  );
 
-  root.append(head, mods.length ? list : h('p', { class: 'empty' }, 'Проект пуст. Добавьте первый модуль из библиотеки ниже.'), lib);
+  root.append(modeBar);
+  if (leftViewMode !== 'catalog') {
+    root.append(head, mods.length ? list : h('p', { class: 'empty' }, 'Сцена пуста. Выберите модуль из каталога ниже или запустите «Мастер кухни».'));
+  }
+  if (leftViewMode !== 'tree') {
+    root.append(lib);
+  }
   root.scrollTop = keepScroll;
 }
 
@@ -182,12 +224,12 @@ export function renderProps(root: HTMLElement, store: Store): void {
     store.settings.materials.filter((x) => (k === 'facade' ? x.kind === 'facade' || x.kind === 'sheet' : x.kind === k));
 
   // Верхняя шапка модуля с быстрым удалением и дублированием
-  const topHeader = h('div', { style: 'display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;' },
-    h('div', { style: 'display:flex; align-items:center; gap:8px;' },
-      h('h2', { style: 'font-size:15px; font-weight:700; margin:0;' }, m.name),
+  const topHeader = h('div', { style: 'display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid #e2e8f0;' },
+    h('div', { style: 'display:flex; align-items:center; gap:6px; min-width:0;' },
+      h('h2', { style: 'font-size:13px; font-weight:700; margin:0; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;' }, m.name),
       h('span', { class: 'chip' }, KIND_LABEL[m.kind]),
     ),
-    h('div', { style: 'display:flex; gap:4px;' },
+    h('div', { style: 'display:flex; gap:4px; flex-shrink:0;' },
       h('button', {
         type: 'button', class: 'ib sm', title: 'Дублировать модуль (Ctrl+D)',
         onClick: () => {
@@ -198,24 +240,24 @@ export function renderProps(root: HTMLElement, store: Store): void {
           store.commit((p) => { p.modules.push(copy); }, 'dup');
           store.select(copy.id);
         },
-      }, icon('copy', 15)),
+      }, icon('copy', 14)),
       h('button', {
         type: 'button', class: 'ib sm danger', title: 'Удалить модуль (Del)',
         onClick: () => store.remove(m.id),
-      }, icon('trash', 15)),
+      }, icon('trash', 14)),
     ),
   );
 
   // Табы группировки
-  const tabsBar = h('div', { class: 'seg', style: 'margin-bottom:12px; width:100%;' },
+  const tabsBar = h('div', { class: 'seg', style: 'margin-bottom:10px; width:100%;' },
     h('button', {
       type: 'button', class: `seg-b ${activePropTab === 'dims' ? 'on' : ''}`,
       onClick: () => { activePropTab = 'dims'; renderProps(root, store); },
-    }, 'Размеры'),
+    }, 'Габариты'),
     h('button', {
       type: 'button', class: `seg-b ${activePropTab === 'secs' ? 'on' : ''}`,
       onClick: () => { activePropTab = 'secs'; renderProps(root, store); },
-    }, 'Наполнение'),
+    }, 'Секции'),
     h('button', {
       type: 'button', class: `seg-b ${activePropTab === 'facades' ? 'on' : ''}`,
       onClick: () => { activePropTab = 'facades'; renderProps(root, store); },
@@ -223,10 +265,10 @@ export function renderProps(root: HTMLElement, store: Store): void {
     h('button', {
       type: 'button', class: `seg-b ${activePropTab === 'mats' ? 'on' : ''}`,
       onClick: () => { activePropTab = 'mats'; renderProps(root, store); },
-    }, 'Материалы'),
+    }, 'Декоры'),
   );
 
-  const contentArea = h('div', { style: 'display:flex; flex-direction:column; gap:12px;' });
+  const contentArea = h('div', { style: 'display:flex; flex-direction:column; gap:10px;' });
 
   if (activePropTab === 'dims') {
     // Вкладка 1: Размеры, позиция и стыковка
@@ -245,34 +287,52 @@ export function renderProps(root: HTMLElement, store: Store): void {
       .sort((a, b) => a.x - b.x)[0];
 
     const nameField = h('label', { class: 'fld wide' },
-      h('span', { class: 'fld-l' }, 'Название модуля'),
+      h('span', { class: 'fld-l' }, 'Наименование узла / модуля'),
       h('input', {
         type: 'text', maxlength: '60', value: m.name, 'data-f': 'name',
         onInput: (e: Event) => set((t) => { t.name = (e.target as HTMLInputElement).value; }, 'name'),
       }),
     );
 
+    const stdWidths = [300, 400, 450, 500, 600, 800, 900];
+    const quickWidthsBar = !corner ? h('div', { class: 'fld wide' },
+      h('span', { class: 'fld-l' }, 'Типовой шаг ширины (мм)'),
+      h('div', { class: 'quick-widths' },
+        ...stdWidths.map((sw) =>
+          h('button', {
+            type: 'button',
+            class: `qw-btn ${m.w === sw ? 'on' : ''}`,
+            onClick: () => {
+              store.commit((p) => {
+                resizeModuleCascading(p.modules, m.id, sw, p.room?.w);
+              }, 'w');
+            },
+          }, String(sw)),
+        ),
+      ),
+    ) : null;
+
     const dimsGrid = h('div', { class: 'grid2' },
-      numField(corner ? 'Сторона (ширина)' : 'Ширина', 'w', m.w, LIMITS.w, (v) => {
+      numField(corner ? 'Сторона (ширина)' : 'Ширина (W)', 'w', m.w, LIMITS.w, (v) => {
         store.commit((p) => {
           resizeModuleCascading(p.modules, m.id, v, p.room?.w);
         }, 'w');
       }),
-      numField('Высота', 'h', m.h, LIMITS.h, (v) => {
+      numField('Высота (H)', 'h', m.h, LIMITS.h, (v) => {
         store.commit((p) => {
           resizeHeightWithStack(p.modules, m.id, v);
         }, 'h');
       }),
-      numField(corner ? 'Глубина плеча' : 'Глубина', 'd', m.d, LIMITS.d, (v) => set((t) => { t.d = v; }, 'd')),
-      wall ? numField('Высота от пола', 'lift', m.lift, LIMITS.lift, (v) => set((t) => { t.lift = v; }, 'lift'))
-        : numField('Цоколь (цельный в ряду)', 'plinth', m.plinth, LIMITS.plinth, (v) => set((t) => { t.plinth = v; }, 'plinth')),
-      numField('Позиция X (вдоль стены)', 'x', m.x, LIMITS.x, (v) => {
+      numField(corner ? 'Глубина плеча' : 'Глубина (D)', 'd', m.d, LIMITS.d, (v) => set((t) => { t.d = v; }, 'd')),
+      wall ? numField('Отметка от пола (Y)', 'lift', m.lift, LIMITS.lift, (v) => set((t) => { t.lift = v; }, 'lift'))
+        : numField('Высота цоколя', 'plinth', m.plinth, LIMITS.plinth, (v) => set((t) => { t.plinth = v; }, 'plinth')),
+      numField('Координата X', 'x', m.x, LIMITS.x, (v) => {
         store.commit((p) => {
           shiftModuleCascading(p.modules, m.id, v, p.room?.w);
         }, 'x');
       }),
       m.kind !== 'base' && m.kind !== 'corner'
-        ? numField('Верхняя планка (карниз)', 'topTrim', m.topTrim ?? 0, LIMITS.topTrim, (v) => set((t) => {
+        ? numField('Добор карниза', 'topTrim', m.topTrim ?? 0, LIMITS.topTrim, (v) => set((t) => {
           if (v > 0) t.topTrim = v;
           else delete t.topTrim;
         }, 'topTrim'))
@@ -281,30 +341,26 @@ export function renderProps(root: HTMLElement, store: Store): void {
 
     const activeTrimH = getActiveTopTrimH(store.project.modules);
     const topTrimCard = h('div', {
-      style: 'background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:9px 11px; margin-top:8px;',
+      style: 'background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:8px 10px; margin-top:4px;',
     },
-      h('div', { style: 'font-size:12px; font-weight:700; color:#1e293b; margin-bottom:4px;' }, 'Верхняя планка (карниз под потолок):'),
-      h('div', { style: 'font-size:11px; color:#64748b; margin-bottom:7px; line-height:1.35;' },
-        'Закрывает зазор до потолка и объединяет верхние шкафы и пенал единой цельной планкой:',
-      ),
-      h('div', { class: 'btn-bar', style: 'flex-wrap:wrap; gap:5px;' },
+      h('div', { style: 'font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:#334155; margin-bottom:5px;' }, 'Карниз верхнего яруса (под потолок)'),
+      h('div', { class: 'quick-widths' },
         ...[0, 50, 60, 80, 100].map((th) =>
           h('button', {
             type: 'button',
-            class: `btn sm ${activeTrimH === th ? 'primary' : 'btn-ghost'}`,
-            style: 'padding:4px 8px; font-size:11.5px;',
+            class: `qw-btn ${activeTrimH === th ? 'on' : ''}`,
             onClick: () => {
               store.commit((p) => {
                 applyTopTrimToUpperRow(p.modules, th);
               }, 'top-trim-row');
             },
-          }, th === 0 ? 'Без планки' : `${th} мм`),
+          }, th === 0 ? 'Нет' : `${th}`),
         ),
       ),
     );
 
     const snapActions = h('div', { class: 'grp', style: 'padding-top:8px;' },
-      h('span', { class: 'fld-l' }, 'Стыковка модулей без щелей:'),
+      h('span', { class: 'fld-l' }, 'Стыковка модулей в ряду'),
       h('div', { class: 'btn-bar', style: 'margin-top:4px;' },
         h('button', {
           class: 'btn btn-ghost sm',
@@ -317,7 +373,7 @@ export function renderProps(root: HTMLElement, store: Store): void {
               }, 'snap');
             }
           },
-        }, 'Стыковать влево'),
+        }, '← Вплотную влево'),
         h('button', {
           class: 'btn btn-ghost sm',
           disabled: !rightNeighbor,
@@ -329,7 +385,7 @@ export function renderProps(root: HTMLElement, store: Store): void {
               }, 'snap');
             }
           },
-        }, 'Стыковать вправо'),
+        }, 'Вплотную вправо →'),
       ),
     );
 
@@ -367,37 +423,35 @@ export function renderProps(root: HTMLElement, store: Store): void {
     if (isNearLeftWall || isNearRightWall) {
       wallAlert = h('div', {
         class: 'wall-alert',
-        style: 'background:#fef3c7; border:1px solid #f59e0b; border-radius:8px; padding:9px 11px; font-size:12px; color:#92400e; margin-top:8px;',
+        style: 'background:#fffbeb; border:1px solid #f59e0b; border-radius:6px; padding:8px 10px; font-size:11.5px; color:#92400e; margin-top:4px;',
       },
-        h('div', { style: 'font-weight:700; margin-bottom:3px;' }, '⚠️ Модуль примыкает к стене:'),
-        h('div', { style: 'font-size:11.5px; opacity:0.95; line-height:1.3; margin-bottom:6px;' }, 'В реальной жизни дверь или ручка бьётся о стену при открывании. Установите фальшпланку (добор 50 мм).'),
-        h('div', { style: 'display:flex; gap:6px; flex-wrap:wrap;' },
+        h('div', { style: 'font-weight:700; font-size:10.5px; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:3px;' }, 'Примыкание к стене · Зазор открывания'),
+        h('div', { style: 'font-size:11px; opacity:0.95; line-height:1.35; margin-bottom:6px;' }, 'Для свободного открывания фасада на 90° без удара ручки о стену рекомендуется фальшпланка 50 мм.'),
+        h('div', { style: 'display:flex; gap:5px; flex-wrap:wrap;' },
           isNearLeftWall ? h('button', {
             type: 'button',
             class: 'btn primary sm',
-            style: 'padding:4px 9px; font-size:11.5px;',
             onClick: () => {
               store.commit((p) => {
                 insertFillerWithShift(p.modules, 'left', m, makeFiller(0), p.room?.w);
               }, 'add-filler');
             },
-          }, '+ Поставить добор слева 50 мм') : null,
+          }, '+ Добор слева 50 мм') : null,
           isNearRightWall ? h('button', {
             type: 'button',
             class: 'btn primary sm',
-            style: 'padding:4px 9px; font-size:11.5px;',
             onClick: () => {
               store.commit((p) => {
                 insertFillerWithShift(p.modules, 'right', m, makeFiller(0), p.room?.w);
               }, 'add-filler');
             },
-          }, '+ Поставить добор справа 50 мм') : null,
+          }, '+ Добор справа 50 мм') : null,
         ),
       );
     }
 
     const fillerActions = h('div', { class: 'grp', style: 'padding-top:8px;' },
-      h('span', { class: 'fld-l' }, 'Пристенные доборы (фальшпланки 50 мм):'),
+      h('span', { class: 'fld-l' }, 'Пристенные доборы (фальшпланки 50 мм)'),
       h('div', { class: 'btn-bar', style: 'margin-top:4px;' },
         h('button', {
           type: 'button',
@@ -423,30 +477,32 @@ export function renderProps(root: HTMLElement, store: Store): void {
     );
 
     const advanced = h('details', { class: 'more' },
-      h('summary', null, 'Дополнительно'),
-      h('div', { style: 'display:flex; flex-direction:column; gap:10px; padding-top:8px;' },
+      h('summary', null, 'Параметры плиты и стыковки'),
+      h('div', { style: 'display:flex; flex-direction:column; gap:8px; padding-top:8px;' },
         segmented('Толщина ЛДСП', [[16, '16 мм'], [18, '18 мм']] as [number, string][], m.t, (v) => set((t) => { t.t = v === 18 ? 18 : 16; })),
-        toggle('Зеркально (отразить по горизонтали)', 'mirror', m.mirror, (v) => set((t) => { t.mirror = v; })),
+        toggle('Зеркальное исполнение (реверс)', 'mirror', m.mirror, (v) => set((t) => { t.mirror = v; })),
         snapActions,
         fillerActions,
       ),
     );
-    if (m.t !== 16 || m.mirror || isNearLeftWall || isNearRightWall) advanced.setAttribute('open', '');
+    if (m.t !== 16 || m.mirror) advanced.setAttribute('open', '');
 
     const sameTierHeightMods = store.project.modules.filter((o) => o.id !== m.id && isSameVerticalTier(o, m));
     const syncTierBtn = sameTierHeightMods.length > 0 ? h('button', {
       type: 'button',
       class: 'btn btn-ghost sm',
-      style: 'width:100%; margin-top:4px;',
+      style: 'width:100%; margin-top:2px;',
       title: 'Применить высоту текущего модуля ко всем шкафам этого яруса (например, ко всем антресолям или верхним шкафам)',
       onClick: () => {
         store.commit((p) => {
           syncTierHeight(p.modules, m.id);
         }, 'sync-tier-h');
       },
-    }, `Выровнять высоту всего яруса (${m.h} мм)`) : null;
+    }, `Синхронизировать высоту яруса (${m.h} мм)`) : null;
 
-    contentArea.append(nameField, dimsGrid);
+    contentArea.append(nameField);
+    if (quickWidthsBar) contentArea.append(quickWidthsBar);
+    contentArea.append(dimsGrid);
     if (syncTierBtn) contentArea.append(syncTierBtn);
     contentArea.append(topTrimCard);
     if (wallAlert) contentArea.append(wallAlert);
@@ -588,11 +644,32 @@ export function renderProps(root: HTMLElement, store: Store): void {
     // Вкладка 4: Цвета и декоры
     const matNodes: HTMLElement[] = [
       selectField('ЛДСП Корпуса', 'mc', matOpts('sheet'), m.matCorpus, (v) => set((t) => { t.matCorpus = v; })),
-      selectField('МДФ Фасадов', 'mf', matOpts('facade'), m.matFacade, (v) => set((t) => { t.matFacade = v; })),
+      selectField('МДФ / ЛДСП Фасадов', 'mf', matOpts('facade'), m.matFacade, (v) => set((t) => { t.matFacade = v; })),
       selectField('ХДФ Задней стенки', 'mb', matOpts('back'), m.matBack, (v) => set((t) => { t.matBack = v; })),
     ];
     if (m.countertop) {
-      matNodes.push(selectField('Столешница', 'mt', matOpts('top'), m.matTop, (v) => set((t) => { t.matTop = v; })));
+      matNodes.push(selectField('Столешница 38 мм', 'mt', matOpts('top'), m.matTop, (v) => set((t) => { t.matTop = v; })));
+    }
+    if (store.project.modules.length > 1) {
+      matNodes.push(
+        h('button', {
+          type: 'button',
+          class: 'btn btn-ghost sm',
+          style: 'width:100%; margin-top:4px;',
+          title: 'Скопировать декоры корпуса, фасадов, ХДФ и столешницы этого модуля на все остальные модули проекта',
+          onClick: () => {
+            store.commit((p) => {
+              p.modules.forEach((mod) => {
+                mod.matCorpus = m.matCorpus;
+                mod.matFacade = m.matFacade;
+                mod.matBack = m.matBack;
+                mod.matTop = m.matTop;
+                if (m.plinthColor) mod.plinthColor = m.plinthColor;
+              });
+            }, 'sync-mats');
+          },
+        }, 'Применить декоры ко всему проекту'),
+      );
     }
     contentArea.append(...matNodes);
   }
