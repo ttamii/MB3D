@@ -1,7 +1,7 @@
 import { KIND_LABEL, LIMITS, PRESETS, PRESET_GROUPS, isCorner, isWall } from '../core/defaults';
 import type { Estimate } from '../core/estimate';
 import { buildModule } from '../core/geometry';
-import type { DoorMode, MatKind, Module, Section } from '../core/types';
+import type { DoorMode, Material, MatKind, Module, Section } from '../core/types';
 import { fmtNum, money, uid } from '../core/util';
 import { applyTopTrimToUpperRow, getActiveTopTrimH, isSameVerticalTier, resizeHeightWithStack, resizeModuleCascading, shiftModuleCascading, insertFillerWithShift, syncTierHeight } from '../core/collision';
 import type { Store } from '../app/store';
@@ -52,39 +52,206 @@ function segmented<T extends string | number>(label: string, opts: [T, string][]
       ...opts.map(([v, t]) => h('button', { type: 'button', class: 'seg-b' + (v === value ? ' on' : ''), 'aria-pressed': String(v === value), onClick: () => onChange(v) }, t))));
 }
 
+let openMatFieldKey: string | null = 'mf';
+const matSearchByKey: Record<string, string> = {};
+const matCategoryFilterByKey: Record<string, string> = {};
+const collapsedMatSublists = new Set<string>();
+
+function matSwatchStyle(o: Partial<Material>): string {
+  const c = o.color ?? '#e2e8f0';
+  if (o.grain) {
+    return `background: repeating-linear-gradient(90deg, ${c} 0px, ${c} 3px, rgba(0,0,0,0.08) 4px, ${c} 6px);`;
+  }
+  if (o.stone) {
+    return `background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.22), transparent 60%), ${c};`;
+  }
+  if (o.gloss) {
+    return `background: linear-gradient(135deg, rgba(255,255,255,0.45) 0%, ${c} 48%, ${c} 100%);`;
+  }
+  return `background: ${c};`;
+}
+
+function matFinishBadge(o: Partial<Material>): string {
+  if (o.supermat) return 'Супермат';
+  if (o.gloss) return 'Глянец';
+  if (o.grain) return 'Дерево';
+  if (o.stone) return 'Камень';
+  return 'Матовый';
+}
+
 function selectField(
-  label: string, fkey: string, opts: { id: string; name: string; color?: string; category?: string }[],
+  label: string, fkey: string, opts: Material[],
   value: string, onChange: (v: string) => void,
 ): HTMLElement {
-  const sel = h('select', { 'data-f': fkey, onChange: (e: Event) => onChange((e.target as HTMLSelectElement).value) });
-  const groups = new Map<string, { id: string; name: string }[]>();
-  opts.forEach((o) => {
-    const cat = o.category || '';
-    const arr = groups.get(cat) ?? [];
-    arr.push(o);
-    groups.set(cat, arr);
-  });
+  const activeMat = opts.find((o) => o.id === value) ?? opts[0];
+  const isOpen = openMatFieldKey === fkey;
 
-  if (groups.size <= 1) {
-    opts.forEach((o) => sel.append(h('option', { value: o.id, selected: o.id === value }, o.name)));
-  } else {
-    groups.forEach((items, cat) => {
-      if (cat) {
-        const og = document.createElement('optgroup');
-        og.label = cat;
-        items.forEach((o) => og.append(h('option', { value: o.id, selected: o.id === value }, o.name)));
-        sel.append(og);
-      } else {
-        items.forEach((o) => sel.append(h('option', { value: o.id, selected: o.id === value }, o.name)));
-      }
-    });
-  }
-  const activeColor = opts.find((o) => o.id === value)?.color ?? '#e2e8f0';
-  const swatch = h('span', { class: 'mat-swatch', style: `background:${activeColor};`, title: value });
-  return h('label', { class: 'fld wide' },
-    h('span', { class: 'fld-l' }, label),
-    h('div', { class: 'mat-select-row' }, swatch, sel),
+  const wrapper = h('div', { class: 'fld wide mat-picker-wrap' });
+  const lbl = h('span', { class: 'fld-l' }, `${label} (${opts.length} декоров)`);
+
+  const triggerBtn = h('button', {
+    type: 'button',
+    class: `mat-pick-trigger ${isOpen ? 'open' : ''}`,
+    onClick: () => {
+      openMatFieldKey = openMatFieldKey === fkey ? null : fkey;
+      renderDrawer();
+    },
+  },
+    h('span', { class: 'mat-swatch lg', style: matSwatchStyle(activeMat ?? {}) }),
+    h('span', { class: 'mat-pick-info' },
+      h('span', { class: 'mat-pick-name' }, activeMat?.name ?? value),
+      h('span', { class: 'mat-pick-meta' }, `${activeMat?.category ?? 'Каталог'} · ${matFinishBadge(activeMat ?? {})} · ${fmtNum(activeMat?.price ?? 0, 0)} ₸/м²`),
+    ),
+    h('span', { class: 'mat-pick-arrow' }, isOpen ? '▴' : '▾'),
   );
+
+  const drawerHost = h('div', { class: 'mat-drawer-host' });
+
+  const renderDrawer = () => {
+    clear(drawerHost);
+    const nowOpen = openMatFieldKey === fkey;
+    triggerBtn.classList.toggle('open', nowOpen);
+    const arrowEl = triggerBtn.querySelector('.mat-pick-arrow');
+    if (arrowEl) arrowEl.textContent = nowOpen ? '▴' : '▾';
+    if (!nowOpen) return;
+
+    const groups = new Map<string, Material[]>();
+    opts.forEach((o) => {
+      const cat = o.category || 'Прочие декоры';
+      const arr = groups.get(cat) ?? [];
+      arr.push(o);
+      groups.set(cat, arr);
+    });
+    const categories = Array.from(groups.keys());
+
+    let curSearch = matSearchByKey[fkey] ?? '';
+    let curCat = matCategoryFilterByKey[fkey] ?? 'ALL';
+    if (curCat !== 'ALL' && !groups.has(curCat)) curCat = 'ALL';
+
+    const searchInput = h('input', {
+      type: 'search',
+      class: 'mat-search-in',
+      placeholder: 'Поиск по коду или цвету (H1180, дуб, кашемир, RAL...)',
+      value: curSearch,
+      onInput: (e: Event) => {
+        curSearch = (e.target as HTMLInputElement).value;
+        matSearchByKey[fkey] = curSearch;
+        renderListOnly();
+      },
+    }) as HTMLInputElement;
+
+    const chipsBar = h('div', { class: 'mat-cat-chips' });
+    const renderChips = () => {
+      clear(chipsBar);
+      chipsBar.append(
+        h('button', {
+          type: 'button',
+          class: `mat-cat-chip ${curCat === 'ALL' ? 'on' : ''}`,
+          onClick: () => {
+            curCat = 'ALL';
+            matCategoryFilterByKey[fkey] = 'ALL';
+            renderChips();
+            renderListOnly();
+          },
+        }, `Все (${opts.length})`),
+        ...categories.map((cat) => {
+          const shortCat = cat
+            .replace(/^EGGER\s+/i, '')
+            .replace(/^KronoSpan \/ Lamarty\s+/i, 'KronoSpan ')
+            .replace(/^Столешницы\s+/i, '');
+          return h('button', {
+            type: 'button',
+            class: `mat-cat-chip ${curCat === cat ? 'on' : ''}`,
+            title: cat,
+            onClick: () => {
+              curCat = cat;
+              matCategoryFilterByKey[fkey] = cat;
+              renderChips();
+              renderListOnly();
+            },
+          }, `${shortCat} (${groups.get(cat)?.length ?? 0})`);
+        }),
+      );
+    };
+
+    const scrollList = h('div', { class: 'mat-scroll-list' });
+
+    const renderListOnly = () => {
+      clear(scrollList);
+      const q = curSearch.trim().toLowerCase();
+      let totalMatched = 0;
+
+      groups.forEach((items, cat) => {
+        if (curCat !== 'ALL' && curCat !== cat) return;
+        const filtered = q
+          ? items.filter((it) => it.name.toLowerCase().includes(q) || it.id.toLowerCase().includes(q) || (it.category ?? '').toLowerCase().includes(q))
+          : items;
+        if (!filtered.length) return;
+        totalMatched += filtered.length;
+
+        const subKey = `${fkey}::${cat}`;
+        const isSubOpen = q.length > 0 || curCat !== 'ALL' || !collapsedMatSublists.has(subKey);
+        const det = h('details', { class: 'mat-sublist', ...(isSubOpen ? { open: '' } : {}) });
+        const sum = h('summary', {
+          class: 'mat-sublist-head',
+          onClick: (e: Event) => {
+            e.preventDefault();
+            if (det.hasAttribute('open')) {
+              det.removeAttribute('open');
+              collapsedMatSublists.add(subKey);
+            } else {
+              det.setAttribute('open', '');
+              collapsedMatSublists.delete(subKey);
+            }
+          },
+        },
+          h('span', { class: 'mat-sublist-title' }, cat),
+          h('span', { class: 'mat-sublist-cnt' }, `${filtered.length}`),
+        );
+
+        const itemsBox = h('div', { class: 'mat-sublist-items' },
+          ...filtered.map((item) => {
+            const selected = item.id === value;
+            return h('button', {
+              type: 'button',
+              class: `mat-option-row ${selected ? 'on' : ''}`,
+              onClick: () => {
+                onChange(item.id);
+              },
+            },
+              h('span', { class: 'mat-swatch', style: matSwatchStyle(item) }),
+              h('span', { class: 'mat-opt-main' },
+                h('span', { class: 'mat-opt-name' }, item.name),
+                h('span', { class: 'mat-opt-sub' }, `${matFinishBadge(item)} · ${fmtNum(item.price, 0)} ₸/м²`),
+              ),
+              selected ? h('span', { class: 'mat-opt-check' }, '✓') : null,
+            );
+          }),
+        );
+
+        det.append(sum, itemsBox);
+        scrollList.append(det);
+      });
+
+      if (totalMatched === 0) {
+        scrollList.append(h('div', { class: 'mat-empty' }, 'По вашему запросу декоров не найдено.'));
+      }
+    };
+
+    renderChips();
+    renderListOnly();
+
+    const drawerBox = h('div', { class: 'mat-catalog-box' },
+      searchInput,
+      chipsBar,
+      scrollList,
+    );
+    drawerHost.append(drawerBox);
+  };
+
+  renderDrawer();
+  wrapper.append(lbl, triggerBtn, drawerHost);
+  return wrapper;
 }
 
 // ——— список модулей (CAD Outliner + Каталог) ———

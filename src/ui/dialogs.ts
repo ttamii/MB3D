@@ -1705,27 +1705,48 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
       ),
     );
 
-    // Материалы
+    // Материалы (с группировкой по коллекциям и цветным свотчем)
+    const makeGroupedSelect = (items: typeof facadeMats, currentVal: string, onSelect: (v: string) => void) => {
+      const sel = h('select', {
+        onChange: (e: Event) => {
+          onSelect((e.target as HTMLSelectElement).value);
+          renderContent();
+        },
+      });
+      const byCat = new Map<string, typeof facadeMats>();
+      items.forEach((it) => {
+        const c = it.category || 'Декоры';
+        const arr = byCat.get(c) ?? [];
+        arr.push(it);
+        byCat.set(c, arr);
+      });
+      byCat.forEach((list, cat) => {
+        const og = document.createElement('optgroup');
+        og.label = `${cat} (${list.length})`;
+        list.forEach((m) => og.append(h('option', { value: m.id, selected: m.id === currentVal }, m.name)));
+        sel.append(og);
+      });
+      const curColor = items.find((x) => x.id === currentVal)?.color ?? '#e2e8f0';
+      return h('div', { class: 'mat-select-row' },
+        h('span', { class: 'mat-swatch', style: `background:${curColor};` }),
+        sel,
+      );
+    };
+
     const matsWrap = h('div', { class: 'grp' },
       h('h3', null, '4. Материалы и цвета'),
       h('div', { class: 'grid2' },
         h('label', { class: 'fld' },
-          h('span', { class: 'fld-l' }, 'Фасады'),
-          h('select', {
-            onChange: (e: Event) => { facadeMat = (e.target as HTMLSelectElement).value; },
-          }, ...facadeMats.map((m) => h('option', { value: m.id, selected: m.id === facadeMat }, m.name))),
+          h('span', { class: 'fld-l' }, `Фасады (${facadeMats.length} декоров)`),
+          makeGroupedSelect(facadeMats, facadeMat, (v) => { facadeMat = v; }),
         ),
         h('label', { class: 'fld' },
-          h('span', { class: 'fld-l' }, 'Корпус'),
-          h('select', {
-            onChange: (e: Event) => { corpusMat = (e.target as HTMLSelectElement).value; },
-          }, ...corpusMats.map((m) => h('option', { value: m.id, selected: m.id === corpusMat }, m.name))),
+          h('span', { class: 'fld-l' }, `Корпус (${corpusMats.length} декоров)`),
+          makeGroupedSelect(corpusMats, corpusMat, (v) => { corpusMat = v; }),
         ),
         h('label', { class: 'fld' },
-          h('span', { class: 'fld-l' }, 'Столешница 38 мм'),
-          h('select', {
-            onChange: (e: Event) => { topMat = (e.target as HTMLSelectElement).value; },
-          }, ...topMats.map((m) => h('option', { value: m.id, selected: m.id === topMat }, m.name))),
+          h('span', { class: 'fld-l' }, `Столешница 38 мм (${topMats.length} декоров)`),
+          makeGroupedSelect(topMats, topMat, (v) => { topMat = v; }),
         ),
         h('label', { class: 'fld' },
           h('span', { class: 'fld-l' }, 'Цоколь'),
