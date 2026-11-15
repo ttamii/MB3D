@@ -1,31 +1,206 @@
 import type { ModuleDrilling, FacadeDrilling, SidePanelDrilling } from './drilling';
 
 /**
- * Создаёт SVG сборочного чертежа модуля (аксонометрия + выносные линии с номерами позиций ①..Ⓝ).
+ * Создаёт SVG сборочного чертежа модуля:
+ * Слева — ортогональный фронтальный разрез с высотными отметками зон, ящиков, ниш и полок;
+ * Справа — аксонометрия (изометрия) с точными выносными линиями позиций ①..Ⓝ по реальным 3D-координатам деталей.
  */
 export function renderAssemblyBlueprintSvg(drilling: ModuleDrilling): string {
   const m = drilling.module;
-  const W = 800;
-  const H = 420;
+  const W = 860;
+  const H = 450;
+  const isWallMod = m.kind === 'wall' || m.kind === 'cornerWall';
+  const P = isWallMod ? 0 : m.plinth;
+  const t = m.t || 16;
+  const secN = Math.max(1, m.sections.length);
+  const Wi = m.w - 2 * t;
+  const cw = (Wi - (secN - 1) * t) / secN;
+  const isTallOven = m.kind === 'tall' && /духов|свч/i.test(m.name);
+  const isOvenBase = m.kind === 'base' && (/духов/i.test(m.name) || (secN === 1 && m.sections[0].drawers === 1 && m.sections[0].shelves === 1 && m.doorMode === 'none'));
 
-  // Изометрическая проекция каркаса
-  // Центр чертежа
-  const cx = 380;
-  const cy = 250;
+  // ============================================================================
+  // 1. ЛЕВАЯ ПОЛОВИНА (0..410): ФРОНТАЛЬНЫЙ РАЗРЕЗ (ВИД СПЕРЕДИ БЕЗ ФАСАДОВ)
+  // ============================================================================
+  const fAreaW = 270;
+  const fAreaH = 310;
+  const fScale = Math.min(fAreaW / Math.max(1, m.w), fAreaH / Math.max(1, m.h));
+  const fw = m.w * fScale;
+  const fh = m.h * fScale;
+  const fx0 = 68 + (fAreaW - fw) / 2;
+  const fy0 = 64 + (fAreaH - fh) / 2;
+  const fY = (mmY: number) => fy0 + fh - mmY * fScale;
+  const fX = (mmX: number) => fx0 + mmX * fScale;
 
-  // Масштабирование под размеры модуля
+  const frontElements: string[] = [];
+  const frontDimsY: { yMm: number; label: string }[] = [{ yMm: 0, label: '0' }];
+
+  // Цоколь
+  if (P > 0) {
+    frontElements.push(`
+      <rect x="${fX(0).toFixed(1)}" y="${fY(P).toFixed(1)}" width="${fw.toFixed(1)}" height="${(P * fScale).toFixed(1)}" fill="#e2e8f0" stroke="#475569" stroke-width="1.2" />
+      <text x="${(fx0 + fw / 2).toFixed(1)}" y="${(fY(P / 2) + 3.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="9" font-weight="600" fill="#475569" text-anchor="middle">Цоколь ${P} мм</text>
+    `);
+    frontDimsY.push({ yMm: P, label: String(P) });
+  }
+
+  // Левая и правая боковины, дно и крышка
+  const bodyH = m.h - P;
+  const tPx = Math.max(2.5, t * fScale);
+  frontElements.push(`
+    <!-- Задняя стенка ХДФ (фон проёма) -->
+    <rect x="${fX(0).toFixed(1)}" y="${fY(m.h).toFixed(1)}" width="${fw.toFixed(1)}" height="${(bodyH * fScale).toFixed(1)}" fill="#f8fafc" stroke="#0f172a" stroke-width="1.8" />
+    <!-- Боковина L -->
+    <rect x="${fX(0).toFixed(1)}" y="${fY(m.h).toFixed(1)}" width="${tPx.toFixed(1)}" height="${(bodyH * fScale).toFixed(1)}" fill="#cbd5e1" stroke="#0f172a" stroke-width="1.2" />
+    <!-- Боковина R -->
+    <rect x="${(fX(m.w) - tPx).toFixed(1)}" y="${fY(m.h).toFixed(1)}" width="${tPx.toFixed(1)}" height="${(bodyH * fScale).toFixed(1)}" fill="#cbd5e1" stroke="#0f172a" stroke-width="1.2" />
+    <!-- Дно -->
+    <rect x="${(fX(0) + tPx).toFixed(1)}" y="${(fY(P) - tPx).toFixed(1)}" width="${Math.max(2, fw - 2 * tPx).toFixed(1)}" height="${tPx.toFixed(1)}" fill="#cbd5e1" stroke="#0f172a" stroke-width="1.2" />
+    <!-- Крышка -->
+    <rect x="${(fX(0) + tPx).toFixed(1)}" y="${fY(m.h).toFixed(1)}" width="${Math.max(2, fw - 2 * tPx).toFixed(1)}" height="${tPx.toFixed(1)}" fill="#cbd5e1" stroke="#0f172a" stroke-width="1.2" />
+  `);
+
+  // Внутренние перегородки, ящики, ниши и полки по секциям
+  for (let i = 1; i < secN; i++) {
+    const sxMm = t + i * (cw + t) - t;
+    frontElements.push(`
+      <rect x="${fX(sxMm).toFixed(1)}" y="${(fY(m.h) + tPx).toFixed(1)}" width="${tPx.toFixed(1)}" height="${Math.max(2, (bodyH - 2 * t) * fScale).toFixed(1)}" fill="#cbd5e1" stroke="#0f172a" stroke-width="1.1" />
+    `);
+  }
+
+  m.sections.forEach((sec, idx) => {
+    const xLeftMm = t + idx * (cw + t);
+    const secX0 = fX(xLeftMm);
+    const secW = cw * fScale;
+    const nd = sec.drawers;
+    const fullHeight = m.h - P - 4;
+    const isFullHeight = (m.doorMode === 'none' || !sec.door) && sec.shelves === 0 && (sec.rods ?? 0) === 0 && !sec.rod;
+    const fhStep = nd > 0
+      ? (isTallOven ? Math.max(m.drawerH, Math.round(440 / nd)) : isFullHeight ? fullHeight / nd : Math.min(m.drawerH, fullHeight / nd))
+      : 0;
+    const zoneTop = nd > 0 ? P + Math.round(nd * fhStep) : P + t;
+
+    // Ящики
+    for (let k = 0; k < nd; k++) {
+      const yBotMm = P + k * fhStep;
+      const yTopMm = P + (k + 1) * fhStep;
+      const dhMm = Math.round(yTopMm - yBotMm);
+      frontElements.push(`
+        <rect x="${(secX0 + 2).toFixed(1)}" y="${(fY(yTopMm) + 1.5).toFixed(1)}" width="${Math.max(4, secW - 4).toFixed(1)}" height="${Math.max(4, dhMm * fScale - 3).toFixed(1)}" fill="#eff6ff" stroke="#2563eb" stroke-width="1" stroke-dasharray="3,2" rx="1.5" />
+        <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((yBotMm + yTopMm) / 2) + 3).toFixed(1)}" font-family="Inter, sans-serif" font-size="8.5" font-weight="600" fill="#1d4ed8" text-anchor="middle">Ящик ${nd > 1 ? k + 1 : ''} (${dhMm})</text>
+      `);
+      if (idx === 0) frontDimsY.push({ yMm: Math.round(yTopMm), label: String(Math.round(yTopMm)) });
+    }
+
+    // Разделительный горизонт над ящиками
+    if (nd > 0 && !isFullHeight && (isTallOven || sec.shelves > 0 || (sec.rods ?? 0) > 0 || sec.rod)) {
+      frontElements.push(`
+        <rect x="${secX0.toFixed(1)}" y="${fY(zoneTop + t).toFixed(1)}" width="${secW.toFixed(1)}" height="${tPx.toFixed(1)}" fill="#94a3b8" stroke="#0f172a" stroke-width="1.1" />
+      `);
+    }
+
+    // Ниши под духовку и СВЧ в пенале
+    const zTop = m.h - t;
+    let upperZoneBottom = zoneTop;
+    if (isTallOven && idx === 0) {
+      const yOv0 = nd > 0 ? zoneTop + t : P + 450 + t;
+      const ovH = 595;
+      const yOv1 = yOv0 + ovH;
+      if (yOv1 + t < zTop - 180) {
+        frontElements.push(`
+          <rect x="${(secX0 + 3).toFixed(1)}" y="${fY(yOv1).toFixed(1)}" width="${Math.max(6, secW - 6).toFixed(1)}" height="${(ovH * fScale).toFixed(1)}" fill="#f1f5f9" stroke="#334155" stroke-width="1.2" rx="2" />
+          <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((yOv0 + yOv1) / 2) - 2).toFixed(1)}" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="#0f172a" text-anchor="middle">НИША ДУХОВКИ</text>
+          <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((yOv0 + yOv1) / 2) + 10).toFixed(1)}" font-family="Inter, sans-serif" font-size="8.5" font-weight="600" fill="#475569" text-anchor="middle">H = 595 мм</text>
+          <rect x="${secX0.toFixed(1)}" y="${fY(yOv1 + t).toFixed(1)}" width="${secW.toFixed(1)}" height="${tPx.toFixed(1)}" fill="#94a3b8" stroke="#0f172a" stroke-width="1.1" />
+        `);
+        frontDimsY.push({ yMm: Math.round(yOv1), label: String(Math.round(yOv1)) });
+        upperZoneBottom = yOv1 + t;
+
+        const mwH = 380;
+        const yMw0 = yOv1 + t;
+        const yMw1 = yMw0 + mwH;
+        if (/свч/i.test(m.name) && yMw1 + t < zTop - 220) {
+          frontElements.push(`
+            <rect x="${(secX0 + 3).toFixed(1)}" y="${fY(yMw1).toFixed(1)}" width="${Math.max(6, secW - 6).toFixed(1)}" height="${(mwH * fScale).toFixed(1)}" fill="#f1f5f9" stroke="#334155" stroke-width="1.2" rx="2" />
+            <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((yMw0 + yMw1) / 2) - 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="8.5" font-weight="700" fill="#0f172a" text-anchor="middle">НИША СВЧ</text>
+            <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((yMw0 + yMw1) / 2) + 9).toFixed(1)}" font-family="Inter, sans-serif" font-size="8" font-weight="600" fill="#475569" text-anchor="middle">H = 380 мм</text>
+            <rect x="${secX0.toFixed(1)}" y="${fY(yMw1 + t).toFixed(1)}" width="${secW.toFixed(1)}" height="${tPx.toFixed(1)}" fill="#94a3b8" stroke="#0f172a" stroke-width="1.1" />
+          `);
+          frontDimsY.push({ yMm: Math.round(yMw1), label: String(Math.round(yMw1)) });
+          upperZoneBottom = yMw1 + t;
+        }
+      }
+    } else if (isOvenBase && idx === 0) {
+      const yOv0 = zoneTop + t;
+      const ovH = zTop - yOv0;
+      if (ovH >= 320) {
+        frontElements.push(`
+          <rect x="${(secX0 + 3).toFixed(1)}" y="${fY(zTop).toFixed(1)}" width="${Math.max(6, secW - 6).toFixed(1)}" height="${(ovH * fScale).toFixed(1)}" fill="#f1f5f9" stroke="#334155" stroke-width="1.2" rx="2" />
+          <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((yOv0 + zTop) / 2) + 3).toFixed(1)}" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="#0f172a" text-anchor="middle">НИША ДУХОВКИ (${Math.round(ovH)})</text>
+        `);
+      }
+    }
+
+    // Полки в верхней/основной зоне
+    const shelfBase = isTallOven && idx === 0 ? upperZoneBottom : zoneTop;
+    const shelfZoneH = zTop - shelfBase;
+    const nShelvesToDraw = isTallOven && idx === 0 ? Math.max(1, sec.shelves - 2) : (isOvenBase ? 0 : sec.shelves);
+    let prevY = shelfBase;
+    for (let k = 1; k <= nShelvesToDraw; k++) {
+      const yShelf = shelfBase + (k * shelfZoneH) / (nShelvesToDraw + 1);
+      const gapMm = Math.round(yShelf - prevY);
+      frontElements.push(`
+        <rect x="${secX0.toFixed(1)}" y="${(fY(yShelf) - tPx / 2).toFixed(1)}" width="${secW.toFixed(1)}" height="${Math.max(2, tPx * 0.85).toFixed(1)}" fill="#cbd5e1" stroke="#334155" stroke-width="1" />
+        ${secW > 42 ? `<text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((prevY + yShelf) / 2) + 3).toFixed(1)}" font-family="Inter, sans-serif" font-size="8" font-weight="500" fill="#64748b" text-anchor="middle">проём ${gapMm}</text>` : ''}
+      `);
+      if (idx === 0) frontDimsY.push({ yMm: Math.round(yShelf), label: String(Math.round(yShelf)) });
+      prevY = yShelf;
+    }
+    if (nShelvesToDraw > 0 && secW > 42) {
+      const topGap = Math.round(zTop - prevY);
+      frontElements.push(`
+        <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((prevY + zTop) / 2) + 3).toFixed(1)}" font-family="Inter, sans-serif" font-size="8" font-weight="500" fill="#64748b" text-anchor="middle">проём ${topGap}</text>
+      `);
+    }
+  });
+
+  frontDimsY.push({ yMm: m.h, label: String(m.h) });
+
+  // Отрисовка высотных отметок слева от фронтального разреза
+  const sortedFrontY = [...new Map(frontDimsY.map((d) => [d.yMm, d])).values()].sort((a, b) => a.yMm - b.yMm);
+  const yTicksSvg: string[] = [];
+  let lastLabelPy = 9999;
+  sortedFrontY.forEach((ptY) => {
+    const py = fY(ptY.yMm);
+    const canShowText = Math.abs(py - lastLabelPy) >= 11 || ptY.yMm === m.h || ptY.yMm === 0;
+    if (canShowText) lastLabelPy = py;
+    yTicksSvg.push(`
+      <line x1="${(fx0 - 22).toFixed(1)}" y1="${py.toFixed(1)}" x2="${fx0.toFixed(1)}" y2="${py.toFixed(1)}" stroke="#94a3b8" stroke-width="0.8" stroke-dasharray="2,2" />
+      <line x1="${(fx0 - 20).toFixed(1)}" y1="${py.toFixed(1)}" x2="${(fx0 - 14).toFixed(1)}" y2="${py.toFixed(1)}" stroke="#334155" stroke-width="1" />
+      ${canShowText ? `<text x="${(fx0 - 23).toFixed(1)}" y="${(py + 3).toFixed(1)}" font-family="Inter, sans-serif" font-size="8.5" font-weight="600" fill="#334155" text-anchor="end">${ptY.label}</text>` : ''}
+    `);
+  });
+
+  // ============================================================================
+  // 2. ПРАВАЯ ПОЛОВИНА (415..855): АКСОНОМЕТРИЯ С ТОЧНЫМИ ВЫНОСКАМИ ПОЗИЦИЙ ①..Ⓝ
+  // ============================================================================
+  const cx = 635;
+  const cy = 262;
   const maxDim = Math.max(m.w, m.h, m.d);
-  const scale = 220 / maxDim;
+  const scale = 205 / maxDim;
 
-  // Изометрические базисные векторы (30 градусов)
   const cos30 = Math.cos(Math.PI / 6);
   const sin30 = Math.sin(Math.PI / 6);
 
   const isoX = (x: number, z: number) => (x - z) * cos30 * scale;
   const isoY = (x: number, y: number, z: number) => -y * scale + (x + z) * sin30 * scale;
 
+  const ptNum = (x: number, y: number, z: number): [number, number] => [
+    cx + isoX(x, z),
+    cy + isoY(x, y, z),
+  ];
   const pt = (x: number, y: number, z: number) => {
-    return `${(cx + isoX(x, z)).toFixed(1)},${(cy + isoY(x, y, z)).toFixed(1)}`;
+    const [px, py] = ptNum(x, y, z);
+    return `${px.toFixed(1)},${py.toFixed(1)}`;
   };
 
   const p000 = pt(0, 0, 0);
@@ -37,74 +212,74 @@ export function renderAssemblyBlueprintSvg(drilling: ModuleDrilling): string {
   const p0HD = pt(0, m.h, m.d);
   const pWHD = pt(m.w, m.h, m.d);
 
-  // Внутренние линии полок и перегородок
+  // Внутренние линии полок и перегородок в изометрии
   const internalLines: string[] = [];
-  const P = m.plinth;
-  const secN = m.sections.length;
-  const Wi = m.w - 2 * m.t;
-  const cw = (Wi - (secN - 1) * m.t) / secN;
-
-  // Дно
-  const pBottomL = pt(0, P, m.d);
-  const pBottomR = pt(m.w, P, m.d);
-  internalLines.push(`<line x1="${pBottomL.split(',')[0]}" y1="${pBottomL.split(',')[1]}" x2="${pBottomR.split(',')[0]}" y2="${pBottomR.split(',')[1]}" stroke="#2563eb" stroke-width="1.2" />`);
-
-  // Перегородки
-  for (let i = 1; i < secN; i++) {
-    const xPos = m.t + i * (cw + m.t);
-    const pSepFrontTop = pt(xPos, m.h - m.t, m.d);
-    const pSepFrontBottom = pt(xPos, P + m.t, m.d);
-    internalLines.push(`<line x1="${pSepFrontTop.split(',')[0]}" y1="${pSepFrontTop.split(',')[1]}" x2="${pSepFrontBottom.split(',')[0]}" y2="${pSepFrontBottom.split(',')[1]}" stroke="#1e293b" stroke-width="1.4" />`);
+  if (P > 0) {
+    const pBottomL = pt(0, P, m.d);
+    const pBottomR = pt(m.w, P, m.d);
+    internalLines.push(`<line x1="${pBottomL.split(',')[0]}" y1="${pBottomL.split(',')[1]}" x2="${pBottomR.split(',')[0]}" y2="${pBottomR.split(',')[1]}" stroke="#2563eb" stroke-width="1.2" />`);
   }
 
-  // Полки в секциях
-  m.sections.forEach((s, idx) => {
-    const xLeft = m.t + idx * (cw + m.t);
-    const xRight = xLeft + cw;
-    const zoneTop = m.h - m.t;
-    const zoneBottom = P + m.t;
-    const zH = zoneTop - zoneBottom;
-    for (let k = 1; k <= s.shelves; k++) {
-      const yShelf = zoneBottom + (k * zH) / (s.shelves + 1);
-      const pSL = pt(xLeft, yShelf, m.d - 20);
-      const pSR = pt(xRight, yShelf, m.d - 20);
+  for (let i = 1; i < secN; i++) {
+    const xPos = t + i * (cw + t);
+    const pSepFrontTop = pt(xPos, m.h - t, m.d);
+    const pSepFrontBottom = pt(xPos, P + t, m.d);
+    internalLines.push(`<line x1="${pSepFrontTop.split(',')[0]}" y1="${pSepFrontTop.split(',')[1]}" x2="${pSepFrontBottom.split(',')[0]}" y2="${pSepFrontBottom.split(',')[1]}" stroke="#1e293b" stroke-width="1.3" />`);
+  }
+
+  // Отрисовка реальных горизонтальных деталей (полок и горизонтов) из drilling.parts
+  for (const dp of drilling.parts) {
+    if (/полка|горизонт/i.test(dp.name)) {
+      const [px, py, pz] = dp.part.pos;
+      const [sx, , sz] = dp.part.size;
+      const pSL = pt(px, py, pz + sz);
+      const pSR = pt(px + sx, py, pz + sz);
       internalLines.push(`<line x1="${pSL.split(',')[0]}" y1="${pSL.split(',')[1]}" x2="${pSR.split(',')[0]}" y2="${pSR.split(',')[1]}" stroke="#475569" stroke-width="1.2" stroke-dasharray="3,2" />`);
     }
-  });
+  }
 
-  // Выноски позиций (Callouts) с номерами в кружках ①..Ⓝ
+  // Умная расстановка выносок ①..Ⓝ по реальным 3D-центрам деталей (без пересечения линий)
   const callouts: string[] = [];
-  const parts = drilling.parts.slice(0, 8); // основные позиции
+  const topParts = drilling.parts.slice(0, 10);
+  const leftBank: { posIndex: number; tx: number; ty: number }[] = [];
+  const rightBank: { posIndex: number; tx: number; ty: number }[] = [];
 
-  const calloutCoords = [
-    { target: pt(0, m.h * 0.6, m.d * 0.5), labelPos: [70, 110] },      // Поз 1: Боковина L
-    { target: pt(m.w, m.h * 0.6, m.d * 0.5), labelPos: [710, 110] },    // Поз 2: Боковина R
-    { target: pt(m.w * 0.5, P, m.d * 0.5), labelPos: [230, 360] },     // Поз 3: Дно
-    { target: pt(m.w * 0.5, m.h, m.d * 0.5), labelPos: [280, 50] },     // Поз 4: Крышка
-    { target: pt(m.w * 0.5, m.h * 0.5, 0), labelPos: [650, 350] },     // Поз 5: Стойка/Задняя
-    { target: pt(m.w * 0.3, m.h * 0.4, m.d), labelPos: [90, 270] },     // Поз 6: Фасад 1
-    { target: pt(m.w * 0.7, m.h * 0.4, m.d), labelPos: [720, 270] },    // Поз 7: Фасад 2
-    { target: pt(m.w * 0.5, 20, m.d * 0.9), labelPos: [480, 380] },     // Поз 8: Цоколь
-  ];
-
-  parts.forEach((p, idx) => {
-    const c = calloutCoords[idx];
-    if (!c) return;
-    const [tx, ty] = c.target.split(',').map(Number);
-    const [lx, ly] = c.labelPos;
-
-    callouts.push(`
-      <g class="callout">
-        <line x1="${tx}" y1="${ty}" x2="${lx}" y2="${ly}" stroke="#64748b" stroke-width="1" />
-        <circle cx="${tx}" cy="${ty}" r="2.5" fill="#0f172a" />
-        <circle cx="${lx}" cy="${ly}" r="12" fill="#ffffff" stroke="#0f172a" stroke-width="1.8" />
-        <text x="${lx}" y="${ly + 4.5}" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">${p.posIndex}</text>
-      </g>
-    `);
+  topParts.forEach((dp) => {
+    const [px, py, pz] = dp.part.pos;
+    const [sx, sy, sz] = dp.part.size;
+    const [tx, ty] = ptNum(px + sx / 2, py + sy / 2, pz + sz / 2);
+    if (tx <= cx) leftBank.push({ posIndex: dp.posIndex, tx, ty });
+    else rightBank.push({ posIndex: dp.posIndex, tx, ty });
   });
+
+  leftBank.sort((a, b) => a.ty - b.ty);
+  rightBank.sort((a, b) => a.ty - b.ty);
+
+  const placeBank = (bank: { posIndex: number; tx: number; ty: number }[], lx: number) => {
+    const minY = 78;
+    const maxY = H - 52;
+    const stepY = bank.length > 1 ? Math.min(36, (maxY - minY) / (bank.length - 1)) : 0;
+    const startY = bank.length > 1 ? Math.max(minY, (minY + maxY - stepY * (bank.length - 1)) / 2) : (minY + maxY) / 2;
+
+    bank.forEach((item, idx) => {
+      const ly = startY + idx * stepY;
+      const elbowX = lx < cx ? lx + 18 : lx - 18;
+      callouts.push(`
+        <g class="callout">
+          <polyline points="${item.tx.toFixed(1)},${item.ty.toFixed(1)} ${elbowX.toFixed(1)},${ly.toFixed(1)} ${lx.toFixed(1)},${ly.toFixed(1)}" fill="none" stroke="#64748b" stroke-width="1" />
+          <circle cx="${item.tx.toFixed(1)}" cy="${item.ty.toFixed(1)}" r="2.5" fill="#0284c7" />
+          <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="11" fill="#ffffff" stroke="#0f172a" stroke-width="1.6" />
+          <text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#0f172a" text-anchor="middle">${item.posIndex}</text>
+        </g>
+      `);
+    });
+  };
+
+  placeBank(leftBank, 444);
+  placeBank(rightBank, 824);
 
   return `
-    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:6px;">
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg" style="background:#ffffff; border:1px solid #cbd5e1; border-radius:6px;">
       <defs>
         <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
           <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#f1f5f9" stroke-width="0.8"/>
@@ -115,7 +290,26 @@ export function renderAssemblyBlueprintSvg(drilling: ModuleDrilling): string {
       </defs>
       <rect width="100%" height="100%" fill="url(#grid)" />
 
-      <!-- Габаритный контур каркаса -->
+      <!-- Разделительная вертикальная линия между видами -->
+      <line x1="412" y1="14" x2="412" y2="${H - 14}" stroke="#e2e8f0" stroke-width="1.2" stroke-dasharray="4,4" />
+
+      <!-- ЗАГОЛОВКИ ПРОЕКЦИЙ -->
+      <text x="206" y="24" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">ВИД СПЕРЕДИ (РАЗРЕЗ БЕЗ ФАСАДОВ)</text>
+      <text x="206" y="39" font-family="Inter, sans-serif" font-size="10" fill="#64748b" text-anchor="middle">Высотные отметки Y (мм) · Чистый проём Wi = ${Wi} мм</text>
+
+      <text x="635" y="24" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">АКСОНОМЕТРИЧЕСКАЯ СХЕМА СБОРКИ</text>
+      <text x="635" y="39" font-family="Inter, sans-serif" font-size="10" fill="#64748b" text-anchor="middle">Номера позиций ①..Ⓝ соответствуют таблице деталей ниже</text>
+
+      <!-- 1. ФРОНТАЛЬНЫЙ РАЗРЕЗ СЛЕВА -->
+      <line x1="${(fx0 - 17).toFixed(1)}" y1="${fY(0).toFixed(1)}" x2="${(fx0 - 17).toFixed(1)}" y2="${fY(m.h).toFixed(1)}" stroke="#334155" stroke-width="1" />
+      ${yTicksSvg.join('')}
+      ${frontElements.join('')}
+
+      <!-- Габарит ширины W под фронтальным разрезом -->
+      <line x1="${fx0.toFixed(1)}" y1="${(fy0 + fh + 18).toFixed(1)}" x2="${(fx0 + fw).toFixed(1)}" y2="${(fy0 + fh + 18).toFixed(1)}" stroke="#334155" stroke-width="1.1" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+      <text x="${(fx0 + fw / 2).toFixed(1)}" y="${(fy0 + fh + 33).toFixed(1)}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#0f172a" text-anchor="middle">Габарит W = ${m.w} мм (внутр. ${Wi} мм)</text>
+
+      <!-- 2. ИЗОМЕТРИЯ СПРАВА -->
       <!-- Невидимые задние рёбра (пунктир) -->
       <line x1="${p000.split(',')[0]}" y1="${p000.split(',')[1]}" x2="${pW00.split(',')[0]}" y2="${pW00.split(',')[1]}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" />
       <line x1="${p000.split(',')[0]}" y1="${p000.split(',')[1]}" x2="${p0H0.split(',')[0]}" y2="${p0H0.split(',')[1]}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" />
@@ -125,30 +319,20 @@ export function renderAssemblyBlueprintSvg(drilling: ModuleDrilling): string {
       ${internalLines.join('')}
 
       <!-- Видимые внешние рёбра шкафа -->
-      <line x1="${p0H0.split(',')[0]}" y1="${p0H0.split(',')[1]}" x2="${pWH0.split(',')[0]}" y2="${pWH0.split(',')[1]}" stroke="#0f172a" stroke-width="2" />
-      <line x1="${pWH0.split(',')[0]}" y1="${pWH0.split(',')[1]}" x2="${pW00.split(',')[0]}" y2="${pW00.split(',')[1]}" stroke="#0f172a" stroke-width="2" />
+      <line x1="${p0H0.split(',')[0]}" y1="${p0H0.split(',')[1]}" x2="${pWH0.split(',')[0]}" y2="${pWH0.split(',')[1]}" stroke="#0f172a" stroke-width="1.8" />
+      <line x1="${pWH0.split(',')[0]}" y1="${pWH0.split(',')[1]}" x2="${pW00.split(',')[0]}" y2="${pW00.split(',')[1]}" stroke="#0f172a" stroke-width="1.8" />
 
-      <line x1="${p0H0.split(',')[0]}" y1="${p0H0.split(',')[1]}" x2="${p0HD.split(',')[0]}" y2="${p0HD.split(',')[1]}" stroke="#0f172a" stroke-width="2" />
-      <line x1="${pWH0.split(',')[0]}" y1="${pWH0.split(',')[1]}" x2="${pWHD.split(',')[0]}" y2="${pWHD.split(',')[1]}" stroke="#0f172a" stroke-width="2" />
-      <line x1="${pW00.split(',')[0]}" y1="${pW00.split(',')[1]}" x2="${pW0D.split(',')[0]}" y2="${pW0D.split(',')[1]}" stroke="#0f172a" stroke-width="2" />
+      <line x1="${p0H0.split(',')[0]}" y1="${p0H0.split(',')[1]}" x2="${p0HD.split(',')[0]}" y2="${p0HD.split(',')[1]}" stroke="#0f172a" stroke-width="1.8" />
+      <line x1="${pWH0.split(',')[0]}" y1="${pWH0.split(',')[1]}" x2="${pWHD.split(',')[0]}" y2="${pWHD.split(',')[1]}" stroke="#0f172a" stroke-width="1.8" />
+      <line x1="${pW00.split(',')[0]}" y1="${pW00.split(',')[1]}" x2="${pW0D.split(',')[0]}" y2="${pW0D.split(',')[1]}" stroke="#0f172a" stroke-width="1.8" />
 
-      <line x1="${p00D.split(',')[0]}" y1="${p00D.split(',')[1]}" x2="${pW0D.split(',')[0]}" y2="${pW0D.split(',')[1]}" stroke="#0f172a" stroke-width="2.2" />
-      <line x1="${p0HD.split(',')[0]}" y1="${p0HD.split(',')[1]}" x2="${pWHD.split(',')[0]}" y2="${pWHD.split(',')[1]}" stroke="#0f172a" stroke-width="2.2" />
-      <line x1="${p00D.split(',')[0]}" y1="${p00D.split(',')[1]}" x2="${p0HD.split(',')[0]}" y2="${p0HD.split(',')[1]}" stroke="#0f172a" stroke-width="2.2" />
-      <line x1="${pW0D.split(',')[0]}" y1="${pW0D.split(',')[1]}" x2="${pWHD.split(',')[0]}" y2="${pWHD.split(',')[1]}" stroke="#0f172a" stroke-width="2.2" />
+      <line x1="${p00D.split(',')[0]}" y1="${p00D.split(',')[1]}" x2="${pW0D.split(',')[0]}" y2="${pW0D.split(',')[1]}" stroke="#0f172a" stroke-width="2.1" />
+      <line x1="${p0HD.split(',')[0]}" y1="${p0HD.split(',')[1]}" x2="${pWHD.split(',')[0]}" y2="${pWHD.split(',')[1]}" stroke="#0f172a" stroke-width="2.1" />
+      <line x1="${p00D.split(',')[0]}" y1="${p00D.split(',')[1]}" x2="${p0HD.split(',')[0]}" y2="${p0HD.split(',')[1]}" stroke="#0f172a" stroke-width="2.1" />
+      <line x1="${pW0D.split(',')[0]}" y1="${pW0D.split(',')[1]}" x2="${pWHD.split(',')[0]}" y2="${pWHD.split(',')[1]}" stroke="#0f172a" stroke-width="2.1" />
 
-      <!-- Габаритные размеры со стрелками -->
-      <!-- Ширина W снизу -->
-      <g>
-        <line x1="${Number(p00D.split(',')[0])}" y1="${Number(p00D.split(',')[1]) + 24}" x2="${Number(pW0D.split(',')[0])}" y2="${Number(pW0D.split(',')[1]) + 24}" stroke="#475569" stroke-width="1.2" marker-start="url(#arrow)" marker-end="url(#arrow)" />
-        <text x="${(Number(p00D.split(',')[0]) + Number(pW0D.split(',')[0])) / 2}" y="${(Number(p00D.split(',')[1]) + Number(pW0D.split(',')[1])) / 2 + 38}" font-family="Inter, sans-serif" font-size="12" font-weight="600" fill="#334155" text-anchor="middle">${m.w} мм</text>
-      </g>
-
-      <!-- Высота H справа -->
-      <g>
-        <line x1="${Number(pWHD.split(',')[0]) + 28}" y1="${Number(pWHD.split(',')[1])}" x2="${Number(pW0D.split(',')[0]) + 28}" y2="${Number(pW0D.split(',')[1])}" stroke="#475569" stroke-width="1.2" marker-start="url(#arrow)" marker-end="url(#arrow)" />
-        <text x="${Number(pWHD.split(',')[0]) + 48}" y="${(Number(pWHD.split(',')[1]) + Number(pW0D.split(',')[1])) / 2}" font-family="Inter, sans-serif" font-size="12" font-weight="600" fill="#334155" text-anchor="middle">${m.h} мм</text>
-      </g>
+      <!-- Габариты на изометрии -->
+      <text x="${cx}" y="${H - 16}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#334155" text-anchor="middle">Габариты модуля: ${m.w} × ${m.h} × ${m.d} мм · Плита ЛДСП ${t} мм</text>
 
       <!-- Выносные линии позиций ①..Ⓝ -->
       ${callouts.join('')}
@@ -292,85 +476,135 @@ export function renderFacadeDrillingSvg(facade: FacadeDrilling): string {
 }
 
 /**
- * Создаёт SVG чертёж сверловки боковины (конфирматы дна/крышки, планки петель, полки).
+ * Создаёт SVG чертёж сверловки боковины (конфирматы дна/крышки/горизонтов, планки петель, полкодержатели, направляющие)
+ * с координатной сеткой X/Y в мм от базовых торцов.
  */
 export function renderSidePanelDrillingSvg(side: SidePanelDrilling): string {
-  const W = 460;
-  const H = 480;
-  const margin = 45;
+  const W = 500;
+  const H = 530;
+  const marginLeft = 58;
+  const marginRight = 76;
+  const marginTop = 66;
+  const marginBottom = 64;
 
-  const drawW = W - 2 * margin;
-  const drawH = H - 2 * margin;
-  const scale = Math.min(drawW / side.d, drawH / side.h);
+  const drawW = W - marginLeft - marginRight;
+  const drawH = H - marginTop - marginBottom;
+  const scale = Math.min(drawW / Math.max(1, side.d), drawH / Math.max(1, side.h));
 
   const pw = side.d * scale;
   const ph = side.h * scale;
-  const x0 = (W - pw) / 2;
-  const y0 = (H - ph) / 2;
+  const x0 = marginLeft + (drawW - pw) / 2;
+  const y0 = marginTop + (drawH - ph) / 2;
+
+  // Уникальные уровни сверловки по высоте Y (снизу вверх) для координатной линейки справа
+  const uniqueYs = [...new Set(side.holes.map((h) => Math.round(h.y)))].sort((a, b) => a - b);
+  const yTicksSvg: string[] = [];
+  let lastLabelPy = 9999;
+
+  uniqueYs.forEach((yMm) => {
+    const py = y0 + ph - yMm * scale;
+    const maxHoleX = Math.max(...side.holes.filter((h) => Math.round(h.y) === yMm).map((h) => h.x));
+    const startX = x0 + maxHoleX * scale + 5;
+    const railX = x0 + pw + 14;
+    const canLabel = Math.abs(py - lastLabelPy) >= 10 || yMm === uniqueYs[0] || yMm === uniqueYs[uniqueYs.length - 1];
+    if (canLabel) lastLabelPy = py;
+
+    yTicksSvg.push(`
+      <line x1="${startX.toFixed(1)}" y1="${py.toFixed(1)}" x2="${railX.toFixed(1)}" y2="${py.toFixed(1)}" stroke="#cbd5e1" stroke-width="0.8" stroke-dasharray="2,2" />
+      <line x1="${(railX - 2.5).toFixed(1)}" y1="${py.toFixed(1)}" x2="${(railX + 2.5).toFixed(1)}" y2="${py.toFixed(1)}" stroke="#475569" stroke-width="1" />
+      ${canLabel ? `<text x="${(railX + 6).toFixed(1)}" y="${(py + 3).toFixed(1)}" font-family="Inter, sans-serif" font-size="8.5" font-weight="600" fill="#0f172a" text-anchor="start">Y=${yMm}</text>` : ''}
+    `);
+  });
 
   // Отрисовка отверстий
   const holesSvg = side.holes.map((hole) => {
-    // В боковине x отсчитывается сзади, y снизу
     const cx = x0 + hole.x * scale;
     const cy = y0 + ph - hole.y * scale;
 
     if (hole.type === 'confirmat') {
       return `
         <g class="hole-confirmat">
-          <circle cx="${cx}" cy="${cy}" r="4" fill="#fef08a" stroke="#ca8a04" stroke-width="1.6" />
-          <line x1="${cx - 3}" y1="${cy}" x2="${cx + 3}" y2="${cy}" stroke="#ca8a04" stroke-width="1" />
-          <line x1="${cx}" y1="${cy - 3}" x2="${cx}" y2="${cy + 3}" stroke="#ca8a04" stroke-width="1" />
+          <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4.2" fill="#fef08a" stroke="#ca8a04" stroke-width="1.5" />
+          <line x1="${(cx - 3).toFixed(1)}" y1="${cy.toFixed(1)}" x2="${(cx + 3).toFixed(1)}" y2="${cy.toFixed(1)}" stroke="#ca8a04" stroke-width="1" />
+          <line x1="${cx.toFixed(1)}" y1="${(cy - 3).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${(cy + 3).toFixed(1)}" stroke="#ca8a04" stroke-width="1" />
         </g>
       `;
     } else if (hole.type === 'hinge-plate') {
       return `
-        <circle cx="${cx}" cy="${cy}" r="3" fill="#fbcfe8" stroke="#db2777" stroke-width="1.4" />
+        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3.2" fill="#fbcfe8" stroke="#db2777" stroke-width="1.4" />
       `;
     } else if (hole.type === 'shelf-pin') {
       return `
-        <circle cx="${cx}" cy="${cy}" r="2.5" fill="#bae6fd" stroke="#0284c7" stroke-width="1.2" />
+        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.7" fill="#bae6fd" stroke="#0284c7" stroke-width="1.2" />
       `;
     } else if (hole.type === 'drawer-rail') {
       return `
         <g class="hole-rail">
-          <circle cx="${cx}" cy="${cy}" r="3" fill="#a7f3d0" stroke="#059669" stroke-width="1.4" />
-          <line x1="${cx - 2}" y1="${cy}" x2="${cx + 2}" y2="${cy}" stroke="#059669" stroke-width="0.9" />
+          <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3.2" fill="#a7f3d0" stroke="#059669" stroke-width="1.4" />
+          <line x1="${(cx - 2).toFixed(1)}" y1="${cy.toFixed(1)}" x2="${(cx + 2).toFixed(1)}" y2="${cy.toFixed(1)}" stroke="#059669" stroke-width="0.9" />
         </g>
       `;
     }
-    return `<circle cx="${cx}" cy="${cy}" r="2" fill="#64748b" />`;
+    return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2" fill="#64748b" />`;
   }).join('');
 
+  // Верхние привязки по оси X (от заднего торца X=50 и от передней кромки 37 мм)
+  const x50Px = x0 + 50 * scale;
+  const xFront37Px = x0 + (side.d - 37) * scale;
+
   return `
-    <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:6px;">
+    <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="background:#ffffff; border:1px solid #cbd5e1; border-radius:6px;">
       <!-- Контур боковины -->
-      <rect x="${x0}" y="${y0}" width="${pw}" height="${ph}" fill="#f8fafc" stroke="#0f172a" stroke-width="2" rx="2" />
+      <rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" fill="#f8fafc" stroke="#0f172a" stroke-width="2" rx="2" />
+
+      <!-- Передняя кромка ПВХ (синий пунктир справа) и маркировка торцов -->
+      <line x1="${(x0 + pw - 2.5).toFixed(1)}" y1="${(y0 + 2).toFixed(1)}" x2="${(x0 + pw - 2.5).toFixed(1)}" y2="${(y0 + ph - 2).toFixed(1)}" stroke="#0284c7" stroke-width="2" stroke-dasharray="5,3" />
+      <text x="${(x0 - 6).toFixed(1)}" y="${(y0 + ph / 2).toFixed(1)}" transform="rotate(-90 ${(x0 - 6).toFixed(1)} ${(y0 + ph / 2).toFixed(1)})" font-family="Inter, sans-serif" font-size="8.5" font-weight="700" fill="#64748b" text-anchor="middle">ЗАДНИЙ ТОРЕЦ (ХДФ)</text>
+      <text x="${(x0 + pw - 8).toFixed(1)}" y="${(y0 + ph / 2).toFixed(1)}" transform="rotate(-90 ${(x0 + pw - 8).toFixed(1)} ${(y0 + ph / 2).toFixed(1)})" font-family="Inter, sans-serif" font-size="8.5" font-weight="700" fill="#0284c7" text-anchor="middle">ПЕРЕДНЯЯ КРОМКА ПВХ</text>
 
       <!-- Заголовок -->
-      <text x="${W / 2}" y="22" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle">${side.name}</text>
-      <text x="${W / 2}" y="38" font-family="Inter, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Сверловка под конфирматы и петли · ${side.h} × ${side.d} мм</text>
+      <text x="${W / 2}" y="22" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle">${side.name} (внутренняя пласть)</text>
+      <text x="${W / 2}" y="38" font-family="Inter, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Карта присадки ЧПУ · ${side.h} × ${side.d} × ${side.t} мм · Отверстий: ${side.holes.length} шт</text>
+
+      <!-- Верхние размерные привязки X=50 (сзади) и 37 мм (спереди, Система 32) -->
+      <line x1="${x50Px.toFixed(1)}" y1="${(y0 - 12).toFixed(1)}" x2="${x50Px.toFixed(1)}" y2="${(y0 + ph).toFixed(1)}" stroke="#e2e8f0" stroke-width="0.8" stroke-dasharray="3,3" />
+      <text x="${x50Px.toFixed(1)}" y="${(y0 - 5).toFixed(1)}" font-family="Inter, sans-serif" font-size="8.5" font-weight="700" fill="#475569" text-anchor="middle">X=50</text>
+
+      <line x1="${xFront37Px.toFixed(1)}" y1="${(y0 - 12).toFixed(1)}" x2="${xFront37Px.toFixed(1)}" y2="${(y0 + ph).toFixed(1)}" stroke="#e2e8f0" stroke-width="0.8" stroke-dasharray="3,3" />
+      <text x="${xFront37Px.toFixed(1)}" y="${(y0 - 5).toFixed(1)}" font-family="Inter, sans-serif" font-size="8.5" font-weight="700" fill="#0284c7" text-anchor="middle">37 от переда</text>
+
+      <!-- Шкала высотных отметок Y справа -->
+      <line x1="${(x0 + pw + 14).toFixed(1)}" y1="${y0.toFixed(1)}" x2="${(x0 + pw + 14).toFixed(1)}" y2="${(y0 + ph).toFixed(1)}" stroke="#94a3b8" stroke-width="0.9" />
+      ${yTicksSvg.join('')}
 
       <!-- Отверстия -->
       ${holesSvg}
 
-      <!-- Легенда обозначений отверстий -->
-      <g transform="translate(${margin - 10}, ${H - 26})">
-        <circle cx="0" cy="0" r="4" fill="#fef08a" stroke="#ca8a04" stroke-width="1.4" />
-        <text x="8" y="3.5" font-family="Inter, sans-serif" font-size="9" fill="#334155">Конфирмат 7×50</text>
-
-        <circle cx="95" cy="0" r="3" fill="#fbcfe8" stroke="#db2777" stroke-width="1.2" />
-        <text x="103" y="3.5" font-family="Inter, sans-serif" font-size="9" fill="#334155">Планка петли Ø5</text>
-
-        <circle cx="195" cy="0" r="2.5" fill="#bae6fd" stroke="#0284c7" stroke-width="1" />
-        <text x="203" y="3.5" font-family="Inter, sans-serif" font-size="9" fill="#334155">Полкодержатель Ø5</text>
-
-        <circle cx="300" cy="0" r="3" fill="#a7f3d0" stroke="#059669" stroke-width="1.2" />
-        <text x="308" y="3.5" font-family="Inter, sans-serif" font-size="9" fill="#334155">Направляющие Ø5</text>
-      </g>
-
       <!-- Габариты -->
-      <text x="${x0 + pw / 2}" y="${y0 + ph + 16}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#0f172a" text-anchor="middle">Глубина ${side.d} мм</text>
-      <text x="${x0 - 10}" y="${y0 + ph / 2}" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#0f172a" text-anchor="end">${side.h}</text>
+      <line x1="${x0.toFixed(1)}" y1="${(y0 + ph + 15).toFixed(1)}" x2="${(x0 + pw).toFixed(1)}" y2="${(y0 + ph + 15).toFixed(1)}" stroke="#334155" stroke-width="1.1" />
+      <line x1="${x0.toFixed(1)}" y1="${(y0 + ph + 11).toFixed(1)}" x2="${x0.toFixed(1)}" y2="${(y0 + ph + 19).toFixed(1)}" stroke="#334155" stroke-width="1.1" />
+      <line x1="${(x0 + pw).toFixed(1)}" y1="${(y0 + ph + 11).toFixed(1)}" x2="${(x0 + pw).toFixed(1)}" y2="${(y0 + ph + 19).toFixed(1)}" stroke="#334155" stroke-width="1.1" />
+      <text x="${(x0 + pw / 2).toFixed(1)}" y="${(y0 + ph + 29).toFixed(1)}" font-family="Inter, sans-serif" font-size="10.5" font-weight="700" fill="#0f172a" text-anchor="middle">Глубина боковины D = ${side.d} мм</text>
+
+      <line x1="${(x0 - 24).toFixed(1)}" y1="${y0.toFixed(1)}" x2="${(x0 - 24).toFixed(1)}" y2="${(y0 + ph).toFixed(1)}" stroke="#334155" stroke-width="1.1" />
+      <line x1="${(x0 - 28).toFixed(1)}" y1="${y0.toFixed(1)}" x2="${(x0 - 20).toFixed(1)}" y2="${y0.toFixed(1)}" stroke="#334155" stroke-width="1.1" />
+      <line x1="${(x0 - 28).toFixed(1)}" y1="${(y0 + ph).toFixed(1)}" x2="${(x0 - 20).toFixed(1)}" y2="${(y0 + ph).toFixed(1)}" stroke="#334155" stroke-width="1.1" />
+      <text x="${(x0 - 28).toFixed(1)}" y="${(y0 + ph / 2 + 4).toFixed(1)}" font-family="Inter, sans-serif" font-size="10" font-weight="700" fill="#0f172a" text-anchor="end">${side.h}</text>
+
+      <!-- Легенда обозначений отверстий -->
+      <g transform="translate(26, ${H - 16})">
+        <circle cx="0" cy="0" r="4" fill="#fef08a" stroke="#ca8a04" stroke-width="1.4" />
+        <text x="8" y="3.5" font-family="Inter, sans-serif" font-size="9" font-weight="600" fill="#334155">Конфирмат Ø7</text>
+
+        <circle cx="105" cy="0" r="3" fill="#fbcfe8" stroke="#db2777" stroke-width="1.2" />
+        <text x="113" y="3.5" font-family="Inter, sans-serif" font-size="9" font-weight="600" fill="#334155">Планка петли Ø5×12</text>
+
+        <circle cx="235" cy="0" r="2.5" fill="#bae6fd" stroke="#0284c7" stroke-width="1" />
+        <text x="243" y="3.5" font-family="Inter, sans-serif" font-size="9" font-weight="600" fill="#334155">Полкодержатель Ø5×10</text>
+
+        <circle cx="370" cy="0" r="3" fill="#a7f3d0" stroke="#059669" stroke-width="1.2" />
+        <text x="378" y="3.5" font-family="Inter, sans-serif" font-size="9" font-weight="600" fill="#334155">Направляющие Ø5</text>
+      </g>
     </svg>
   `;
 }
