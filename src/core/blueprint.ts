@@ -1,4 +1,5 @@
 import type { ModuleDrilling, FacadeDrilling, SidePanelDrilling } from './drilling';
+import { getTallOvenZones } from './geometry';
 
 /**
  * Создаёт SVG сборочного чертежа модуля:
@@ -75,7 +76,7 @@ export function renderAssemblyBlueprintSvg(drilling: ModuleDrilling): string {
     const fullHeight = m.h - P - 4;
     const isFullHeight = (m.doorMode === 'none' || !sec.door) && sec.shelves === 0 && (sec.rods ?? 0) === 0 && !sec.rod;
     const fhStep = nd > 0
-      ? (isTallOven ? Math.max(m.drawerH, Math.round(440 / nd)) : isFullHeight ? fullHeight / nd : Math.min(m.drawerH, fullHeight / nd))
+      ? (isTallOven ? Math.min(m.drawerH || 360, fullHeight / nd) : isFullHeight ? fullHeight / nd : Math.min(m.drawerH, fullHeight / nd))
       : 0;
     const zoneTop = nd > 0 ? P + Math.round(nd * fhStep) : P + t;
 
@@ -98,36 +99,29 @@ export function renderAssemblyBlueprintSvg(drilling: ModuleDrilling): string {
       `);
     }
 
-    // Ниши под духовку и СВЧ в пенале
+    // Ниши под духовку и СВЧ в пенале (единый расчёт с 3D-моделью)
     const zTop = m.h - t;
+    const zones = getTallOvenZones(m);
     let upperZoneBottom = zoneTop;
-    if (isTallOven && idx === 0) {
-      const yOv0 = nd > 0 ? zoneTop + t : P + 450 + t;
-      const ovH = 595;
-      const yOv1 = yOv0 + ovH;
-      if (yOv1 + t < zTop - 180) {
-        frontElements.push(`
-          <rect x="${(secX0 + 3).toFixed(1)}" y="${fY(yOv1).toFixed(1)}" width="${Math.max(6, secW - 6).toFixed(1)}" height="${(ovH * fScale).toFixed(1)}" fill="#f1f5f9" stroke="#334155" stroke-width="1.2" rx="2" />
-          <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((yOv0 + yOv1) / 2) - 2).toFixed(1)}" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="#0f172a" text-anchor="middle">НИША ДУХОВКИ</text>
-          <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((yOv0 + yOv1) / 2) + 10).toFixed(1)}" font-family="Inter, sans-serif" font-size="8.5" font-weight="600" fill="#475569" text-anchor="middle">H = 595 мм</text>
-          <rect x="${secX0.toFixed(1)}" y="${fY(yOv1 + t).toFixed(1)}" width="${secW.toFixed(1)}" height="${tPx.toFixed(1)}" fill="#94a3b8" stroke="#0f172a" stroke-width="1.1" />
-        `);
-        frontDimsY.push({ yMm: Math.round(yOv1), label: String(Math.round(yOv1)) });
-        upperZoneBottom = yOv1 + t;
+    if (isTallOven && idx === 0 && zones.hasOven) {
+      frontElements.push(`
+        <rect x="${(secX0 + 3).toFixed(1)}" y="${fY(zones.yOv1).toFixed(1)}" width="${Math.max(6, secW - 6).toFixed(1)}" height="${(zones.ovenH * fScale).toFixed(1)}" fill="#f1f5f9" stroke="#334155" stroke-width="1.2" rx="2" />
+        <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((zones.yOv0 + zones.yOv1) / 2) - 2).toFixed(1)}" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="#0f172a" text-anchor="middle">НИША ДУХОВКИ</text>
+        <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((zones.yOv0 + zones.yOv1) / 2) + 10).toFixed(1)}" font-family="Inter, sans-serif" font-size="8.5" font-weight="600" fill="#475569" text-anchor="middle">H = ${zones.ovenH} мм</text>
+        <rect x="${secX0.toFixed(1)}" y="${fY(zones.yOv1 + t).toFixed(1)}" width="${secW.toFixed(1)}" height="${tPx.toFixed(1)}" fill="#94a3b8" stroke="#0f172a" stroke-width="1.1" />
+      `);
+      frontDimsY.push({ yMm: Math.round(zones.yOv1), label: String(Math.round(zones.yOv1)) });
+      upperZoneBottom = zones.yOv1 + t;
 
-        const mwH = 380;
-        const yMw0 = yOv1 + t;
-        const yMw1 = yMw0 + mwH;
-        if (/свч/i.test(m.name) && yMw1 + t < zTop - 220) {
-          frontElements.push(`
-            <rect x="${(secX0 + 3).toFixed(1)}" y="${fY(yMw1).toFixed(1)}" width="${Math.max(6, secW - 6).toFixed(1)}" height="${(mwH * fScale).toFixed(1)}" fill="#f1f5f9" stroke="#334155" stroke-width="1.2" rx="2" />
-            <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((yMw0 + yMw1) / 2) - 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="8.5" font-weight="700" fill="#0f172a" text-anchor="middle">НИША СВЧ</text>
-            <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((yMw0 + yMw1) / 2) + 9).toFixed(1)}" font-family="Inter, sans-serif" font-size="8" font-weight="600" fill="#475569" text-anchor="middle">H = 380 мм</text>
-            <rect x="${secX0.toFixed(1)}" y="${fY(yMw1 + t).toFixed(1)}" width="${secW.toFixed(1)}" height="${tPx.toFixed(1)}" fill="#94a3b8" stroke="#0f172a" stroke-width="1.1" />
-          `);
-          frontDimsY.push({ yMm: Math.round(yMw1), label: String(Math.round(yMw1)) });
-          upperZoneBottom = yMw1 + t;
-        }
+      if (zones.hasMw) {
+        frontElements.push(`
+          <rect x="${(secX0 + 3).toFixed(1)}" y="${fY(zones.yMw1).toFixed(1)}" width="${Math.max(6, secW - 6).toFixed(1)}" height="${(zones.mwH * fScale).toFixed(1)}" fill="#f1f5f9" stroke="#334155" stroke-width="1.2" rx="2" />
+          <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((zones.yMw0 + zones.yMw1) / 2) - 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="8.5" font-weight="700" fill="#0f172a" text-anchor="middle">НИША СВЧ</text>
+          <text x="${(secX0 + secW / 2).toFixed(1)}" y="${(fY((zones.yMw0 + zones.yMw1) / 2) + 9).toFixed(1)}" font-family="Inter, sans-serif" font-size="8" font-weight="600" fill="#475569" text-anchor="middle">H = ${zones.mwH} мм</text>
+          <rect x="${secX0.toFixed(1)}" y="${fY(zones.yMw1 + t).toFixed(1)}" width="${secW.toFixed(1)}" height="${tPx.toFixed(1)}" fill="#94a3b8" stroke="#0f172a" stroke-width="1.1" />
+        `);
+        frontDimsY.push({ yMm: Math.round(zones.yMw1), label: String(Math.round(zones.yMw1)) });
+        upperZoneBottom = zones.yMw1 + t;
       }
     } else if (isOvenBase && idx === 0) {
       const yOv0 = zoneTop + t;
@@ -143,7 +137,7 @@ export function renderAssemblyBlueprintSvg(drilling: ModuleDrilling): string {
     // Полки в верхней/основной зоне
     const shelfBase = isTallOven && idx === 0 ? upperZoneBottom : zoneTop;
     const shelfZoneH = zTop - shelfBase;
-    const nShelvesToDraw = isTallOven && idx === 0 ? Math.max(1, sec.shelves - 2) : (isOvenBase ? 0 : sec.shelves);
+    const nShelvesToDraw = isOvenBase ? 0 : sec.shelves;
     let prevY = shelfBase;
     for (let k = 1; k <= nShelvesToDraw; k++) {
       const yShelf = shelfBase + (k * shelfZoneH) / (nShelvesToDraw + 1);

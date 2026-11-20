@@ -1,6 +1,6 @@
 import { KIND_LABEL, LIMITS, PRESETS, PRESET_GROUPS, isCorner, isWall } from '../core/defaults';
 import type { Estimate } from '../core/estimate';
-import { buildModule } from '../core/geometry';
+import { buildModule, getTallOvenZones } from '../core/geometry';
 import type { DoorMode, Material, MatKind, Module, Section } from '../core/types';
 import { fmtNum, money, uid } from '../core/util';
 import { applyTopTrimToUpperRow, getActiveTopTrimH, isSameVerticalTier, resizeHeightWithStack, resizeModuleCascading, shiftModuleCascading, insertFillerWithShift, syncTierDepth, syncTierHeight } from '../core/collision';
@@ -773,7 +773,24 @@ export function renderProps(root: HTMLElement, store: Store): void {
       ));
     });
 
-    contentArea.append(presetsWrap, sectionsList);
+    const zones = getTallOvenZones(m);
+    const applianceZonesCard = zones.isTallOven ? h('div', {
+      style: 'background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:8px 10px; display:flex; flex-direction:column; gap:6px;',
+    },
+      h('span', { class: 'fld-l', style: 'color:#0f172a; font-weight:700;' }, 'Высоты зон техники (снизу вверх)'),
+      h('div', { class: 'grid2' },
+        numField('Нижний отсек / ящик', 'drh', m.drawerH || 360, LIMITS.drawerH, (v) => set((t) => { t.drawerH = v; }, 'drh')),
+        numField('Ниша духовки', 'ovenH', m.ovenH ?? 600, [350, 750], (v) => set((t) => { t.ovenH = v; }, 'ovenH')),
+        numField('Ниша СВЧ (0 = нет)', 'mwH', m.mwH ?? (/свч/i.test(m.name) ? 380 : 0), [0, 550], (v) => set((t) => { t.mwH = v; }, 'mwH')),
+      ),
+      h('div', { style: 'font-size:11px; color:#475569; font-weight:600;' },
+        `Верхний шкаф (остаток с полками): ${Math.max(0, Math.round((m.h - (m.t || 16)) - zones.upperZoneBottom))} мм`,
+      ),
+    ) : null;
+
+    contentArea.append(presetsWrap);
+    if (applianceZonesCard) contentArea.append(applianceZonesCard);
+    contentArea.append(sectionsList);
 
   } else if (activePropTab === 'facades') {
     // Вкладка 3: Фасады и ручки
@@ -784,6 +801,18 @@ export function renderProps(root: HTMLElement, store: Store): void {
       segmented('Тип дверей', doorOpts, m.doorMode, (v) => set((t) => { t.doorMode = v; })),
     ];
     if (m.doorMode === 'hinged') {
+      facadeNodes.push(
+        segmented('Створок на секцию', [
+          ['auto', 'Авто'],
+          [1, '1 дверь'],
+          [2, '2 двери'],
+        ] as ['auto' | 1 | 2, string][], m.doorCount ?? 'auto', (v) => {
+          set((t) => {
+            if (v === 'auto') delete t.doorCount;
+            else t.doorCount = v;
+          });
+        }),
+      );
       if (m.sections.length === 1) {
         const curHinge = m.hinge ?? 'left';
         facadeNodes.push(

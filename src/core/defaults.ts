@@ -220,7 +220,7 @@ export const LIMITS = {
   shelves: [0, 12],
   drawers: [0, 6],
   rods: [0, 2],
-  drawerH: [100, 400],
+  drawerH: [100, 650],
   sliding: [2, 4],
   x: [-10000, 30000],
 } as const;

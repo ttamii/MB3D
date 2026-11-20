@@ -52,9 +52,46 @@ function doorHandle(
 
 export function isDoubleDoorSection(m: Module, segW: number): boolean {
   if (m.hinge === 'top') return false;
+  if (m.doorCount === 1) return false;
+  if (m.doorCount === 2) return true;
   if (segW > 620) return true;
   if (segW >= 540 && /сушк|двухдвер|посуд|2\s*ств|2\s*двер/i.test(m.name)) return true;
   return false;
+}
+
+export interface TallOvenZones {
+  isTallOven: boolean;
+  yHor1: number;
+  yOv0: number;
+  yOv1: number;
+  ovenH: number;
+  hasOven: boolean;
+  yMw0: number;
+  yMw1: number;
+  mwH: number;
+  hasMw: boolean;
+  upperZoneBottom: number;
+}
+
+/** Рассчитывает точные высотные отметки зон пенала под духовку и СВЧ (единый источник для 3D, присадки и чертежей). */
+export function getTallOvenZones(m: Module): TallOvenZones {
+  const isTallOven = m.kind === 'tall' && /духов|свч/i.test(m.name);
+  const t = m.t || 16;
+  const P = isWall(m.kind) ? 0 : m.plinth;
+  const zTop = m.h - t;
+  const nd = m.sections[0]?.drawers ?? 0;
+  const fhStep = nd > 0 ? Math.min(m.drawerH || 360, (m.h - P - 4) / nd) : 0;
+  const yHor1 = nd > 0 ? P + Math.round(nd * fhStep) : P + 450;
+  const ovenH = m.ovenH ?? 600;
+  const yOv0 = yHor1 + t;
+  const yOv1 = yOv0 + ovenH;
+  const hasOven = isTallOven && yOv1 + t < zTop - 160;
+  const mwH = m.mwH ?? (/свч/i.test(m.name) ? 380 : 0);
+  const yMw0 = yOv1 + t;
+  const yMw1 = yMw0 + mwH;
+  const hasMw = hasOven && mwH > 0 && yMw1 + t < zTop - 160;
+  const upperZoneBottom = hasMw ? yMw1 + t : hasOven ? yOv1 + t : (nd > 0 ? yHor1 : P + t);
+  return { isTallOven, yHor1, yOv0, yOv1, ovenH, hasOven, yMw0, yMw1, mwH, hasMw, upperZoneBottom };
 }
 
 function frontDoor(
@@ -322,31 +359,34 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
     const fullHeight = H - P - 4;
     const isFullHeight = (m.doorMode === 'none' || !sec.door) && sec.shelves === 0 && (sec.rods ?? 0) === 0 && !sec.rod;
     const fhStep = nd > 0
-      ? (isTallOven ? Math.max(m.drawerH, Math.round(440 / nd)) : isFullHeight ? fullHeight / nd : Math.min(m.drawerH, fullHeight / nd))
+      ? (isTallOven ? Math.min(m.drawerH || 360, fullHeight / nd) : isFullHeight ? fullHeight / nd : Math.min(m.drawerH, fullHeight / nd))
       : 0;
     const zoneTop = nd > 0 ? P + Math.round(nd * fhStep) : P + t;
 
-    // сегмент фасада по центру перегородок (с учётом утопленной глухой зоны и планки 30 мм в углу)
+    // сегмент фасада по центру перегородок (с учётом утопленной глухой зоны и L-планки в углу)
     const segL = i === 0 ? 0 : x0 - t / 2;
     const segR = i === n - 1 ? W : x0 + cw + t / 2;
     let fx0 = segL + (i === 0 ? 1 : 1.5);
     let fx1 = segR - (i === n - 1 ? 1 : 1.5);
+    let openZoneX0 = x0;
+    let openZoneW = cw;
 
     const hasBlind = m.blindSide && (m.blindW ?? 0) > 0 && ((m.blindSide === 'left' && i === 0) || (m.blindSide === 'right' && i === n - 1));
     if (hasBlind) {
-      const blindW = Math.min(Math.round((segR - segL) - 150), Math.max(100, m.blindW ?? 330));
-      const fillerW = Math.min(80, Math.max(16, m.blindFillerW ?? 30));
+      const blindW = Math.min(Math.round((segR - segL) - 150), Math.max(100, m.blindW ?? 350));
+      const fillerW = Math.min(100, Math.max(16, m.blindFillerW ?? 50));
       const blindPanelW = Math.max(40, blindW - fillerW);
       if (m.blindSide === 'left') {
-        // Глухая заглушка утоплена за перпендикулярный шкаф + L-образная угловая планка (лицевая + возврат 90°)
-        // чтобы открывающиеся двери и ручки перпендикулярных стен гарантированно не бились друг о друга
+        // Глухая заглушка + L-планка угла + полноценная внутренняя стенка-перегородка по линии blindW
         b.box('Глухая заглушка (угловая)', 'corpus', [1, P + 2, D - t], [blindPanelW, bodyH - 4, t], 2 * (blindPanelW + bodyH));
         b.box(`Угловая планка ${fillerW} мм`, 'facade', [blindPanelW, P + 2, D], [fillerW, bodyH - 4, FACADE_T], 2 * (fillerW + bodyH));
         if (fillerW > FACADE_T) {
           b.box(`Угловая планка возврат`, 'facade', [blindPanelW, P + 2, D + FACADE_T], [FACADE_T, bodyH - 4, fillerW - FACADE_T], 2 * (fillerW - FACADE_T + bodyH));
         }
-        b.box('Ответная планка угла', 'corpus', [blindW - t, P + 2, D - 48], [t, bodyH - 4, 48], bodyH);
+        b.box('Стенка-перегородка угла', 'corpus', [blindW - t, P + t, BK], [t, Hi, D - BK], Hi);
         fx0 = blindW + 2;
+        openZoneX0 = blindW;
+        openZoneW = Math.max(120, (x0 + cw) - blindW);
       } else {
         const xStart = segR - blindW;
         b.box('Глухая заглушка (угловая)', 'corpus', [xStart + fillerW, P + 2, D - t], [blindPanelW, bodyH - 4, t], 2 * (blindPanelW + bodyH));
@@ -354,10 +394,11 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
         if (fillerW > FACADE_T) {
           b.box(`Угловая планка возврат`, 'facade', [xStart + fillerW - FACADE_T, P + 2, D + FACADE_T], [FACADE_T, bodyH - 4, fillerW - FACADE_T], 2 * (fillerW - FACADE_T + bodyH));
         }
-        b.box('Ответная планка угла', 'corpus', [xStart, P + 2, D - 48], [t, bodyH - 4, 48], bodyH);
+        b.box('Стенка-перегородка угла', 'corpus', [xStart, P + t, BK], [t, Hi, D - BK], Hi);
         fx1 = xStart - 2;
+        openZoneW = Math.max(120, xStart - x0);
       }
-      b.add('confirmat', 4);
+      b.add('confirmat', 6);
     }
 
     // ящики
@@ -427,42 +468,36 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
       }
     }
 
-    // Расчёт открытой ниши под встроенную духовку (595 мм) и СВЧ (380 мм) в пенале
+    // Расчёт открытой ниши под встроенную духовку и СВЧ в пенале (полностью настраиваемые высоты)
     const zTop = H - t;
+    const zones = getTallOvenZones(m);
     let upperZoneBottom = zoneTop;
     if (isTallOven && i === 0) {
-      const yOv0 = nd > 0 ? zoneTop + t : P + 450 + t;
       if (nd === 0) {
-        b.box('Горизонт под духовку', 'corpus', [x0, P + 450, BK], [cw, t, D - BK], cw);
+        b.box('Горизонт под духовку', 'corpus', [x0, zones.yHor1, BK], [cw, t, D - BK], cw);
         b.add('confirmat', 4);
       }
-      const ovH = 595;
-      const yOv1 = yOv0 + ovH;
-      if (yOv1 + t < zTop - 180) {
-        b.box('Горизонт над духовкой', 'corpus', [x0, yOv1, BK], [cw, t, D - BK], cw);
+      if (zones.hasOven) {
+        b.box('Горизонт над духовкой', 'corpus', [x0, zones.yOv1, BK], [cw, t, D - BK], cw);
         b.add('confirmat', 4);
         if (cw >= 360) {
-          b.decor('Духовой шкаф: корпус', 'black', [x0 + 2, yOv0 + 2, Math.max(BK + 20, D - 45)], [cw - 4, ovH - 4, 42]);
-          b.decor('Духовой шкаф: панель управления', 'metal', [x0 + 4, yOv1 - 92, D - 2], [cw - 8, 86, 4]);
-          b.decor('Духовой шкаф: дисплей', 'black', [x0 + cw / 2 - 55, yOv1 - 72, D + 1], [110, 42, 3]);
-          b.decor('Духовой шкаф: панорамное стекло', 'black', [x0 + 4, yOv0 + 6, D - 2], [cw - 8, Math.max(80, ovH - 104), 5]);
-          b.decor('Духовой шкаф: ручка', 'handle', [x0 + 36, yOv1 - 126, D + 3], [cw - 72, 12, 20]);
+          b.decor('Духовой шкаф: корпус', 'black', [x0 + 2, zones.yOv0 + 2, Math.max(BK + 20, D - 45)], [cw - 4, zones.ovenH - 4, 42]);
+          b.decor('Духовой шкаф: панель управления', 'metal', [x0 + 4, zones.yOv1 - 92, D - 2], [cw - 8, 86, 4]);
+          b.decor('Духовой шкаф: дисплей', 'black', [x0 + cw / 2 - 55, zones.yOv1 - 72, D + 1], [110, 42, 3]);
+          b.decor('Духовой шкаф: панорамное стекло', 'black', [x0 + 4, zones.yOv0 + 6, D - 2], [cw - 8, Math.max(80, zones.ovenH - 104), 5]);
+          b.decor('Духовой шкаф: ручка', 'handle', [x0 + 36, zones.yOv1 - 126, D + 3], [cw - 72, 12, 20]);
         }
-        upperZoneBottom = yOv1 + t;
+        upperZoneBottom = zones.yOv1 + t;
 
-        // Вторая ниша под СВЧ (380 мм), если позволяет высота пенала
-        const mwH = 380;
-        const yMw0 = yOv1 + t;
-        const yMw1 = yMw0 + mwH;
-        if (/свч/i.test(m.name) && yMw1 + t < zTop - 220) {
-          b.box('Горизонт над СВЧ', 'corpus', [x0, yMw1, BK], [cw, t, D - BK], cw);
+        if (zones.hasMw) {
+          b.box('Горизонт над СВЧ', 'corpus', [x0, zones.yMw1, BK], [cw, t, D - BK], cw);
           b.add('confirmat', 4);
           if (cw >= 360) {
-            b.decor('СВЧ встроенная: рамка', 'metal', [x0 + 2, yMw0 + 2, D - 3], [cw - 4, mwH - 4, 4]);
-            b.decor('СВЧ встроенная: стекло дверцы', 'black', [x0 + 18, yMw0 + 18, D + 1], [Math.max(120, cw - 130), mwH - 36, 3]);
-            b.decor('СВЧ встроенная: панель управления', 'black', [x0 + cw - 102, yMw0 + 18, D + 1], [84, mwH - 36, 3]);
+            b.decor('СВЧ встроенная: рамка', 'metal', [x0 + 2, zones.yMw0 + 2, D - 3], [cw - 4, zones.mwH - 4, 4]);
+            b.decor('СВЧ встроенная: стекло дверцы', 'black', [x0 + 18, zones.yMw0 + 18, D + 1], [Math.max(120, cw - 130), zones.mwH - 36, 3]);
+            b.decor('СВЧ встроенная: панель управления', 'black', [x0 + cw - 102, zones.yMw0 + 18, D + 1], [84, zones.mwH - 36, 3]);
           }
-          upperZoneBottom = yMw1 + t;
+          upperZoneBottom = zones.yMw1 + t;
         }
       }
     }
@@ -541,10 +576,10 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
         b.decor('Сушилка хромированная (чашки)', 'metal', [x0 + 2, yCups, BK + 10], [cw - 4, 12, D - BK - 28]);
         b.add('pin', 8);
       } else {
-        const nShelvesToPlace = isTallOven && i === 0 ? Math.max(1, sec.shelves - 2) : sec.shelves;
+        const nShelvesToPlace = sec.shelves;
         for (let k = 1; k <= nShelvesToPlace; k++) {
           const y = shelfZoneBase + (k * zoneH) / (nShelvesToPlace + 1) - t / 2;
-          b.box('Полка', 'corpus', [x0, y, BK], [cw, t, D - BK - 20], cw);
+          b.box('Полка', 'corpus', [openZoneX0, y, BK], [openZoneW, t, D - BK - 20], openZoneW);
           b.add('pin', 4);
         }
       }
@@ -585,7 +620,7 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
               if (n > 1) {
                 desired = i < n / 2 ? 'left' : 'right';
               } else {
-                desired = m.hinge === 'right' ? 'right' : 'left';
+                desired = m.hinge ? (m.hinge === 'right' ? 'right' : 'left') : (m.blindSide === 'left' ? 'right' : 'left');
               }
               hinge = m.mirror ? (desired === 'left' ? 'right' : 'left') : desired;
             }

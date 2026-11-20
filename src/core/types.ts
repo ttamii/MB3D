@@ -50,6 +50,12 @@ export interface Module {
   blindW?: number;
   /** Ширина угловой планки-компенсатора между перпендикулярными шкафами, мм (стандарт 30 мм). */
   blindFillerW?: number;
+  /** Принудительное количество створок на секцию ('auto' | 1 | 2). */
+  doorCount?: 'auto' | 1 | 2;
+  /** Высота ниши под духовой шкаф в пенале, мм (по умолчанию 600). */
+  ovenH?: number;
+  /** Высота ниши под встроенную СВЧ в пенале, мм (по умолчанию 380, 0 = без СВЧ). */
+  mwH?: number;
 }
 
 export type ProjectStatus = 'draft' | 'approved' | 'production' | 'done';

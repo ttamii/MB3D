@@ -1,4 +1,4 @@
-import { hingesFor, isDoubleDoorSection } from './geometry';
+import { getTallOvenZones, hingesFor, isDoubleDoorSection } from './geometry';
 import type { Module, Part } from './types';
 
 export interface Hole {
@@ -104,33 +104,20 @@ export function computeModuleDrilling(m: Module, builtParts: Part[]): ModuleDril
   const cw = (Wi - (n - 1) * t) / n;
   const cellX = (i: number) => t + i * (cw + t);
 
-  const isTallOven = m.kind === 'tall' && /духов|свч/i.test(m.name);
-  const zTop = H - t;
+  const zones = getTallOvenZones(m);
+  const isTallOven = zones.isTallOven;
 
   m.sections.forEach((s, i) => {
     if (m.doorMode !== 'hinged' || !s.door) return;
     const nd = s.drawers;
     const fullHeight = H - P - 4;
     const fhStep = nd > 0
-      ? (isTallOven ? Math.max(m.drawerH, Math.round(440 / nd)) : Math.min(m.drawerH, fullHeight / nd))
+      ? (isTallOven ? Math.min(m.drawerH || 360, fullHeight / nd) : Math.min(m.drawerH, fullHeight / nd))
       : 0;
     const zoneTop = nd > 0 ? P + Math.round(nd * fhStep) : P + t;
 
-    let upperZoneBottom = zoneTop;
-    if (isTallOven && i === 0) {
-      const yOv0 = nd > 0 ? zoneTop + t : P + 450 + t;
-      const yOv1 = yOv0 + 595;
-      if (yOv1 + t < zTop - 180) {
-        upperZoneBottom = yOv1 + t;
-        const yMw1 = yOv1 + t + 380;
-        if (/свч/i.test(m.name) && yMw1 + t < zTop - 220) {
-          upperZoneBottom = yMw1 + t;
-        }
-      }
-    }
-
-    const y0 = isTallOven && i === 0 && upperZoneBottom > zoneTop
-      ? upperZoneBottom - Math.round(t / 2) + 1
+    const y0 = isTallOven && i === 0 && zones.upperZoneBottom > zoneTop
+      ? zones.upperZoneBottom - Math.round(t / 2) + 1
       : (nd > 0 ? P + 2 + Math.round(nd * fhStep) : P + 2);
     const y1 = H - 2;
     const doorH = y1 - y0;
@@ -255,26 +242,26 @@ export function computeModuleDrilling(m: Module, builtParts: Part[]): ModuleDril
 
     const nd = targetSection?.drawers ?? 0;
     const fhStepSide = nd > 0
-      ? (isTallOven ? Math.max(m.drawerH, Math.round(440 / nd)) : Math.min(m.drawerH, (H - P - 4) / nd))
+      ? (isTallOven ? Math.min(m.drawerH || 360, (H - P - 4) / nd) : Math.min(m.drawerH, (H - P - 4) / nd))
       : 0;
     const zoneTopRel = nd > 0 ? Math.round(nd * fhStepSide) : t;
     let upperZoneBottomRel = zoneTopRel;
 
     if (isTallOven) {
-      const yHor1 = nd > 0 ? zoneTopRel : 450;
+      const yHor1Rel = zones.yHor1 - P;
       holes.push(
-        { x: 50, y: yHor1 + Math.round(t / 2), diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат горизонта под духовку (задний)' },
-        { x: sideD - 50, y: yHor1 + Math.round(t / 2), diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат горизонта под духовку (передний)' },
+        { x: 50, y: yHor1Rel + Math.round(t / 2), diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат горизонта под духовку (задний)' },
+        { x: sideD - 50, y: yHor1Rel + Math.round(t / 2), diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат горизонта под духовку (передний)' },
       );
-      const yOv1Rel = yHor1 + t + 595;
-      if (yOv1Rel + t < sideH - t - 180) {
+      if (zones.hasOven) {
+        const yOv1Rel = zones.yOv1 - P;
         holes.push(
           { x: 50, y: yOv1Rel + Math.round(t / 2), diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат горизонта над духовкой (задний)' },
           { x: sideD - 50, y: yOv1Rel + Math.round(t / 2), diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат горизонта над духовкой (передний)' },
         );
         upperZoneBottomRel = yOv1Rel + t;
-        const yMw1Rel = yOv1Rel + t + 380;
-        if (/свч/i.test(m.name) && yMw1Rel + t < sideH - t - 220) {
+        if (zones.hasMw) {
+          const yMw1Rel = zones.yMw1 - P;
           holes.push(
             { x: 50, y: yMw1Rel + Math.round(t / 2), diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат горизонта над СВЧ (задний)' },
             { x: sideD - 50, y: yMw1Rel + Math.round(t / 2), diam: 7, depth: 16, type: 'confirmat', desc: 'Конфирмат горизонта над СВЧ (передний)' },
@@ -304,8 +291,7 @@ export function computeModuleDrilling(m: Module, builtParts: Part[]): ModuleDril
     }
 
     // Отверстия под полкодержатели (Ø5 мм, глубина 10 мм)
-    const rawShelves = targetSection?.shelves ?? 0;
-    const shelvesCount = isTallOven ? Math.max(1, rawShelves - 2) : rawShelves;
+    const shelvesCount = targetSection?.shelves ?? 0;
     if (shelvesCount > 0) {
       const zoneTop = sideH - t;
       const zoneBottom = isTallOven ? upperZoneBottomRel : zoneTopRel;

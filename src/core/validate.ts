@@ -59,6 +59,9 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
   const blindSide = r.blindSide === 'left' || r.blindSide === 'right' ? r.blindSide : undefined;
   const blindW = blindSide ? int(r.blindW, 330, 100, Math.max(150, w - 150)) : undefined;
   const blindFillerW = blindSide ? int(r.blindFillerW, 30, 16, 100) : undefined;
+  const doorCount = r.doorCount === 1 || r.doorCount === 2 ? r.doorCount : undefined;
+  const ovenH = typeof r.ovenH === 'number' ? int(r.ovenH, 600, 350, 750) : undefined;
+  const mwH = typeof r.mwH === 'number' ? int(r.mwH, 380, 0, 550) : undefined;
 
   return {
     id: typeof r.id === 'string' && /^[\w-]{1,40}$/.test(r.id) ? r.id : uid(),
@@ -88,6 +91,9 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
     ...(topTrim ? { topTrim } : {}),
     ...(modWall && modWall !== 'back' ? { wall: modWall } : {}),
     ...(blindSide ? { blindSide, blindW, blindFillerW } : {}),
+    ...(doorCount ? { doorCount } : {}),
+    ...(ovenH !== undefined ? { ovenH } : {}),
+    ...(mwH !== undefined ? { mwH } : {}),
   };
 }
 
