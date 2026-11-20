@@ -322,7 +322,7 @@ export function renderModules(root: HTMLElement, store: Store, est: Estimate): v
         h('span', { class: 'mod-name' }, m.name),
         h('span', { class: 'mod-price' }, money(est.perModule[m.id] ?? 0))),
       h('div', { class: 'mod-bottom' },
-        h('div', { class: 'mod-sub' }, `${KIND_LABEL[m.kind]} · ${m.w}×${m.h}×${m.d} · X:${m.x}`,
+        h('div', { class: 'mod-sub' }, `${m.wall === 'left' ? '[Лев] ' : m.wall === 'right' ? '[Прав] ' : ''}${KIND_LABEL[m.kind]} · ${m.w}×${m.h}×${m.d} · X:${m.x}`,
           overlaps.has(m.id) ? h('em', { class: 'warn', title: 'Модуль пересекается с соседним — измените позицию X или нажмите «В ряд»' }, 'пересечение') : null),
         h('div', { class: 'mod-act' },
           h('button', { type: 'button', class: 'ib', title: 'Выше в списке', 'aria-label': 'Выше', disabled: i === 0, onClick: (e: Event) => { e.stopPropagation(); store.move(m.id, -1); } }, icon('up', 13)),
@@ -835,10 +835,10 @@ export function renderProps(root: HTMLElement, store: Store): void {
     }
     if (!corner && m.kind !== 'wardrobe') {
       const curBlind = m.blindSide ?? 'none';
-      const defaultBlindW = wall ? 330 : 530;
+      const defaultBlindW = wall ? 350 : 550;
       facadeNodes.push(
         h('div', { style: 'background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:8px 10px; display:flex; flex-direction:column; gap:7px;' },
-          segmented('Угловой стык (глухая зона + планка)', [
+          segmented('Угловой стык (глухая зона + L-планка)', [
             ['none', 'Нет'],
             ['left', 'Утоплен слева'],
             ['right', 'Утоплен справа'],
@@ -851,13 +851,13 @@ export function renderProps(root: HTMLElement, store: Store): void {
               } else {
                 t.blindSide = v;
                 t.blindW = t.blindW ?? defaultBlindW;
-                t.blindFillerW = t.blindFillerW ?? 30;
+                t.blindFillerW = t.blindFillerW ?? 50;
               }
             });
           }),
           curBlind !== 'none' ? h('div', { class: 'grid2' },
             numField('Глухая зона (мм)', 'blindW', m.blindW ?? defaultBlindW, [100, Math.max(150, m.w - 150)], (v) => set((t) => { t.blindW = v; }, 'blindW')),
-            numField('Угловая планка (мм)', 'blindFillerW', m.blindFillerW ?? 30, [16, 100], (v) => set((t) => { t.blindFillerW = v; }, 'blindFillerW')),
+            numField('L-планка угла (мм)', 'blindFillerW', m.blindFillerW ?? 50, [16, 100], (v) => set((t) => { t.blindFillerW = v; }, 'blindFillerW')),
           ) : null,
         ),
       );

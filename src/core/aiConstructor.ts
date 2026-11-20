@@ -412,41 +412,41 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
 
     const sketchModules: Module[] = [
       // Задняя стена 3930 мм — нижний ярус (глубина 500 мм):
-      // 0..1230: угловая прямая мойка (500 утоплено в левый угол + 30 мм планка от удара дверей + 700 мм фасад мойки)
-      mk({ name: 'Модуль под мойку (угловой)', kind: 'base', x: 0, w: 1230, h: 820, d: 500, countertop: true, blindSide: 'left', blindW: 530, blindFillerW: 30, sections: [sec({ shelves: 0 })] }),
-      mk({ name: 'Модуль с 2 ящиками', kind: 'base', x: 1230, w: 600, h: 820, d: 500, countertop: true, doorMode: 'none', drawerH: 355, sections: [sec({ drawers: 2, door: false })] }),
-      mk({ name: 'Модуль под варочную поверхность', kind: 'base', x: 1830, w: 600, h: 820, d: 500, countertop: true, doorMode: 'none', drawerH: 355, sections: [sec({ drawers: 2, door: false })] }),
-      mk({ name: 'Модуль с 3 ящиками', kind: 'base', x: 2430, w: 450, h: 820, d: 500, countertop: true, doorMode: 'none', drawerH: 238, sections: [sec({ drawers: 3, door: false })] }),
-      mk({ name: 'Нижний модуль (полки)', kind: 'base', x: 2880, w: 450, h: 820, d: 500, countertop: true, sections: [sec({ shelves: 1 })] }),
+      // 0..1250: угловая прямая мойка (500 утоплено за боковой шкаф + L-планка 50 мм с зазором 34 мм от фасадов/ручек + 700 мм 2 дверцы под мойку!)
+      mk({ name: 'Модуль под мойку (угловой)', kind: 'base', x: 0, w: 1250, h: 820, d: 500, countertop: true, blindSide: 'left', blindW: 550, blindFillerW: 50, sections: [sec({ shelves: 0 })] }),
+      // Выдвижная сушка для посуды в модуле с 2 ящиками!
+      mk({ name: 'Модуль с 2 ящиками (сушка посуды)', kind: 'base', x: 1250, w: 600, h: 820, d: 500, countertop: true, doorMode: 'none', drawerH: 355, sections: [sec({ drawers: 2, door: false })] }),
+      mk({ name: 'Модуль под варочную поверхность', kind: 'base', x: 1850, w: 600, h: 820, d: 500, countertop: true, doorMode: 'none', drawerH: 355, sections: [sec({ drawers: 2, door: false })] }),
+      mk({ name: 'Модуль с 3 ящиками', kind: 'base', x: 2450, w: 450, h: 820, d: 500, countertop: true, doorMode: 'none', drawerH: 238, sections: [sec({ drawers: 3, door: false })] }),
+      mk({ name: 'Нижний модуль (полки)', kind: 'base', x: 2900, w: 430, h: 820, d: 500, countertop: true, sections: [sec({ shelves: 1 })] }),
       mk({ name: 'Холодильник (невстроенный)', kind: 'tall', x: 3330, w: 600, h: 2050, d: 600, plinth: 0, doorMode: 'none', sections: [sec({ shelves: 0, door: false })] }),
       mk({ name: 'Антресоль над холодильником', kind: 'wall', x: 3330, w: 600, h: 530, d: 500, lift: 2070, hinge: 'top', topTrim: 60, sections: [sec({ shelves: 0 })] }),
 
-      // Задняя стена — верхний ярус (800 мм, глубина 300 мм):
-      // 0..1030: угловая сушка для посуды 2 двери (300 утоплено за боковой шкаф + 30 мм планка + 700 мм 2 дверцы сушки)
-      mk({ name: 'Сушка для посуды угловая (2 двери)', kind: 'wall', x: 0, w: 1030, h: 800, d: 300, lift: 1400, blindSide: 'left', blindW: 330, blindFillerW: 30, sections: [sec({ shelves: 2 })] }),
-      mk({ name: 'Верхний шкаф (стыковой)', kind: 'wall', x: 1030, w: 200, h: 800, d: 300, lift: 1400, sections: [sec({ shelves: 2 })] }),
-      mk({ name: 'Верхний шкаф', kind: 'wall', x: 1230, w: 600, h: 800, d: 300, lift: 1400, sections: [sec({ shelves: 2 })] }),
-      mk({ name: 'Шкаф под встроенную вытяжку', kind: 'wall', x: 1830, w: 600, h: 800, d: 300, lift: 1400, sections: [sec({ shelves: 1 })] }),
-      mk({ name: 'Верхний шкаф', kind: 'wall', x: 2430, w: 450, h: 800, d: 300, lift: 1400, sections: [sec({ shelves: 2 })] }),
-      mk({ name: 'Верхний шкаф', kind: 'wall', x: 2880, w: 450, h: 800, d: 300, lift: 1400, sections: [sec({ shelves: 2 })] }),
+      // Задняя стена — верхний ярус (800 мм, глубина 300 мм, без сушки сверху — во всех верхних шкафах по 2 полки):
+      // 0..1250: 300 утоплено в угол + L-планка 50 мм (выступ 34 мм в каждую сторону) + 900 мм (2 дверцы) в одну линию с мойкой!
+      mk({ name: 'Верхний угловой шкаф (2 полки)', kind: 'wall', x: 0, w: 1250, h: 800, d: 300, lift: 1400, blindSide: 'left', blindW: 350, blindFillerW: 50, sections: [sec({ shelves: 2 })] }),
+      mk({ name: 'Верхний шкаф (2 полки)', kind: 'wall', x: 1250, w: 600, h: 800, d: 300, lift: 1400, sections: [sec({ shelves: 2 })] }),
+      mk({ name: 'Шкаф под встроенную вытяжку', kind: 'wall', x: 1850, w: 600, h: 800, d: 300, lift: 1400, sections: [sec({ shelves: 2 })] }),
+      mk({ name: 'Верхний шкаф (2 полки)', kind: 'wall', x: 2450, w: 450, h: 800, d: 300, lift: 1400, sections: [sec({ shelves: 2 })] }),
+      mk({ name: 'Верхний шкаф (2 полки)', kind: 'wall', x: 2900, w: 430, h: 800, d: 300, lift: 1400, sections: [sec({ shelves: 2 })] }),
 
       // Задняя стена — антресоли (400 мм, глубина 300 мм вровень с верхними шкафами) + карниз 60 мм
       ...[
-        [0, 1030], [1030, 200], [1230, 600], [1830, 600], [2430, 450], [2880, 450],
+        [0, 1250], [1250, 600], [1850, 600], [2450, 450], [2900, 430],
       ].map(([ax, aw], idx) =>
         mk({
           name: `Антресоль ${idx + 1}`,
           kind: 'wall', x: ax, w: aw, h: 400, d: 300, lift: 2200, hinge: 'top', topTrim: 60, handles: false,
-          ...(idx === 0 ? { blindSide: 'left' as const, blindW: 330, blindFillerW: 30 } : {}),
+          ...(idx === 0 ? { blindSide: 'left' as const, blindW: 350, blindFillerW: 50 } : {}),
           sections: [sec({ shelves: 0 })],
         }),
       ),
 
       // Левое крыло (Г-угол налево, стена 1920 мм, глубина 500 мм):
-      // Низ 500..820 упирается в 30-мм планку угловой мойки; Верх 300..820 упирается в 30-мм планку угловой сушки!
-      mk({ name: 'Нижний шкаф (левое крыло)', kind: 'base', wall: 'left', x: 500, w: 320, h: 820, d: 500, countertop: true, sections: [sec({ shelves: 1 })] }),
-      mk({ name: 'Верхний шкаф (левое крыло)', kind: 'wall', wall: 'left', x: 300, w: 520, h: 800, d: 300, lift: 1400, sections: [sec({ shelves: 2 })] }),
-      mk({ name: 'Антресоль (левое крыло)', kind: 'wall', wall: 'left', x: 300, w: 520, h: 400, d: 300, lift: 2200, hinge: 'top', topTrim: 60, handles: false, sections: [sec({ shelves: 0 })] }),
+      // Стык через L-планку 50 мм (34 мм от фасадов/ручек) — двери открываются свободно, ничего не бьётся!
+      mk({ name: 'Нижний шкаф (левое крыло)', kind: 'base', wall: 'left', x: 550, w: 270, h: 820, d: 500, countertop: true, hinge: 'left', sections: [sec({ shelves: 1 })] }),
+      mk({ name: 'Верхний шкаф (левое крыло, 2 полки)', kind: 'wall', wall: 'left', x: 350, w: 470, h: 800, d: 300, lift: 1400, hinge: 'left', sections: [sec({ shelves: 2 })] }),
+      mk({ name: 'Антресоль (левое крыло)', kind: 'wall', wall: 'left', x: 350, w: 470, h: 400, d: 300, lift: 2200, hinge: 'top', topTrim: 60, handles: false, sections: [sec({ shelves: 0 })] }),
       mk({ name: 'Пенал с нишей под духовку/СВЧ', kind: 'tall', wall: 'left', x: 820, w: 600, h: 2600, d: 500, plinth: 100, drawerH: 360, topTrim: 60, sections: [sec({ drawers: 1, shelves: 4 })] }),
       mk({ name: 'Пенал 500 (полки)', kind: 'tall', wall: 'left', x: 1420, w: 500, h: 2600, d: 500, plinth: 100, topTrim: 60, sections: [sec({ shelves: 6 })] }),
     ];

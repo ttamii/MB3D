@@ -1,14 +1,19 @@
 import type { Module } from './types';
 import { buildModule } from './geometry';
 
-/** Проверяет, перекрываются ли два модуля по вертикали (на одной и той же стене, по ярусу). */
-export function modulesOverlapY(a: Module, b: Module): boolean {
-  if ((a.wall ?? 'back') !== (b.wall ?? 'back')) return false;
+/** Пересекаются ли два модуля по высоте (без учёта стены): ярус, подъём от пола, высота. */
+export function verticalOverlap(a: Module, b: Module): boolean {
   const aY0 = a.lift ?? 0;
   const aY1 = aY0 + a.h;
   const bY0 = b.lift ?? 0;
   const bY1 = bY0 + b.h;
   return Math.min(aY1, bY1) - Math.max(aY0, bY0) > 15;
+}
+
+/** Проверяет, перекрываются ли два модуля по вертикали (на одной и той же стене, по ярусу). */
+export function modulesOverlapY(a: Module, b: Module): boolean {
+  if ((a.wall ?? 'back') !== (b.wall ?? 'back')) return false;
+  return verticalOverlap(a, b);
 }
 
 /** Реальная физическая ширина модуля (с учетом угловых элементов). */

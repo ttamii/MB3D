@@ -338,15 +338,22 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
       const fillerW = Math.min(80, Math.max(16, m.blindFillerW ?? 30));
       const blindPanelW = Math.max(40, blindW - fillerW);
       if (m.blindSide === 'left') {
-        // Глухая заглушка утоплена за перпендикулярный шкаф + угловая планка 30 мм перед дверцами
+        // Глухая заглушка утоплена за перпендикулярный шкаф + L-образная угловая планка (лицевая + возврат 90°)
+        // чтобы открывающиеся двери и ручки перпендикулярных стен гарантированно не бились друг о друга
         b.box('Глухая заглушка (угловая)', 'corpus', [1, P + 2, D - t], [blindPanelW, bodyH - 4, t], 2 * (blindPanelW + bodyH));
         b.box(`Угловая планка ${fillerW} мм`, 'facade', [blindPanelW, P + 2, D], [fillerW, bodyH - 4, FACADE_T], 2 * (fillerW + bodyH));
+        if (fillerW > FACADE_T) {
+          b.box(`Угловая планка возврат`, 'facade', [blindPanelW, P + 2, D + FACADE_T], [FACADE_T, bodyH - 4, fillerW - FACADE_T], 2 * (fillerW - FACADE_T + bodyH));
+        }
         b.box('Ответная планка угла', 'corpus', [blindW - t, P + 2, D - 48], [t, bodyH - 4, 48], bodyH);
         fx0 = blindW + 2;
       } else {
         const xStart = segR - blindW;
         b.box('Глухая заглушка (угловая)', 'corpus', [xStart + fillerW, P + 2, D - t], [blindPanelW, bodyH - 4, t], 2 * (blindPanelW + bodyH));
         b.box(`Угловая планка ${fillerW} мм`, 'facade', [xStart, P + 2, D], [fillerW, bodyH - 4, FACADE_T], 2 * (fillerW + bodyH));
+        if (fillerW > FACADE_T) {
+          b.box(`Угловая планка возврат`, 'facade', [xStart + fillerW - FACADE_T, P + 2, D + FACADE_T], [FACADE_T, bodyH - 4, fillerW - FACADE_T], 2 * (fillerW - FACADE_T + bodyH));
+        }
         b.box('Ответная планка угла', 'corpus', [xStart, P + 2, D - 48], [t, bodyH - 4, 48], bodyH);
         fx1 = xStart - 2;
       }
@@ -401,6 +408,11 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
         b.box(`${lbl}: задняя`, 'corpus', [x0 + 13 + 16, yk + 30, zs], [boxW - 32, boxH, 16], 0, anim);
         b.box(`${lbl}: дно`, 'back', [x0 + 13 + 12, yk + 38, zs + 8], [boxW - 24, 4, rail - 16], 0, anim);
         b.add('rail');
+        // Встроенная выдвижная сушка для посуды в верхнем ящике (если модуль предназначен под сушку)
+        if (m.kind === 'base' && /сушк/i.test(m.name) && k === nd - 1 && boxW > 200) {
+          b.decor('Сушка в ящике: поддон (нерж.)', 'metal', [x0 + 34, yk + 44, zs + 16], [boxW - 42, 4, rail - 32], anim);
+          b.decor('Сушка в ящике: решётка (тарелки)', 'metal', [x0 + 40, yk + 52, zs + 24], [boxW - 54, 16, Math.max(80, rail - 60)], anim);
+        }
         if (m.handles) {
           const hw = Math.min(220, (fx1 - fx0) * 0.5);
           b.decor('Ручка', 'handle', [(fx0 + fx1) / 2 - hw / 2, yk + fhBox - 38, zFront + FACADE_T], [hw, 14, 22], anim);
@@ -608,7 +620,11 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
 
   if (m.countertop && (m.kind === 'base')) {
     if (!skipContinuous) {
-      b.box('Столешница', 'top', [0, H, 0], [W, COUNTERTOP_T, D + 30], W);
+      // Если модуль на боковой стене с отступом под угловую L-планку (x ≈ 530..580), дотягиваем столешницу до стыка с задней столешницей (D+30)
+      const joinExtra = (m.wall === 'left' || m.wall === 'right') && m.x > D + 30 && m.x <= D + 90 ? (m.x - (D + 30)) : 0;
+      const topW = W + joinExtra;
+      const topX = m.wall === 'right' ? -joinExtra : 0;
+      b.box('Столешница', 'top', [topX, H, 0], [topW, COUNTERTOP_T, D + 30], topW);
     }
     // Врезная мойка на тумбе под мойку (центрируется в открытой зоне при наличии глухой угловой части)
     if (isSink && W >= 400 && D >= 450) {
