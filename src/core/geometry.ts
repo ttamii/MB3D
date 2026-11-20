@@ -618,9 +618,6 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
   if (trimH > 0) {
     if (!skipContinuous) {
       b.box('Верхняя планка (карниз)', 'facade', [0, H, D], [W, trimH, FACADE_T], 2 * (W + trimH));
-      if (D >= 120 && W >= 2 * t + 40) {
-        b.box('Монтажная планка карниза', 'corpus', [t, H, Math.max(BK, D - 80)], [W - 2 * t, trimH, t], W - 2 * t);
-      }
     }
     b.add('confirmat', 4);
   }
@@ -991,7 +988,6 @@ export function buildContinuousSpans(modules: Module[], splitForCutlist = false)
     const topY = (first.lift ?? 0) + first.h;
     const trimH = first.topTrim!;
     const D = first.d;
-    const t = first.t || 16;
     const isMulti = run.length > 1;
     const groupName = isMulti ? `Верхний карниз (${run.length} мод.)` : first.name;
     const groupId = isMulti ? `span-trim-${first.id}` : first.id;
@@ -1013,22 +1009,6 @@ export function buildContinuousSpans(modules: Module[], splitForCutlist = false)
           shape: 'box',
         },
       });
-      if (D >= 120 && segW >= 2 * t + 40) {
-        spans.push({
-          refModule: first,
-          groupName,
-          groupId,
-          part: {
-            name: 'Монтажная планка карниза',
-            mat: 'corpus',
-            pos: [curX + t, topY, Math.max(BK, D - 80)],
-            size: [segW - 2 * t, trimH, t],
-            edgeMm: segW - 2 * t,
-            sheet: true,
-            shape: 'box',
-          },
-        });
-      }
       curX += segW;
     }
 
