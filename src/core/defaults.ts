@@ -299,7 +299,7 @@ const tvZone = (): Module[] => [
 ];
 
 export const PRESET_GROUPS: PresetGroup[] = [
-  { id: 'kitchen', label: 'Кухня', ids: ['base', 'base-drawers', 'sink', 'oven', 'cargo', 'filler', 'filler-wall', 'wall', 'dish-dryer', 'mezzanine', 'corner', 'cornerWall', 'tall'] },
+  { id: 'kitchen', label: 'Кухня', ids: ['base', 'base-drawers', 'sink', 'oven', 'cargo', 'filler', 'filler-wall', 'wall', 'dish-dryer', 'mezzanine', 'corner', 'cornerWall', 'tall', 'fridge'] },
   { id: 'living', label: 'Гостиная и ТВ-зона', ids: ['tv-zone', 'tv-stand', 'tv-hanging', 'bookcase', 'dresser'] },
   { id: 'storage', label: 'Шкафы и прихожая', ids: ['wardrobe-sliding', 'wardrobe-hinged', 'hall-wardrobe', 'filler-tall', 'shoe', 'bedside'] },
   { id: 'fillers', label: 'Доборные планки (к стене / углу)', ids: ['filler', 'filler-wall', 'filler-tall', 'filler-corner'] },
@@ -373,6 +373,12 @@ export const PRESETS: Preset[] = [
     label: 'Пенал',
     hint: '600 × 2200, 4 полки',
     make: () => base('tall', 'Пенал', { w: 600, h: 2200, d: 560, plinth: 100, sections: [sec({ shelves: 4 })] }),
+  },
+  {
+    id: 'fridge',
+    label: 'Холодильник (невстроенный)',
+    hint: '600 × 2000 × 650, габарит без ЛДСП',
+    make: () => base('tall', 'Холодильник (невстроенный)', { w: 600, h: 2000, d: 650, plinth: 0, doorMode: 'none', handles: true, sections: [sec({ shelves: 0, door: false })] }),
   },
   {
     id: 'wardrobe-sliding',

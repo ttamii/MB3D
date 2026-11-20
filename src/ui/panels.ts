@@ -644,15 +644,23 @@ export function renderProps(root: HTMLElement, store: Store): void {
     );
 
     const advanced = h('details', { class: 'more' },
-      h('summary', null, 'Параметры плиты и стыковки'),
+      h('summary', null, 'Параметры плиты, стены и стыковки'),
       h('div', { style: 'display:flex; flex-direction:column; gap:8px; padding-top:8px;' },
+        segmented('Стена размещения (Г / П-кухня)', [
+          ['back', 'Задняя'],
+          ['left', 'Левая'],
+          ['right', 'Правая'],
+        ] as ['back' | 'left' | 'right', string][], m.wall ?? 'back', (v) => set((t) => {
+          if (v === 'back') delete t.wall;
+          else t.wall = v;
+        }, 'wall')),
         segmented('Толщина ЛДСП', [[16, '16 мм'], [18, '18 мм']] as [number, string][], m.t, (v) => set((t) => { t.t = v === 18 ? 18 : 16; })),
         toggle('Зеркальное исполнение (реверс)', 'mirror', m.mirror, (v) => set((t) => { t.mirror = v; })),
         snapActions,
         fillerActions,
       ),
     );
-    if (m.t !== 16 || m.mirror) advanced.setAttribute('open', '');
+    if (m.t !== 16 || m.mirror || (m.wall && m.wall !== 'back')) advanced.setAttribute('open', '');
 
     const sameTierHeightMods = store.project.modules.filter((o) => o.id !== m.id && isSameVerticalTier(o, m));
     const syncTierBtn = sameTierHeightMods.length > 0 ? h('button', {

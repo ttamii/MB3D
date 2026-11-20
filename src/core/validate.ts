@@ -55,6 +55,7 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
   const hinge = r.hinge === 'left' || r.hinge === 'right' || r.hinge === 'top' ? r.hinge : undefined;
   const topTrimVal = int(r.topTrim, 0, ...LIMITS.topTrim);
   const topTrim = topTrimVal > 0 && kind !== 'base' && kind !== 'corner' ? topTrimVal : undefined;
+  const modWall = r.wall === 'left' || r.wall === 'right' || r.wall === 'back' ? r.wall : undefined;
 
   return {
     id: typeof r.id === 'string' && /^[\w-]{1,40}$/.test(r.id) ? r.id : uid(),
@@ -82,6 +83,7 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
     ...(plinthColor && !wall ? { plinthColor } : {}),
     ...(hinge ? { hinge } : {}),
     ...(topTrim ? { topTrim } : {}),
+    ...(modWall && modWall !== 'back' ? { wall: modWall } : {}),
   };
 }
 

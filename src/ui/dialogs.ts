@@ -2405,15 +2405,16 @@ export function roomDialog(store: Store, viewer: Viewer): void {
 // ——— AI Конструктор мебели по текстовому описанию ———
 
 export function aiConstructorDialog(store: Store, viewer: Viewer): void {
-  const d = openDialog('AI Конструктор мебели', { wide: true });
+  const d = openDialog('AI Конструктор мебели (текст + фото эскиза)', { wide: true });
   let currentPrompt = 'Шкаф 2.4м на 1.8м на 60см трехдверный кашемир с рейками';
-  let activeTab: 'wardrobes' | 'kitchens' | 'living' = 'wardrobes';
+  let activeTab: 'wardrobes' | 'kitchens' | 'living' = 'kitchens';
+  let sketchPreviewUrl = '';
 
-  const container = h('div', { class: 'ai-body', style: 'display:flex; flex-direction:column; gap:16px;' });
+  const container = h('div', { class: 'ai-body', style: 'display:flex; flex-direction:column; gap:14px;' });
 
   const categories = [
-    { id: 'wardrobes' as const, label: 'Шкафы и гардеробные' },
     { id: 'kitchens' as const, label: 'Кухонные гарнитуры' },
+    { id: 'wardrobes' as const, label: 'Шкафы и гардеробные' },
     { id: 'living' as const, label: 'ТВ-тумбы, комоды и стеллажи' },
   ];
 
@@ -2425,10 +2426,10 @@ export function aiConstructorDialog(store: Store, viewer: Viewer): void {
       'Встроенный шкаф до потолка 3 двери без ручек белый',
     ],
     kitchens: [
+      'Кухня Г-образная по эскизу 3930 на 1920 потолок 2770 с холодильником и пеналами',
       'Прямая кухня 2.4м со столешницей и мойкой',
       'Кухонный гарнитур 3 метра графит с ящиками и верхними шкафами',
       'Кухня 1.8м кашемир с сушкой для посуды и вытяжкой',
-      'Мини-кухня 1.6м белый глянец со столешницей под мрамор',
     ],
     living: [
       'Подвесная тумба ТВ 1800мм на 2 ящика push-to-open',
@@ -2530,8 +2531,46 @@ export function aiConstructorDialog(store: Store, viewer: Viewer): void {
 
     updatePreview();
 
+    const sketchInput = h('input', {
+      type: 'file',
+      accept: 'image/*',
+      style: 'display:none;',
+      onChange: (e: Event) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          sketchPreviewUrl = String(reader.result || '');
+          toast(`Эскиз «${file.name}» прикреплён. Укажите ключевые размеры ниже или выберите шаблон по эскизу.`);
+          renderContent();
+        };
+        reader.readAsDataURL(file);
+      },
+    }) as HTMLInputElement;
+
+    const sketchBox = h('div', {
+      style: 'display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:8px 12px; background:var(--panel-2); border:1px dashed var(--line-2); border-radius:8px;',
+    },
+      h('div', { style: 'display:flex; align-items:center; gap:10px; min-width:0;' },
+        sketchPreviewUrl
+          ? h('img', { src: sketchPreviewUrl, alt: 'Эскиз', style: 'width:56px; height:56px; object-fit:cover; border-radius:5px; border:1px solid var(--line);' })
+          : null,
+        h('div', null,
+          h('div', { style: 'font-size:12px; font-weight:700; color:var(--ink);' }, sketchPreviewUrl ? 'Фото эскиза прикреплено' : 'Фото рукописного эскиза (блокнот / замер)'),
+          h('div', { style: 'font-size:11px; color:var(--muted);' }, 'Прикрепите фото с объекта и выберите готовый расклад или продиктуйте габариты'),
+        ),
+      ),
+      h('button', {
+        type: 'button',
+        class: 'btn ghost sm',
+        onClick: () => sketchInput.click(),
+      }, icon('upload', 14), sketchPreviewUrl ? 'Заменить фото' : 'Загрузить фото эскиза'),
+    );
+
     container.append(
       desc,
+      sketchInput,
+      sketchBox,
       h('div', { class: 'grp' },
         h('h3', { style: 'margin-bottom:6px;' }, 'Категории и готовые шаблоны:'),
         tabButtons,
@@ -2560,7 +2599,11 @@ export function aiConstructorDialog(store: Store, viewer: Viewer): void {
         store.commit((p) => {
           p.modules = newMods;
           p.name = res.title.replace('AI-Генерация: ', '');
+          if (res.room) {
+            p.room = { ...(p.room ?? DEFAULT_ROOM), ...res.room };
+          }
         }, 'ai-replace');
+        if (store.project.room) viewer.updateRoom(store.project.room);
         store.select(newMods[0]?.id ?? null);
         viewer.frame('iso');
         toast(`Проект создан: ${pName(res.title)}`);

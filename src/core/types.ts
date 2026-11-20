@@ -42,6 +42,8 @@ export interface Module {
   hinge?: 'left' | 'right' | 'top';
   /** Высота верхней доборной планки / карниза под потолок, мм (0 = нет). */
   topTrim?: number;
+  /** Стена размещения модуля (для Г-образных и П-образных кухонь). По умолчанию 'back'. */
+  wall?: 'back' | 'left' | 'right';
 }
 
 export type ProjectStatus = 'draft' | 'approved' | 'production' | 'done';

@@ -1,10 +1,12 @@
 import { generateKitchenLayout } from './kitchenWizard';
+import type { RoomConfig } from './room';
 import type { Kind, Module, Section } from './types';
 import { uid } from './util';
 
 export interface AiPromptResult {
   module: Module;
   modules?: Module[];
+  room?: Partial<RoomConfig>;
   title: string;
   description: string;
   features: string[];
@@ -384,6 +386,77 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
     matTop,
     ...(wantsTopTrim && kind !== 'base' ? { topTrim: 60 } : {}),
   };
+
+  // Специальный генератор Г-образной кухни по эскизу (3930 × 1920 × 2770, левое крыло с пеналами + невстроенный холодильник)
+  if (/эскиз|3930/i.test(text)) {
+    const mk = (o: Partial<Module> & { name: string; kind: Kind; x: number; w: number; h: number; d: number }): Module => ({
+      id: uid(),
+      mirror: false,
+      plinth: o.kind === 'wall' ? 0 : 100,
+      lift: 0,
+      t: 16,
+      sections: [sec()],
+      doorMode: 'hinged',
+      slidingCount: 2,
+      drawerH: 200,
+      handles: true,
+      countertop: false,
+      matCorpus: matCorpus || 'eg-w1000',
+      matFacade: matFacade || 'pm-u702',
+      matBack: 'b-white',
+      matTop: matTop || 'top-f812',
+      milling: milling === 'modern' ? 'modern' : milling,
+      plinthColor: 'facade',
+      ...o,
+    });
+
+    const sketchModules: Module[] = [
+      // Задняя стена 3930 мм — нижний ярус
+      mk({ name: 'Модуль под мойку', kind: 'base', x: 0, w: 700, h: 820, d: 560, countertop: true, sections: [sec({ shelves: 0 })] }),
+      mk({ name: 'Модуль с 2 ящиками', kind: 'base', x: 700, w: 600, h: 820, d: 560, countertop: true, doorMode: 'none', drawerH: 355, sections: [sec({ drawers: 2, door: false })] }),
+      mk({ name: 'Модуль под варочную поверхность', kind: 'base', x: 1300, w: 600, h: 820, d: 560, countertop: true, doorMode: 'none', drawerH: 355, sections: [sec({ drawers: 2, door: false })] }),
+      mk({ name: 'Модуль с 3 ящиками', kind: 'base', x: 1900, w: 450, h: 820, d: 560, countertop: true, doorMode: 'none', drawerH: 238, sections: [sec({ drawers: 3, door: false })] }),
+      mk({ name: 'Нижний модуль (полки)', kind: 'base', x: 2350, w: 450, h: 820, d: 560, countertop: true, sections: [sec({ shelves: 1 })] }),
+      mk({ name: 'Нижний модуль (правый)', kind: 'base', x: 2800, w: 480, h: 820, d: 560, countertop: true, sections: [sec({ shelves: 1 })] }),
+      mk({ name: 'Холодильник (невстроенный)', kind: 'tall', x: 3280, w: 600, h: 2050, d: 650, plinth: 0, doorMode: 'none', sections: [sec({ shelves: 0, door: false })] }),
+      mk({ name: 'Антресоль над холодильником', kind: 'wall', x: 3280, w: 600, h: 450, d: 600, lift: 2150, hinge: 'top', topTrim: 60, sections: [sec({ shelves: 0 })] }),
+      mk({ name: 'Фальшпланка к стене', kind: 'tall', x: 3880, w: 50, h: 2600, d: 560, doorMode: 'none', handles: false, topTrim: 60, sections: [sec({ shelves: 0, door: false })] }),
+
+      // Задняя стена — верхний ярус (800 мм)
+      mk({ name: 'Сушка для посуды (2 двери)', kind: 'wall', x: 0, w: 700, h: 800, d: 320, lift: 1400, sections: [sec({ shelves: 2 })] }),
+      mk({ name: 'Верхний шкаф', kind: 'wall', x: 700, w: 600, h: 800, d: 320, lift: 1400, sections: [sec({ shelves: 2 })] }),
+      mk({ name: 'Шкаф под встроенную вытяжку', kind: 'wall', x: 1300, w: 600, h: 800, d: 320, lift: 1400, sections: [sec({ shelves: 1 })] }),
+      mk({ name: 'Верхний шкаф', kind: 'wall', x: 1900, w: 450, h: 800, d: 320, lift: 1400, sections: [sec({ shelves: 2 })] }),
+      mk({ name: 'Верхний шкаф', kind: 'wall', x: 2350, w: 450, h: 800, d: 320, lift: 1400, sections: [sec({ shelves: 2 })] }),
+      mk({ name: 'Верхний шкаф', kind: 'wall', x: 2800, w: 480, h: 800, d: 320, lift: 1400, sections: [sec({ shelves: 2 })] }),
+
+      // Задняя стена — антресоли (400 мм) + верхний карниз 60 мм
+      ...[
+        [0, 700], [700, 600], [1300, 600], [1900, 450], [2350, 450], [2800, 480],
+      ].map(([ax, aw], idx) =>
+        mk({ name: `Антресоль ${idx + 1}`, kind: 'wall', x: ax, w: aw, h: 400, d: 560, lift: 2200, hinge: 'top', topTrim: 60, handles: false, sections: [sec({ shelves: 0 })] }),
+      ),
+
+      // Левое крыло (Г-угол налево, стена 1920 мм): блок пеналов 500 + 600
+      mk({ name: 'Пенал 500 (полки)', kind: 'tall', wall: 'left', x: 620, w: 500, h: 2600, d: 560, plinth: 100, topTrim: 60, sections: [sec({ shelves: 6 })] }),
+      mk({ name: 'Пенал с нишей под духовку/СВЧ', kind: 'tall', wall: 'left', x: 1120, w: 600, h: 2600, d: 560, plinth: 100, drawerH: 360, topTrim: 60, sections: [sec({ drawers: 1, shelves: 4 })] }),
+    ];
+
+    return {
+      module: sketchModules[0],
+      modules: sketchModules,
+      room: { w: 3930, d: 1920, h: 2770 },
+      title: 'Кухня Г-образная по эскизу (3930 × 1920 мм)',
+      description: 'Комната 3930×1920×2770 · Задняя стена (мойка 700, варка 600, ящики, холодильник 600) + Левое крыло (пеналы 500 + 600 под духовку/СВЧ)',
+      features: [
+        'Комната: 3930 × 1920 × 2770 мм',
+        'Невстроенный холодильник 600 мм (без ЛДСП)',
+        'Левое крыло: пенал 500 + пенал духовка/СВЧ 600',
+        '3 яруса (верх 800 + антресоль 400 + карниз 60)',
+      ],
+      dimensionsSummary: '3930 × 1920 × 2770 мм',
+    };
+  }
 
   // Если запрос на кухню — формируем сбалансированный кухонный гарнитур по стандартам технолога
   let kitchenModules: Module[] | undefined;

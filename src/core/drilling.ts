@@ -57,6 +57,10 @@ export function computeModuleDrilling(m: Module, builtParts: Part[]): ModuleDril
   const isWallMod = m.kind === 'wall' || m.kind === 'cornerWall';
   const P = isWallMod ? 0 : plinth;
 
+  if (m.kind === 'tall' && /холодильник/i.test(m.name) && !/встроен|пенал/i.test(m.name)) {
+    return { module: m, parts: [], facades: [], sides: [] };
+  }
+
   // 1. Нумерация деталей (позиции ①..Ⓝ)
   const sheetParts = builtParts.filter((p) => p.sheet);
   const partMap = new Map<string, { part: Part; qty: number }>();

@@ -187,6 +187,43 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
   const slide = m.doorMode === 'sliding';
   const trimH = m.topTrim && m.topTrim > 0 && m.kind !== 'base' && m.kind !== 'corner' ? m.topTrim : 0;
 
+  const isFridge = m.kind === 'tall' && /холодильник/i.test(m.name) && !/встроен|пенал/i.test(m.name);
+  if (isFridge) {
+    const legH = 22;
+    const bodyD = Math.max(400, D - 26);
+    const doorT = 24;
+    const freezerH = Math.round((H - legH) * 0.34);
+    const gap = 8;
+    const fridgeH = H - legH - freezerH - gap;
+
+    // 4 опоры холодильника
+    b.decor('Опора холодильника', 'black', [24, 0, 24], [36, legH, 36], undefined, 'cyl');
+    b.decor('Опора холодильника', 'black', [W - 60, 0, 24], [36, legH, 36], undefined, 'cyl');
+    b.decor('Опора холодильника', 'black', [24, 0, bodyD - 60], [36, legH, 36], undefined, 'cyl');
+    b.decor('Опора холодильника', 'black', [W - 60, 0, bodyD - 60], [36, legH, 36], undefined, 'cyl');
+
+    // Основной теплоизолированный корпус (не попадает в раскрой ЛДСП!)
+    b.decor('Холодильник: корпус', 'metal', [4, legH, 10], [W - 8, H - legH - 4, bodyD - 10]);
+
+    // Нижняя дверца морозильной камеры + верхняя дверца холодильной камеры
+    const zDoor = bodyD;
+    b.decor('Морозильная камера (дверца)', 'metal', [2, legH, zDoor], [W - 4, freezerH, doorT]);
+    b.decor('Холодильная камера (дверца)', 'metal', [2, legH + freezerH + gap, zDoor], [W - 4, fridgeH, doorT]);
+    // Теневой зазор и уплотнитель между камерами
+    b.decor('Уплотнитель', 'black', [6, legH + freezerH, zDoor - 4], [W - 12, gap, doorT + 2]);
+
+    // Дисплей на верхней двери
+    b.decor('Дисплей температуры', 'black', [Math.round(W / 2 - 48), legH + freezerH + gap + Math.round(fridgeH * 0.68), zDoor + doorT - 1], [96, 38, 2]);
+
+    // Интегрированные или накладные вертикальные ручки
+    if (m.handles) {
+      const hx = m.mirror ? W - 34 : 22;
+      b.decor('Ручка холодильника', 'handle', [hx, legH + freezerH + gap + 35, zDoor + doorT], [12, Math.min(480, fridgeH - 90), 22]);
+      b.decor('Ручка морозилки', 'handle', [hx, legH + 35, zDoor + doorT], [12, Math.min(260, freezerH - 70), 22]);
+    }
+    return;
+  }
+
   const isFiller = W <= 120 && n === 1 && m.sections[0].drawers === 0 && m.sections[0].shelves === 0 && m.doorMode === 'none';
   if (isFiller) {
     b.box('Фальшпланка фасада', 'facade', [0, P + 2, D], [W, bodyH - 4, FACADE_T], 2 * (W + bodyH));
@@ -726,9 +763,9 @@ export function buildContinuousSpans(modules: Module[], splitForCutlist = false)
   const spans: SpanPart[] = [];
   const BK = BACK_T;
 
-  // 1. Цельный нижний цоколь (напольные не-угловые модули)
+  // 1. Цельный нижний цоколь (напольные не-угловые модули на задней стене)
   const plinthMods = modules
-    .filter((m) => !isWall(m.kind) && !isCorner(m.kind) && (m.lift ?? 0) === 0 && m.plinth > 0)
+    .filter((m) => (m.wall ?? 'back') === 'back' && !isWall(m.kind) && !isCorner(m.kind) && (m.lift ?? 0) === 0 && m.plinth > 0)
     .sort((a, b) => a.x - b.x);
 
   const plinthRuns: Module[][] = [];
@@ -815,7 +852,7 @@ export function buildContinuousSpans(modules: Module[], splitForCutlist = false)
 
   // 2. Цельная столешница 38 мм над рядом нижних тумб
   const topMods = modules
-    .filter((m) => m.kind === 'base' && !isCorner(m.kind) && m.countertop)
+    .filter((m) => (m.wall ?? 'back') === 'back' && m.kind === 'base' && !isCorner(m.kind) && m.countertop)
     .sort((a, b) => a.x - b.x);
 
   const topRuns: Module[][] = [];
@@ -883,7 +920,7 @@ export function buildContinuousSpans(modules: Module[], splitForCutlist = false)
 
   // 2б. Профиль LED-подсветки рабочей зоны под верхними шкафами
   const wallMods = modules
-    .filter((m) => m.kind === 'wall' && !isCorner(m.kind))
+    .filter((m) => (m.wall ?? 'back') === 'back' && m.kind === 'wall' && !isCorner(m.kind))
     .sort((a, b) => a.x - b.x);
   const wallRuns: Module[][] = [];
   for (const m of wallMods) {
@@ -925,7 +962,7 @@ export function buildContinuousSpans(modules: Module[], splitForCutlist = false)
 
   // 3. Цельная верхняя доборная планка / карниз под потолок
   const trimMods = modules
-    .filter((m) => !isCorner(m.kind) && m.kind !== 'base' && (m.topTrim ?? 0) > 0)
+    .filter((m) => (m.wall ?? 'back') === 'back' && !isCorner(m.kind) && m.kind !== 'base' && (m.topTrim ?? 0) > 0)
     .sort((a, b) => a.x - b.x);
 
   const trimRuns: Module[][] = [];

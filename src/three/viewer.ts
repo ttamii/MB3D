@@ -385,9 +385,19 @@ export class Viewer {
     this.bounds.makeEmpty();
 
     for (const m of modules) {
-      const built = buildModule(m, { skipContinuous: true });
+      const modWall = m.wall ?? 'back';
+      const built = buildModule(m, { skipContinuous: modWall === 'back' });
       const g = new Group();
-      g.position.set(m.x * MM, m.lift * MM, 0);
+      if (modWall === 'left') {
+        g.rotation.y = Math.PI / 2;
+        g.position.set(0, m.lift * MM, (m.x + m.w) * MM);
+      } else if (modWall === 'right') {
+        const roomW = this.currentRoom?.w ?? 4500;
+        g.rotation.y = -Math.PI / 2;
+        g.position.set(roomW * MM, m.lift * MM, m.x * MM);
+      } else {
+        g.position.set(m.x * MM, m.lift * MM, 0);
+      }
       g.userData.moduleId = m.id;
       this.moduleGroups.set(m.id, g);
 
@@ -451,12 +461,29 @@ export class Viewer {
       });
 
       this.modules.add(g);
-      this.bounds.union(
-        new Box3(
-          new Vector3(m.x * MM, m.lift * MM, 0),
-          new Vector3((m.x + built.width) * MM, (m.lift + built.height) * MM, built.depth * MM),
-        ),
-      );
+      if (modWall === 'left') {
+        this.bounds.union(
+          new Box3(
+            new Vector3(0, m.lift * MM, m.x * MM),
+            new Vector3(built.depth * MM, (m.lift + built.height) * MM, (m.x + built.width) * MM),
+          ),
+        );
+      } else if (modWall === 'right') {
+        const roomW = this.currentRoom?.w ?? 4500;
+        this.bounds.union(
+          new Box3(
+            new Vector3((roomW - built.depth) * MM, m.lift * MM, m.x * MM),
+            new Vector3(roomW * MM, (m.lift + built.height) * MM, (m.x + built.width) * MM),
+          ),
+        );
+      } else {
+        this.bounds.union(
+          new Box3(
+            new Vector3(m.x * MM, m.lift * MM, 0),
+            new Vector3((m.x + built.width) * MM, (m.lift + built.height) * MM, built.depth * MM),
+          ),
+        );
+      }
     }
 
     // Единые цельные детали на весь ряд: цоколь на клипсах, столешница 38 мм и верхняя планка (карниз)
