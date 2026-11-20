@@ -268,16 +268,21 @@ export class Viewer {
       const hit = this.raycaster.intersectObjects(this.pickables, false)[0];
       if (hit && hit.object.userData.moduleId) {
         const moduleId = hit.object.userData.moduleId as string;
+        const mod = this.currentModules.find((m) => m.id === moduleId);
         const g = this.moduleGroups.get(moduleId);
-        if (g) {
-          const startModX = Math.round(g.position.x / MM);
-          const dragPlane = new Plane(new Vector3(0, 0, 1), -hit.point.z);
+        if (g && mod) {
+          const modWall = mod.wall ?? 'back';
+          const isSideWall = modWall === 'left' || modWall === 'right';
+          const startModX = mod.x;
+          const dragPlane = isSideWall
+            ? new Plane(new Vector3(1, 0, 0), -hit.point.x)
+            : new Plane(new Vector3(0, 0, 1), -hit.point.z);
           this.dragCandidate = {
             moduleId,
             startClientX: e.clientX,
             startClientY: e.clientY,
             startModuleX: startModX,
-            startHitWorldX: hit.point.x,
+            startHitWorldX: isSideWall ? hit.point.z : hit.point.x,
             dragPlane,
           };
         }
@@ -313,19 +318,25 @@ export class Viewer {
           this.raycaster.setFromCamera(ndc, this.camera);
           const hitPt = new Vector3();
           if (this.raycaster.ray.intersectPlane(this.dragCandidate.dragPlane, hitPt)) {
-            const deltaWorldX = hitPt.x - this.dragCandidate.startHitWorldX;
-            const rawX = Math.round((this.dragCandidate.startModuleX + deltaWorldX / MM) / 10) * 10;
+            const mod = this.currentModules.find((m) => m.id === this.dragCandidate?.moduleId);
+            const modWall = mod?.wall ?? 'back';
+            const isSideWall = modWall === 'left' || modWall === 'right';
+            const deltaAxis = (isSideWall ? hitPt.z : hitPt.x) - this.dragCandidate.startHitWorldX;
+            const rawX = Math.round((this.dragCandidate.startModuleX + deltaAxis / MM) / 10) * 10;
+            const wallLimit = isSideWall ? this.currentRoom?.d : this.currentRoom?.w;
             const newX = preventDragCollision(
               this.currentModules,
               this.dragCandidate.moduleId,
               rawX,
               this.dragCandidate.startModuleX,
-              this.currentRoom?.w
+              wallLimit
             );
 
             const g = this.moduleGroups.get(this.dragCandidate.moduleId);
-            if (g) {
-              g.position.x = newX * MM;
+            if (g && mod) {
+              if (modWall === 'left') g.position.z = (newX + mod.w) * MM;
+              else if (modWall === 'right') g.position.z = newX * MM;
+              else g.position.x = newX * MM;
               if (this.helper) {
                 this.helper.box.setFromObject(g).expandByScalar(0.012);
               }
@@ -868,55 +879,87 @@ export class Viewer {
     // 1. Module dimensions
     const selMod = this.selectedId ? this.currentModules.find((m) => m.id === this.selectedId) : null;
     if (selMod) {
-      const x0 = selMod.x * MM;
-      const x1 = (selMod.x + selMod.w) * MM;
+      const modWall = selMod.wall ?? 'back';
       const y0 = selMod.lift * MM;
       const y1 = (selMod.lift + selMod.h) * MM;
-      const z0 = 0;
-      const z1 = selMod.d * MM;
 
-      // Width dimension (above top front edge)
-      const yt = y1 + 0.06;
-      segments.push([new Vector3(x0, yt, z1), new Vector3(x1, yt, z1)]);
-      segments.push([new Vector3(x0, yt - 0.03, z1), new Vector3(x0, yt + 0.03, z1)]);
-      segments.push([new Vector3(x1, yt - 0.03, z1), new Vector3(x1, yt + 0.03, z1)]);
-      const spW = makeTextSprite(`Ш: ${selMod.w} мм`, '#38bdf8');
-      spW.position.set((x0 + x1) / 2, yt + 0.05, z1);
-      this.dimGroup.add(spW);
+      if (modWall === 'left' || modWall === 'right') {
+        const roomW = this.currentRoom?.w ?? 4500;
+        const xFront = (modWall === 'left' ? selMod.d : roomW - selMod.d) * MM;
+        const xBack = (modWall === 'left' ? 0 : roomW) * MM;
+        const z0 = selMod.x * MM;
+        const z1 = (selMod.x + selMod.w) * MM;
+        const yt = y1 + 0.06;
 
-      // Height dimension (right side front edge)
-      const xr = x1 + 0.06;
-      segments.push([new Vector3(xr, y0, z1), new Vector3(xr, y1, z1)]);
-      segments.push([new Vector3(xr - 0.03, y0, z1), new Vector3(xr + 0.03, y0, z1)]);
-      segments.push([new Vector3(xr - 0.03, y1, z1), new Vector3(xr + 0.03, y1, z1)]);
-      const spH = makeTextSprite(`В: ${selMod.h} мм`, '#38bdf8');
-      spH.position.set(xr + 0.05, (y0 + y1) / 2, z1);
-      this.dimGroup.add(spH);
+        segments.push([new Vector3(xFront, yt, z0), new Vector3(xFront, yt, z1)]);
+        segments.push([new Vector3(xFront, yt - 0.03, z0), new Vector3(xFront, yt + 0.03, z0)]);
+        segments.push([new Vector3(xFront, yt - 0.03, z1), new Vector3(xFront, yt + 0.03, z1)]);
+        const spW = makeTextSprite(`Ш: ${selMod.w} мм`, '#38bdf8');
+        spW.position.set(xFront, yt + 0.05, (z0 + z1) / 2);
+        this.dimGroup.add(spW);
 
-      // Depth dimension (right side bottom edge)
-      segments.push([new Vector3(xr, y0, z0), new Vector3(xr, y0, z1)]);
-      segments.push([new Vector3(xr - 0.03, y0, z0), new Vector3(xr + 0.03, y0, z0)]);
-      segments.push([new Vector3(xr - 0.03, y0, z1), new Vector3(xr + 0.03, y0, z1)]);
-      const spD = makeTextSprite(`Г: ${selMod.d} мм`, '#38bdf8');
-      spD.position.set(xr + 0.05, y0 + 0.04, (z0 + z1) / 2);
-      this.dimGroup.add(spD);
+        const zr = z1 + 0.06;
+        segments.push([new Vector3(xFront, y0, zr), new Vector3(xFront, y1, zr)]);
+        segments.push([new Vector3(xFront, y0, zr - 0.03), new Vector3(xFront, y0, zr + 0.03)]);
+        segments.push([new Vector3(xFront, y1, zr - 0.03), new Vector3(xFront, y1, zr + 0.03)]);
+        const spH = makeTextSprite(`В: ${selMod.h} мм`, '#38bdf8');
+        spH.position.set(xFront, (y0 + y1) / 2, zr + 0.05);
+        this.dimGroup.add(spH);
 
-      // Lift dimension (if elevated off the floor)
-      if (selMod.lift > 0) {
-        const xl = x0 - 0.06;
-        segments.push([new Vector3(xl, 0, z1), new Vector3(xl, y0, z1)]);
-        segments.push([new Vector3(xl - 0.03, 0, z1), new Vector3(xl + 0.03, 0, z1)]);
-        segments.push([new Vector3(xl - 0.03, y0, z1), new Vector3(xl + 0.03, y0, z1)]);
-        const liftLbl = selMod.kind === 'wall' || selMod.lift >= 200 ? `Подвес: ${selMod.lift} мм` : `Цоколь: ${selMod.lift} мм`;
-        const spL = makeTextSprite(liftLbl, '#f59e0b');
-        spL.position.set(xl - 0.07, y0 / 2, z1);
-        this.dimGroup.add(spL);
+        segments.push([new Vector3(xBack, y0, zr), new Vector3(xFront, y0, zr)]);
+        const spD = makeTextSprite(`Г: ${selMod.d} мм`, '#38bdf8');
+        spD.position.set((xBack + xFront) / 2, y0 + 0.04, zr + 0.05);
+        this.dimGroup.add(spD);
+      } else {
+        const x0 = selMod.x * MM;
+        const x1 = (selMod.x + selMod.w) * MM;
+        const z0 = 0;
+        const z1 = selMod.d * MM;
+
+        // Width dimension (above top front edge)
+        const yt = y1 + 0.06;
+        segments.push([new Vector3(x0, yt, z1), new Vector3(x1, yt, z1)]);
+        segments.push([new Vector3(x0, yt - 0.03, z1), new Vector3(x0, yt + 0.03, z1)]);
+        segments.push([new Vector3(x1, yt - 0.03, z1), new Vector3(x1, yt + 0.03, z1)]);
+        const spW = makeTextSprite(`Ш: ${selMod.w} мм`, '#38bdf8');
+        spW.position.set((x0 + x1) / 2, yt + 0.05, z1);
+        this.dimGroup.add(spW);
+
+        // Height dimension (right side front edge)
+        const xr = x1 + 0.06;
+        segments.push([new Vector3(xr, y0, z1), new Vector3(xr, y1, z1)]);
+        segments.push([new Vector3(xr - 0.03, y0, z1), new Vector3(xr + 0.03, y0, z1)]);
+        segments.push([new Vector3(xr - 0.03, y1, z1), new Vector3(xr + 0.03, y1, z1)]);
+        const spH = makeTextSprite(`В: ${selMod.h} мм`, '#38bdf8');
+        spH.position.set(xr + 0.05, (y0 + y1) / 2, z1);
+        this.dimGroup.add(spH);
+
+        // Depth dimension (right side bottom edge)
+        segments.push([new Vector3(xr, y0, z0), new Vector3(xr, y0, z1)]);
+        segments.push([new Vector3(xr - 0.03, y0, z0), new Vector3(xr + 0.03, y0, z0)]);
+        segments.push([new Vector3(xr - 0.03, y0, z1), new Vector3(xr + 0.03, y0, z1)]);
+        const spD = makeTextSprite(`Г: ${selMod.d} мм`, '#38bdf8');
+        spD.position.set(xr + 0.05, y0 + 0.04, (z0 + z1) / 2);
+        this.dimGroup.add(spD);
+
+        // Lift dimension (if elevated off the floor)
+        if (selMod.lift > 0) {
+          const xl = x0 - 0.06;
+          segments.push([new Vector3(xl, 0, z1), new Vector3(xl, y0, z1)]);
+          segments.push([new Vector3(xl - 0.03, 0, z1), new Vector3(xl + 0.03, 0, z1)]);
+          segments.push([new Vector3(xl - 0.03, y0, z1), new Vector3(xl + 0.03, y0, z1)]);
+          const liftLbl = selMod.kind === 'wall' || selMod.lift >= 200 ? `Подвес: ${selMod.lift} мм` : `Цоколь: ${selMod.lift} мм`;
+          const spL = makeTextSprite(liftLbl, '#f59e0b');
+          spL.position.set(xl - 0.07, y0 / 2, z1);
+          this.dimGroup.add(spL);
+        }
       }
     } else if (this.showDimensions) {
       for (const m of this.currentModules) {
+        if ((m.wall ?? 'back') !== 'back') continue;
         // Не рисуем дублирующую верхнюю размерную линию внутри фасада антресоли, если прямо на крышке шкафа стоит верхний ярус
         const hasStackedAbove = this.currentModules.some(
-          (o) => o.id !== m.id && o.x < m.x + m.w - 10 && o.x + o.w > m.x + 10 && Math.abs(o.lift - (m.lift + m.h)) <= 40
+          (o) => o.id !== m.id && (o.wall ?? 'back') === 'back' && o.x < m.x + m.w - 10 && o.x + o.w > m.x + 10 && Math.abs(o.lift - (m.lift + m.h)) <= 40
         );
         if (hasStackedAbove) continue;
 
@@ -939,6 +982,7 @@ export class Viewer {
       let maxX = -Infinity;
       let maxD = 600;
       for (const m of this.currentModules) {
+        if ((m.wall ?? 'back') !== 'back') continue;
         if (m.x < minX) minX = m.x;
         if (m.x + m.w > maxX) maxX = m.x + m.w;
         if (m.d > maxD) maxD = m.d;

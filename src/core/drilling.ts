@@ -57,7 +57,7 @@ export function computeModuleDrilling(m: Module, builtParts: Part[]): ModuleDril
   const isWallMod = m.kind === 'wall' || m.kind === 'cornerWall';
   const P = isWallMod ? 0 : plinth;
 
-  if (m.kind === 'tall' && /холодильник/i.test(m.name) && !/встроен|пенал/i.test(m.name)) {
+  if (m.kind === 'tall' && /холодильник/i.test(m.name) && (!/встроен/i.test(m.name) || /невстроен/i.test(m.name)) && !/пенал/i.test(m.name)) {
     return { module: m, parts: [], facades: [], sides: [] };
   }
 

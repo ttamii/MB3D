@@ -419,7 +419,7 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
       mk({ name: 'Нижний модуль (полки)', kind: 'base', x: 2350, w: 450, h: 820, d: 560, countertop: true, sections: [sec({ shelves: 1 })] }),
       mk({ name: 'Нижний модуль (правый)', kind: 'base', x: 2800, w: 480, h: 820, d: 560, countertop: true, sections: [sec({ shelves: 1 })] }),
       mk({ name: 'Холодильник (невстроенный)', kind: 'tall', x: 3280, w: 600, h: 2050, d: 650, plinth: 0, doorMode: 'none', sections: [sec({ shelves: 0, door: false })] }),
-      mk({ name: 'Антресоль над холодильником', kind: 'wall', x: 3280, w: 600, h: 450, d: 600, lift: 2150, hinge: 'top', topTrim: 60, sections: [sec({ shelves: 0 })] }),
+      mk({ name: 'Антресоль над холодильником', kind: 'wall', x: 3280, w: 600, h: 530, d: 600, lift: 2070, hinge: 'top', topTrim: 60, sections: [sec({ shelves: 0 })] }),
       mk({ name: 'Фальшпланка к стене', kind: 'tall', x: 3880, w: 50, h: 2600, d: 560, doorMode: 'none', handles: false, topTrim: 60, sections: [sec({ shelves: 0, door: false })] }),
 
       // Задняя стена — верхний ярус (800 мм)
@@ -437,9 +437,9 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
         mk({ name: `Антресоль ${idx + 1}`, kind: 'wall', x: ax, w: aw, h: 400, d: 560, lift: 2200, hinge: 'top', topTrim: 60, handles: false, sections: [sec({ shelves: 0 })] }),
       ),
 
-      // Левое крыло (Г-угол налево, стена 1920 мм): блок пеналов 500 + 600
-      mk({ name: 'Пенал 500 (полки)', kind: 'tall', wall: 'left', x: 620, w: 500, h: 2600, d: 560, plinth: 100, topTrim: 60, sections: [sec({ shelves: 6 })] }),
-      mk({ name: 'Пенал с нишей под духовку/СВЧ', kind: 'tall', wall: 'left', x: 1120, w: 600, h: 2600, d: 560, plinth: 100, drawerH: 360, topTrim: 60, sections: [sec({ drawers: 1, shelves: 4 })] }),
+      // Левое крыло (Г-угол налево, стена 1920 мм): сначала пенал с духовкой/СВЧ (600), последним слева — пенал с полками (500)
+      mk({ name: 'Пенал с нишей под духовку/СВЧ', kind: 'tall', wall: 'left', x: 620, w: 600, h: 2600, d: 560, plinth: 100, drawerH: 360, topTrim: 60, sections: [sec({ drawers: 1, shelves: 4 })] }),
+      mk({ name: 'Пенал 500 (полки)', kind: 'tall', wall: 'left', x: 1220, w: 500, h: 2600, d: 560, plinth: 100, topTrim: 60, sections: [sec({ shelves: 6 })] }),
     ];
 
     return {

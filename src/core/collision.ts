@@ -1,8 +1,9 @@
 import type { Module } from './types';
 import { buildModule } from './geometry';
 
-/** Проверяет, перекрываются ли два модуля по вертикали (ярус, высота и подъем от пола). */
+/** Проверяет, перекрываются ли два модуля по вертикали (на одной и той же стене, по ярусу). */
 export function modulesOverlapY(a: Module, b: Module): boolean {
+  if ((a.wall ?? 'back') !== (b.wall ?? 'back')) return false;
   const aY0 = a.lift ?? 0;
   const aY1 = aY0 + a.h;
   const bY0 = b.lift ?? 0;

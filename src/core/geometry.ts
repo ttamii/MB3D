@@ -187,7 +187,7 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
   const slide = m.doorMode === 'sliding';
   const trimH = m.topTrim && m.topTrim > 0 && m.kind !== 'base' && m.kind !== 'corner' ? m.topTrim : 0;
 
-  const isFridge = m.kind === 'tall' && /холодильник/i.test(m.name) && !/встроен|пенал/i.test(m.name);
+  const isFridge = m.kind === 'tall' && /холодильник/i.test(m.name) && (!/встроен/i.test(m.name) || /невстроен/i.test(m.name)) && !/пенал/i.test(m.name);
   if (isFridge) {
     const legH = 22;
     const bodyD = Math.max(400, D - 26);
@@ -918,9 +918,9 @@ export function buildContinuousSpans(modules: Module[], splitForCutlist = false)
     }
   }
 
-  // 2б. Профиль LED-подсветки рабочей зоны под верхними шкафами
+  // 2б. Профиль LED-подсветки рабочей зоны — только под основным рядом верхних шкафов (не под антресолями!)
   const wallMods = modules
-    .filter((m) => (m.wall ?? 'back') === 'back' && m.kind === 'wall' && !isCorner(m.kind))
+    .filter((m) => (m.wall ?? 'back') === 'back' && m.kind === 'wall' && !isCorner(m.kind) && (m.lift ?? 0) >= 1200 && (m.lift ?? 0) <= 1750)
     .sort((a, b) => a.x - b.x);
   const wallRuns: Module[][] = [];
   for (const m of wallMods) {
