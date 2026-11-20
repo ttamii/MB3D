@@ -7,6 +7,7 @@ import { getCurrentUser, handleAuthRedirectCallback, hasActiveSubscription, isAc
 import { money, rafThrottle } from '../core/util';
 import { Viewer, type ViewName } from '../three/viewer';
 import { aiConstructorDialog, arDialog, blueprintDialog, cutDialog, estimateDialog, helpDialog, kitchenWizardDialog, projectsDialog, renderDialog, roomDialog, settingsDialog, shareDialog, showAuthGateModal, toast } from '../ui/dialogs';
+import { openSketchEditor } from '../ui/sketchEditor';
 import { clear, h, icon } from '../ui/dom';
 import { createFloatingHud } from '../ui/floatingHud';
 import { renderModules, renderProps } from '../ui/panels';
@@ -198,6 +199,7 @@ async function boot(): Promise<void> {
       h('span', { class: 'sep' }),
       act('AI Конструктор', 'wand', () => aiConstructorDialog(store, viewer), 'accent keep-label'),
       act('Мастер кухни', 'wand', () => kitchenWizardDialog(store, viewer), 'keep-label'),
+      act('Рисовать 2D', 'blueprint', () => openSketchEditor(store, viewer), 'accent keep-label'),
       h('span', { class: 'sep' }),
       act('Смета', 'calc', () => estimateDialog(store, est, viewer), 'keep-label'),
       act('Раскрой', 'list', () => cutDialog(store, est, viewer), 'keep-label'),
