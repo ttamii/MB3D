@@ -430,18 +430,18 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
       mk({ name: 'Верхний шкаф', kind: 'wall', x: 2350, w: 450, h: 800, d: 300, lift: 1400, sections: [sec({ shelves: 2 })] }),
       mk({ name: 'Верхний шкаф', kind: 'wall', x: 2800, w: 480, h: 800, d: 300, lift: 1400, sections: [sec({ shelves: 2 })] }),
 
-      // Задняя стена — антресоли (400 мм, глубина 500 мм) + единая верхняя планка 60 мм
+      // Задняя стена — антресоли (400 мм, глубина 300 мм — вровень с верхними шкафами!) + единая верхняя планка 60 мм
       ...[
         [0, 700], [700, 600], [1300, 600], [1900, 450], [2350, 450], [2800, 480],
       ].map(([ax, aw], idx) =>
-        mk({ name: `Антресоль ${idx + 1}`, kind: 'wall', x: ax, w: aw, h: 400, d: 500, lift: 2200, hinge: 'top', topTrim: 60, handles: false, sections: [sec({ shelves: 0 })] }),
+        mk({ name: `Антресоль ${idx + 1}`, kind: 'wall', x: ax, w: aw, h: 400, d: 300, lift: 2200, hinge: 'top', topTrim: 60, handles: false, sections: [sec({ shelves: 0 })] }),
       ),
 
       // Левое крыло (Г-угол налево, стена 1920 мм, глубина 500 мм):
       // 0..520 занято задним рядом (500 + свес), 520..820 — стыковой нижний/верхний шкаф у угла, 820..1420 — пенал духовка/СВЧ, 1420..1920 — пенал с полками
       mk({ name: 'Угловой стыковой модуль', kind: 'base', wall: 'left', x: 520, w: 300, h: 820, d: 500, countertop: true, sections: [sec({ shelves: 1 })] }),
       mk({ name: 'Верхний шкаф (левое крыло)', kind: 'wall', wall: 'left', x: 520, w: 300, h: 800, d: 300, lift: 1400, sections: [sec({ shelves: 2 })] }),
-      mk({ name: 'Антресоль (левое крыло)', kind: 'wall', wall: 'left', x: 520, w: 300, h: 400, d: 500, lift: 2200, hinge: 'top', topTrim: 60, handles: false, sections: [sec({ shelves: 0 })] }),
+      mk({ name: 'Антресоль (левое крыло)', kind: 'wall', wall: 'left', x: 520, w: 300, h: 400, d: 300, lift: 2200, hinge: 'top', topTrim: 60, handles: false, sections: [sec({ shelves: 0 })] }),
       mk({ name: 'Пенал с нишей под духовку/СВЧ', kind: 'tall', wall: 'left', x: 820, w: 600, h: 2600, d: 500, plinth: 100, drawerH: 360, topTrim: 60, sections: [sec({ drawers: 1, shelves: 4 })] }),
       mk({ name: 'Пенал 500 (полки)', kind: 'tall', wall: 'left', x: 1420, w: 500, h: 2600, d: 500, plinth: 100, topTrim: 60, sections: [sec({ shelves: 6 })] }),
     ];

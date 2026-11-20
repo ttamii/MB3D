@@ -301,9 +301,22 @@ export function syncTierHeight(modules: Module[], targetId: string): void {
   );
   if (maxWallTop >= 2000) {
     for (const m of modules) {
-      if (m.kind === 'tall') {
+      if (m.kind === 'tall' && !(/холодильник/i.test(m.name) && (!/встроен/i.test(m.name) || /невстроен/i.test(m.name)))) {
         m.h = maxWallTop;
       }
+    }
+  }
+}
+
+/**
+ * Выравнивает глубину всех шкафов текущего яруса (например, всех антресолей под глубину верхних шкафов 300 мм).
+ */
+export function syncTierDepth(modules: Module[], targetId: string): void {
+  const target = modules.find((m) => m.id === targetId);
+  if (!target) return;
+  for (const m of modules) {
+    if (m.id !== target.id && isSameVerticalTier(m, target)) {
+      m.d = target.d;
     }
   }
 }

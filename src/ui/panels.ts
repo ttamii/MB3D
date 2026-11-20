@@ -3,7 +3,7 @@ import type { Estimate } from '../core/estimate';
 import { buildModule } from '../core/geometry';
 import type { DoorMode, Material, MatKind, Module, Section } from '../core/types';
 import { fmtNum, money, uid } from '../core/util';
-import { applyTopTrimToUpperRow, getActiveTopTrimH, isSameVerticalTier, resizeHeightWithStack, resizeModuleCascading, shiftModuleCascading, insertFillerWithShift, syncTierHeight } from '../core/collision';
+import { applyTopTrimToUpperRow, getActiveTopTrimH, isSameVerticalTier, resizeHeightWithStack, resizeModuleCascading, shiftModuleCascading, insertFillerWithShift, syncTierDepth, syncTierHeight } from '../core/collision';
 import type { Store } from '../app/store';
 import { clear, h, icon } from './dom';
 
@@ -268,6 +268,7 @@ export function renderModules(root: HTMLElement, store: Store, est: Estimate): v
   for (let i = 0; i < mods.length; i++) {
     for (let j = i + 1; j < mods.length; j++) {
       const a = mods[i], b = mods[j];
+      if ((a.wall ?? 'back') !== (b.wall ?? 'back')) continue;
       const aw = buildModule(a).width, bw = buildModule(b).width;
       const xOverlap = a.x < b.x + bw - 1 && b.x < a.x + aw - 1;
       if (!xOverlap) continue;
@@ -310,10 +311,10 @@ export function renderModules(root: HTMLElement, store: Store, est: Estimate): v
     style: leftViewMode === 'split' && mods.length > 5 ? 'max-height:36vh; overflow-y:auto; padding-right:2px;' : '',
   });
   mods.forEach((m, i) => {
-    const on = m.id === store.selectedId;
+    const on = m.id === store.selectedId || store.selectedIds.has(m.id);
     list.append(h('li', {
       class: 'mod' + (on ? ' on' : ''), role: 'option', 'aria-selected': String(on), tabindex: '0',
-      onClick: () => store.select(m.id),
+      onClick: (e: MouseEvent) => store.select(m.id, e.shiftKey),
       onKeydown: (e: Event) => { const k = (e as KeyboardEvent).key; if (k === 'Enter' || k === ' ') { e.preventDefault(); store.select(m.id); } },
     },
       h('div', { class: 'mod-top' },
@@ -379,10 +380,13 @@ export function renderProps(root: HTMLElement, store: Store): void {
 
   const set = (fn: (m: Module) => void, tag?: string) => {
     store.commit((p) => {
-      const cur = p.modules.find((x) => x.id === m.id);
-      if (cur) fn(cur);
+      const ids = store.selectedIds.size > 1 ? store.selectedIds : new Set([m.id]);
+      for (const cur of p.modules) {
+        if (ids.has(cur.id)) fn(cur);
+      }
     }, tag);
   };
+  const multiCount = store.selectedIds.size > 1 ? store.selectedIds.size : 0;
 
   const corner = isCorner(m.kind);
   const wall = isWall(m.kind);
@@ -393,8 +397,8 @@ export function renderProps(root: HTMLElement, store: Store): void {
   // Верхняя шапка модуля с быстрым удалением и дублированием
   const topHeader = h('div', { style: 'display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid #e2e8f0;' },
     h('div', { style: 'display:flex; align-items:center; gap:6px; min-width:0;' },
-      h('h2', { style: 'font-size:13px; font-weight:700; margin:0; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;' }, m.name),
-      h('span', { class: 'chip' }, KIND_LABEL[m.kind]),
+      h('h2', { style: 'font-size:13px; font-weight:700; margin:0; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;' }, multiCount > 1 ? `Выбрано модулей: ${multiCount}` : m.name),
+      h('span', { class: 'chip' }, multiCount > 1 ? 'Shift + ЛКМ' : KIND_LABEL[m.kind]),
     ),
     h('div', { style: 'display:flex; gap:4px; flex-shrink:0;' },
       h('button', {
@@ -440,11 +444,13 @@ export function renderProps(root: HTMLElement, store: Store): void {
   if (activePropTab === 'dims') {
     // Вкладка 1: Размеры, позиция и стыковка
     const sameTier = (o: Module) => {
+      if ((o.wall ?? 'back') !== (m.wall ?? 'back')) return false;
       if (isWall(m.kind)) {
         return isWall(o.kind) && Math.abs(o.lift - m.lift) < 300;
       }
       return !isWall(o.kind) || o.kind === 'tall';
     };
+    const wallSpanLimit = (m.wall === 'left' || m.wall === 'right') ? store.project.room?.d : store.project.room?.w;
     const otherMods = store.project.modules.filter((x) => x.id !== m.id && sameTier(x));
     const leftNeighbor = otherMods
       .filter((x) => x.x + x.w <= m.x + 5)
@@ -471,7 +477,7 @@ export function renderProps(root: HTMLElement, store: Store): void {
             class: `qw-btn ${m.w === sw ? 'on' : ''}`,
             onClick: () => {
               store.commit((p) => {
-                resizeModuleCascading(p.modules, m.id, sw, p.room?.w);
+                resizeModuleCascading(p.modules, m.id, sw, wallSpanLimit);
               }, 'w');
             },
           }, String(sw)),
@@ -482,12 +488,13 @@ export function renderProps(root: HTMLElement, store: Store): void {
     const dimsGrid = h('div', { class: 'grid2' },
       numField(corner ? 'Сторона (ширина)' : 'Ширина (W)', 'w', m.w, LIMITS.w, (v) => {
         store.commit((p) => {
-          resizeModuleCascading(p.modules, m.id, v, p.room?.w);
+          resizeModuleCascading(p.modules, m.id, v, wallSpanLimit);
         }, 'w');
       }),
       numField('Высота (H)', 'h', m.h, LIMITS.h, (v) => {
         store.commit((p) => {
-          resizeHeightWithStack(p.modules, m.id, v);
+          const ids = store.selectedIds.size > 1 ? Array.from(store.selectedIds) : [m.id];
+          ids.forEach((id) => resizeHeightWithStack(p.modules, id, v));
         }, 'h');
       }),
       numField(corner ? 'Глубина плеча' : 'Глубина (D)', 'd', m.d, LIMITS.d, (v) => set((t) => { t.d = v; }, 'd')),
@@ -495,7 +502,7 @@ export function renderProps(root: HTMLElement, store: Store): void {
         : numField('Высота цоколя', 'plinth', m.plinth, LIMITS.plinth, (v) => set((t) => { t.plinth = v; }, 'plinth')),
       numField('Координата X', 'x', m.x, LIMITS.x, (v) => {
         store.commit((p) => {
-          shiftModuleCascading(p.modules, m.id, v, p.room?.w);
+          shiftModuleCascading(p.modules, m.id, v, wallSpanLimit);
         }, 'x');
       }),
       m.kind !== 'base' && m.kind !== 'corner'
@@ -663,17 +670,30 @@ export function renderProps(root: HTMLElement, store: Store): void {
     if (m.t !== 16 || m.mirror || (m.wall && m.wall !== 'back')) advanced.setAttribute('open', '');
 
     const sameTierHeightMods = store.project.modules.filter((o) => o.id !== m.id && isSameVerticalTier(o, m));
-    const syncTierBtn = sameTierHeightMods.length > 0 ? h('button', {
-      type: 'button',
-      class: 'btn btn-ghost sm',
-      style: 'width:100%; margin-top:2px;',
-      title: 'Применить высоту текущего модуля ко всем шкафам этого яруса (например, ко всем антресолям или верхним шкафам)',
-      onClick: () => {
-        store.commit((p) => {
-          syncTierHeight(p.modules, m.id);
-        }, 'sync-tier-h');
-      },
-    }, `Синхронизировать высоту яруса (${m.h} мм)`) : null;
+    const syncTierBtn = sameTierHeightMods.length > 0 ? h('div', { class: 'btn-bar', style: 'margin-top:2px;' },
+      h('button', {
+        type: 'button',
+        class: 'btn btn-ghost sm',
+        style: 'flex:1;',
+        title: 'Применить высоту текущего модуля ко всем шкафам этого яруса (например, ко всем антресолям или верхним шкафам)',
+        onClick: () => {
+          store.commit((p) => {
+            syncTierHeight(p.modules, m.id);
+          }, 'sync-tier-h');
+        },
+      }, `Высота яруса (${m.h} мм)`),
+      h('button', {
+        type: 'button',
+        class: 'btn btn-ghost sm',
+        style: 'flex:1;',
+        title: 'Сделать одинаковую глубину у всех шкафов этого яруса (например, у всех антресолей 300 мм вровень с верхними)',
+        onClick: () => {
+          store.commit((p) => {
+            syncTierDepth(p.modules, m.id);
+          }, 'sync-tier-d');
+        },
+      }, `Глубина яруса (${m.d} мм)`),
+    ) : null;
 
     contentArea.append(nameField);
     if (quickWidthsBar) contentArea.append(quickWidthsBar);

@@ -82,7 +82,7 @@ async function boot(): Promise<void> {
     viewport.append(h('p', { class: 'fatal' }, 'Не удалось запустить 3D: браузер не поддерживает WebGL. Обновите браузер или откройте на другом устройстве.'));
     return;
   }
-  viewer.onPick = (id) => store.select(id);
+  viewer.onPick = (id, additive) => store.select(id, additive);
   viewer.onModuleDrag = (_id, x) => {
     hud.textContent = `Позиция модуля: X = ${x} мм (пристыкован)`;
   };

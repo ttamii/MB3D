@@ -13,6 +13,7 @@ export class Store {
   project: Project;
   settings: Settings;
   selectedId: string | null = null;
+  selectedIds = new Set<string>();
   readOnly = false;
   private undoStack: string[] = [];
   private redoStack: string[] = [];
@@ -33,6 +34,7 @@ export class Store {
       this.project.room.windows = this.project.room.windows.filter((w) => w.id !== 'w1');
     }
     this.selectedId = this.project.modules[0]?.id ?? null;
+    if (this.selectedId) this.selectedIds.add(this.selectedId);
   }
 
   subscribe(fn: (c: Change) => void): () => void {
@@ -51,9 +53,24 @@ export class Store {
   canUndo = () => this.undoStack.length > 0;
   canRedo = () => this.redoStack.length > 0;
 
-  select(id: string | null): void {
-    if (this.selectedId === id) return;
+  select(id: string | null, additive = false): void {
+    if (additive && id) {
+      if (this.selectedIds.has(id) && this.selectedIds.size > 1) {
+        this.selectedIds.delete(id);
+        if (this.selectedId === id) {
+          this.selectedId = Array.from(this.selectedIds)[0] ?? null;
+        }
+      } else {
+        this.selectedIds.add(id);
+        this.selectedId = id;
+      }
+      this.emit('select');
+      return;
+    }
+    if (this.selectedId === id && this.selectedIds.size <= 1) return;
     this.selectedId = id;
+    this.selectedIds.clear();
+    if (id) this.selectedIds.add(id);
     this.emit('select');
   }
 

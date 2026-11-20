@@ -191,7 +191,7 @@ export class Viewer {
 
   private currentModules: Module[] = [];
 
-  onPick: (id: string | null) => void = () => {};
+  onPick: (id: string | null, additive?: boolean) => void = () => {};
   onAnimChange: () => void = () => {};
   onModuleDrag?: (id: string, x: number) => void;
   onModuleDragEnd?: (id: string, x: number) => void;
@@ -1057,7 +1057,14 @@ export class Viewer {
 
     if (this.isDragging && this.dragCandidate) {
       const g = this.moduleGroups.get(this.dragCandidate.moduleId);
-      const finalX = g ? Math.round(g.position.x / MM) : this.dragCandidate.startModuleX;
+      const mod = this.currentModules.find((m) => m.id === this.dragCandidate?.moduleId);
+      const modWall = mod?.wall ?? 'back';
+      let finalX = this.dragCandidate.startModuleX;
+      if (g && mod) {
+        if (modWall === 'left') finalX = Math.round(g.position.z / MM) - mod.w;
+        else if (modWall === 'right') finalX = Math.round(g.position.z / MM);
+        else finalX = Math.round(g.position.x / MM);
+      }
       this.onModuleDragEnd?.(this.dragCandidate.moduleId, finalX);
       this.isDragging = false;
       this.dragCandidate = null;
@@ -1080,7 +1087,7 @@ export class Viewer {
     const ndc = new Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
     const hit = this.raycaster.intersectObjects(this.pickables, false)[0];
-    this.onPick(hit ? ((hit.object.userData.moduleId as string | undefined) ?? null) : null);
+    this.onPick(hit ? ((hit.object.userData.moduleId as string | undefined) ?? null) : null, e.shiftKey);
   }
 
   updateRoom(room: RoomConfig): void {
