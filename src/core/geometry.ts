@@ -633,20 +633,33 @@ function cornerCabinet(b: Builder, m: Module): void {
   const Hi = H - P - 2 * t;
   const trimH = m.topTrim && m.topTrim > 0 && m.kind === 'cornerWall' ? m.topTrim : 0;
 
-  b.box('Боковина (у стены)', 'corpus', [0, P, BK], [t, bodyH, S - BK], bodyH);
-  b.box('Боковина внутренняя 1', 'corpus', [D - t, P, D - t], [t, bodyH, S - D + t], bodyH);
-  b.box('Боковина внутренняя 2', 'corpus', [D, P, D - t], [S - D, bodyH, t], bodyH);
-  b.box('Дно (плечо 1)', 'corpus', [t, P, BK], [D - 2 * t, t, S - BK], D - 2 * t);
-  b.box('Дно (плечо 2)', 'corpus', [D - t, P, BK], [S - D + t, t, D - t - BK], D - t - BK);
-  b.box('Крышка (плечо 1)', 'corpus', [t, H - t, BK], [D - 2 * t, t, S - BK], D - 2 * t);
-  b.box('Крышка (плечо 2)', 'corpus', [D - t, H - t, BK], [S - D + t, t, D - t - BK], D - t - BK);
+  // Профессиональный Г-образный угловой модуль (900×900 / 600×600):
+  // Задний угол в (0,0), правое плечо вдоль +X (0..S, глубина 0..D), левое плечо вдоль +Z (0..S, глубина 0..D),
+  // фасады смотрят во внутренний угол (x = D, z = D).
+  b.box('Боковина задняя L', 'corpus', [0, P, BK], [t, bodyH, S - BK], bodyH);
+  b.box('Боковина левого плеча (торец)', 'corpus', [t, P, S - t], [D - t, bodyH, t], bodyH);
+  b.box('Боковина правого плеча (торец)', 'corpus', [S - t, P, BK], [t, bodyH, D - BK], bodyH);
   b.box('Задняя стенка', 'back', [1, P + 1, 0], [S - 2, bodyH - 2, BK], 0);
-  b.add('confirmat', 16);
+  b.box('Задняя стенка левого плеча', 'back', [0, P + 1, BK], [BK, bodyH - 2, S - BK - 1], 0);
+
+  // Г-образное дно и крышка (из 2 частей без пересечений)
+  b.box('Дно (плечо 1)', 'corpus', [t, P, BK], [D - t, t, S - t - BK], S - t - BK);
+  b.box('Дно (плечо 2)', 'corpus', [D, P, BK], [S - t - D, t, D - BK], S - t - D);
+  b.box('Крышка (плечо 1)', 'corpus', [t, H - t, BK], [D - t, t, S - t - BK], S - t - BK);
+  b.box('Крышка (плечо 2)', 'corpus', [D, H - t, BK], [S - t - D, t, D - BK], S - t - D);
+  b.add('confirmat', 18);
 
   if (P > 0) {
     const plinthMat: PartMat = m.plinthColor === 'black' ? 'black' : m.plinthColor === 'facade' ? 'facade' : 'corpus';
-    b.box('Цоколь (плечо 1)', plinthMat, [0, 0, S - 50 - 16], [D, P, 16], D);
-    b.box('Цоколь (плечо 2)', plinthMat, [S - 50 - 16, 0, BK], [16, P, D - BK], D - BK);
+    const px = Math.max(t, D - 50 - 16);
+    const pz = Math.max(t, D - 50 - 16);
+    b.box('Цоколь внутренний (правое плечо)', plinthMat, [px, 0, pz], [S - px, P, 16], S - px);
+    b.box('Цоколь внутренний (левое плечо)', plinthMat, [px, 0, pz + 16], [16, P, S - (pz + 16)], S - (pz + 16));
+    // Регулируемые ножки-опоры под дном
+    b.decor('Опора регулируемая', 'black', [45, 0, 45], [30, P, 30], undefined, 'cyl');
+    b.decor('Опора регулируемая', 'black', [S - 75, 0, 45], [30, P, 30], undefined, 'cyl');
+    b.decor('Опора регулируемая', 'black', [45, 0, S - 75], [30, P, 30], undefined, 'cyl');
+    b.decor('Опора регулируемая', 'black', [px - 36, 0, pz - 36], [30, P, 30], undefined, 'cyl');
     b.add('leg', 6);
   }
   if (wall) b.add('hanger', 2);
@@ -655,38 +668,44 @@ function cornerCabinet(b: Builder, m: Module): void {
   const zoneH = H - t - zoneTop;
   for (let k = 1; k <= sec.shelves; k++) {
     const y = zoneTop + (k * zoneH) / (sec.shelves + 1) - t / 2;
-    b.box('Полка (плечо 1)', 'corpus', [t, y, BK], [D - 2 * t, t, S - BK - 20], D - 2 * t);
-    b.box('Полка (плечо 2)', 'corpus', [D - t, y, BK], [S - D + t - 20, t, D - t - BK], D - t - BK);
+    b.box('Полка (плечо 1)', 'corpus', [t, y, BK], [D - t - 18, t, S - t - BK], S - t - BK);
+    b.box('Полка (плечо 2)', 'corpus', [D - 18, y, BK], [S - t - D + 18, t, D - BK - 18], S - t - D);
     b.add('pin', 8);
   }
 
+  // Фасады во внутреннем углу: складная / распашная пара (петли 165° + зазор стыковки 18 мм в углу)
   if (m.doorMode !== 'none' && sec.door && Hi > 100) {
     const y0 = P + 2;
     const hd = H - 2 - y0;
-    const a1: PartAnim = { type: 'door', key: `${m.id}-door-c1`, pivot: [1, S], ang: -85 };
-    b.box('Фасад (плечо 1)', 'facade', [1, y0, S], [D - 2, hd, FACADE_T], 2 * (D - 2 + hd), a1);
+    const xStart = D + 18;
+    const dw1 = Math.max(120, (S - 1) - xStart);
+    const a1: PartAnim = { type: 'door', key: `${m.id}-door-c1`, pivot: [S - 1, D], ang: 85 };
+    b.box('Фасад угловой (правое плечо)', 'facade', [xStart, y0, D], [dw1, hd, FACADE_T], 2 * (dw1 + hd), a1);
     b.add('hinge', hingesFor(hd));
-    doorHandle(b, m, a1, 1, D - 1, y0, y0 + hd, 'left', S + FACADE_T);
+    doorHandle(b, m, a1, xStart, S - 1, y0, y0 + hd, 'right', D + FACADE_T);
 
-    const a2: PartAnim = { type: 'door', key: `${m.id}-door-c2`, pivot: [S, 1], ang: 85 };
-    b.box('Фасад (плечо 2)', 'facade', [S, y0, 1], [FACADE_T, hd, D - 2], 2 * (D - 2 + hd), a2);
+    const zStart = D + 18;
+    const dw2 = Math.max(120, (S - 1) - zStart);
+    const a2: PartAnim = { type: 'door', key: `${m.id}-door-c2`, pivot: [D, S - 1], ang: -85 };
+    b.box('Фасад угловой (левое плечо)', 'facade', [D, y0, zStart], [FACADE_T, hd, dw2], 2 * (dw2 + hd), a2);
     b.add('hinge', hingesFor(hd));
     if (m.handles) {
       const hl = Math.max(100, Math.min(320, hd * 0.25));
       const y = wall ? y0 + 30 : y0 + hd - 30 - hl;
-      b.decor('Ручка', 'handle', [S + FACADE_T, y, D - 38], [22, hl, 14], a2);
+      b.decor('Ручка', 'handle', [D + FACADE_T, y, zStart + 24], [22, hl, 14], a2);
       b.add('handle');
     }
   }
 
   if (m.countertop && m.kind === 'corner') {
-    b.box('Столешница (часть 1)', 'top', [0, H, 0], [S + 30, COUNTERTOP_T, D + 30], S + 30);
-    b.box('Столешница (часть 2)', 'top', [0, H, D + 30], [D + 30, COUNTERTOP_T, S - D], D + 30);
+    // Г-образная столешница со свесом +30 мм строго во внутренний угол (без вылета за боковые торцы S)
+    b.box('Столешница (часть 1)', 'top', [0, H, 0], [S, COUNTERTOP_T, D + 30], S);
+    b.box('Столешница (часть 2)', 'top', [0, H, D + 30], [D + 30, COUNTERTOP_T, S - (D + 30)], D + 30);
   }
 
   if (trimH > 0) {
-    b.box('Верхняя планка (плечо 1)', 'facade', [0, H, S], [D, trimH, FACADE_T], 2 * (D + trimH));
-    b.box('Верхняя планка (плечо 2)', 'facade', [S, H, 0], [FACADE_T, trimH, D], 2 * (D + trimH));
+    b.box('Верхняя планка (правое плечо)', 'facade', [D, H, D], [S - D, trimH, FACADE_T], 2 * (S - D + trimH));
+    b.box('Верхняя планка (левое плечо)', 'facade', [D, H, D + FACADE_T], [FACADE_T, trimH, S - D - FACADE_T], 2 * (S - D + trimH));
     b.add('confirmat', 6);
   }
 }
@@ -721,7 +740,7 @@ export function buildModule(m: Module, opts?: BuildModuleOptions): BuiltModule {
   return {
     parts: b.parts,
     hardware: b.hw,
-    width: corner ? m.w + 30 : m.w,
+    width: m.w,
     depth: (corner ? m.w : m.d) + FACADE_T,
     height: m.h + topExtra,
   };
