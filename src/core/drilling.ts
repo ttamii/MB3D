@@ -139,8 +139,13 @@ export function computeModuleDrilling(m: Module, builtParts: Part[]): ModuleDril
     const x0 = cellX(i);
     const segL = i === 0 ? 0 : x0 - t / 2;
     const segR = i === n - 1 ? W : x0 + cw + t / 2;
-    const fx0 = segL + (i === 0 ? 1 : 1.5);
-    const fx1 = segR - (i === n - 1 ? 1 : 1.5);
+    let fx0 = segL + (i === 0 ? 1 : 1.5);
+    let fx1 = segR - (i === n - 1 ? 1 : 1.5);
+    if (m.blindSide && (m.blindW ?? 0) > 0) {
+      const blindW = Math.min(Math.round((segR - segL) - 150), Math.max(100, m.blindW ?? 330));
+      if (m.blindSide === 'left' && i === 0) fx0 = blindW + 2;
+      else if (m.blindSide === 'right' && i === n - 1) fx1 = segR - blindW - 2;
+    }
     const segW = fx1 - fx0;
 
     const nDoors = isDoubleDoorSection(m, segW) ? 2 : 1;

@@ -56,6 +56,9 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
   const topTrimVal = int(r.topTrim, 0, ...LIMITS.topTrim);
   const topTrim = topTrimVal > 0 && kind !== 'base' && kind !== 'corner' ? topTrimVal : undefined;
   const modWall = r.wall === 'left' || r.wall === 'right' || r.wall === 'back' ? r.wall : undefined;
+  const blindSide = r.blindSide === 'left' || r.blindSide === 'right' ? r.blindSide : undefined;
+  const blindW = blindSide ? int(r.blindW, 330, 100, Math.max(150, w - 150)) : undefined;
+  const blindFillerW = blindSide ? int(r.blindFillerW, 30, 16, 100) : undefined;
 
   return {
     id: typeof r.id === 'string' && /^[\w-]{1,40}$/.test(r.id) ? r.id : uid(),
@@ -84,6 +87,7 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
     ...(hinge ? { hinge } : {}),
     ...(topTrim ? { topTrim } : {}),
     ...(modWall && modWall !== 'back' ? { wall: modWall } : {}),
+    ...(blindSide ? { blindSide, blindW, blindFillerW } : {}),
   };
 }
 

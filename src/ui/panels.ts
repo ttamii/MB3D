@@ -833,6 +833,35 @@ export function renderProps(root: HTMLElement, store: Store): void {
     if (m.kind === 'base' || m.kind === 'corner') {
       facadeNodes.push(toggle('Столешница 38 мм', 'top', m.countertop, (v) => set((t) => { t.countertop = v; })));
     }
+    if (!corner && m.kind !== 'wardrobe') {
+      const curBlind = m.blindSide ?? 'none';
+      const defaultBlindW = wall ? 330 : 530;
+      facadeNodes.push(
+        h('div', { style: 'background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:8px 10px; display:flex; flex-direction:column; gap:7px;' },
+          segmented('Угловой стык (глухая зона + планка)', [
+            ['none', 'Нет'],
+            ['left', 'Утоплен слева'],
+            ['right', 'Утоплен справа'],
+          ] as ['none' | 'left' | 'right', string][], curBlind, (v) => {
+            set((t) => {
+              if (v === 'none') {
+                delete t.blindSide;
+                delete t.blindW;
+                delete t.blindFillerW;
+              } else {
+                t.blindSide = v;
+                t.blindW = t.blindW ?? defaultBlindW;
+                t.blindFillerW = t.blindFillerW ?? 30;
+              }
+            });
+          }),
+          curBlind !== 'none' ? h('div', { class: 'grid2' },
+            numField('Глухая зона (мм)', 'blindW', m.blindW ?? defaultBlindW, [100, Math.max(150, m.w - 150)], (v) => set((t) => { t.blindW = v; }, 'blindW')),
+            numField('Угловая планка (мм)', 'blindFillerW', m.blindFillerW ?? 30, [16, 100], (v) => set((t) => { t.blindFillerW = v; }, 'blindFillerW')),
+          ) : null,
+        ),
+      );
+    }
     contentArea.append(...facadeNodes);
 
   } else if (activePropTab === 'mats') {

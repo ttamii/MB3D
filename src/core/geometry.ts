@@ -326,11 +326,32 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
       : 0;
     const zoneTop = nd > 0 ? P + Math.round(nd * fhStep) : P + t;
 
-    // сегмент фасада по центру перегородок
+    // сегмент фасада по центру перегородок (с учётом утопленной глухой зоны и планки 30 мм в углу)
     const segL = i === 0 ? 0 : x0 - t / 2;
     const segR = i === n - 1 ? W : x0 + cw + t / 2;
-    const fx0 = segL + (i === 0 ? 1 : 1.5);
-    const fx1 = segR - (i === n - 1 ? 1 : 1.5);
+    let fx0 = segL + (i === 0 ? 1 : 1.5);
+    let fx1 = segR - (i === n - 1 ? 1 : 1.5);
+
+    const hasBlind = m.blindSide && (m.blindW ?? 0) > 0 && ((m.blindSide === 'left' && i === 0) || (m.blindSide === 'right' && i === n - 1));
+    if (hasBlind) {
+      const blindW = Math.min(Math.round((segR - segL) - 150), Math.max(100, m.blindW ?? 330));
+      const fillerW = Math.min(80, Math.max(16, m.blindFillerW ?? 30));
+      const blindPanelW = Math.max(40, blindW - fillerW);
+      if (m.blindSide === 'left') {
+        // Глухая заглушка утоплена за перпендикулярный шкаф + угловая планка 30 мм перед дверцами
+        b.box('Глухая заглушка (угловая)', 'corpus', [1, P + 2, D - t], [blindPanelW, bodyH - 4, t], 2 * (blindPanelW + bodyH));
+        b.box(`Угловая планка ${fillerW} мм`, 'facade', [blindPanelW, P + 2, D], [fillerW, bodyH - 4, FACADE_T], 2 * (fillerW + bodyH));
+        b.box('Ответная планка угла', 'corpus', [blindW - t, P + 2, D - 48], [t, bodyH - 4, 48], bodyH);
+        fx0 = blindW + 2;
+      } else {
+        const xStart = segR - blindW;
+        b.box('Глухая заглушка (угловая)', 'corpus', [xStart + fillerW, P + 2, D - t], [blindPanelW, bodyH - 4, t], 2 * (blindPanelW + bodyH));
+        b.box(`Угловая планка ${fillerW} мм`, 'facade', [xStart, P + 2, D], [fillerW, bodyH - 4, FACADE_T], 2 * (fillerW + bodyH));
+        b.box('Ответная планка угла', 'corpus', [xStart, P + 2, D - 48], [t, bodyH - 4, 48], bodyH);
+        fx1 = xStart - 2;
+      }
+      b.add('confirmat', 4);
+    }
 
     // ящики
     if (nd > 0) {
@@ -589,16 +610,19 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
     if (!skipContinuous) {
       b.box('Столешница', 'top', [0, H, 0], [W, COUNTERTOP_T, D + 30], W);
     }
-    // Врезная мойка на тумбе под мойку
+    // Врезная мойка на тумбе под мойку (центрируется в открытой зоне при наличии глухой угловой части)
     if (isSink && W >= 400 && D >= 450) {
-      const sw = Math.min(580, W - 90);
+      const openX0 = m.blindSide === 'left' && (m.blindW ?? 0) > 0 ? (m.blindW ?? 0) : 0;
+      const openX1 = m.blindSide === 'right' && (m.blindW ?? 0) > 0 ? W - (m.blindW ?? 0) : W;
+      const openW = Math.max(400, openX1 - openX0);
+      const sw = Math.min(580, openW - 70);
       const sd = Math.min(430, D - 110);
-      const sx = Math.round((W - sw) / 2);
+      const sx = Math.round(openX0 + (openW - sw) / 2);
       const sz = Math.round((D - sd) / 2) + 10;
       b.decor('Мойка врезная: бортик', 'metal', [sx, H + COUNTERTOP_T - 1, sz], [sw, 2, sd]);
       b.decor('Мойка врезная: чаша', 'black', [sx + 22, H + COUNTERTOP_T - 0.5, sz + 44], [sw - 44, 2, sd - 64]);
-      b.decor('Мойка: сливной клапан', 'metal', [W / 2 - 22, H + COUNTERTOP_T, sz + sd / 2], [44, 2, 44], undefined, 'cyl');
-      b.decor('Смеситель: база', 'metal', [W / 2 - 18, H + COUNTERTOP_T, sz + 8], [36, 2, 30]);
+      b.decor('Мойка: сливной клапан', 'metal', [sx + sw / 2 - 22, H + COUNTERTOP_T, sz + sd / 2], [44, 2, 44], undefined, 'cyl');
+      b.decor('Смеситель: база', 'metal', [sx + sw / 2 - 18, H + COUNTERTOP_T, sz + 8], [36, 2, 30]);
     }
     // Встроенная индукционная варочная панель над духовкой
     if (isOven && W >= 450 && D >= 450) {
