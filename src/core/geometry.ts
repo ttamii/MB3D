@@ -317,7 +317,11 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
     const plinthZ = D - 50 - 16;
     if (!skipContinuous) {
       const plinthMat: PartMat = m.plinthColor === 'black' ? 'black' : m.plinthColor === 'facade' ? 'facade' : 'corpus';
-      b.box('Цоколь', plinthMat, [0, 0, plinthZ], [W, P, 16], W);
+      // Если напольный модуль стоит на боковой стене у угла (m.x ≈ D..D+120), дотягиваем его цоколь до пересечения с цоколем задней стены
+      const plinthJoin = (m.wall === 'left' || m.wall === 'right') && m.x > plinthZ && m.x <= D + 120 ? (m.x - plinthZ) : 0;
+      const plinthX = m.wall === 'right' ? -plinthJoin : 0;
+      const plinthW = W + plinthJoin;
+      b.box('Цоколь', plinthMat, [plinthX, 0, plinthZ], [plinthW, P, 16], plinthW);
       const sidePlinthDepth = plinthZ - BK;
       if (sidePlinthDepth > 50) {
         b.box('Цоколь боковой L', plinthMat, [0, 0, BK], [16, P, sidePlinthDepth], sidePlinthDepth);
@@ -373,25 +377,29 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
 
     const hasBlind = m.blindSide && (m.blindW ?? 0) > 0 && ((m.blindSide === 'left' && i === 0) || (m.blindSide === 'right' && i === n - 1));
     if (hasBlind) {
-      const blindW = Math.min(Math.round((segR - segL) - 150), Math.max(100, m.blindW ?? 350));
-      const fillerW = Math.min(100, Math.max(16, m.blindFillerW ?? 50));
-      const blindPanelW = Math.max(40, blindW - fillerW);
+      const blindW = Math.min(Math.round((segR - segL) - 120), Math.max(25, m.blindW ?? 350));
+      const fillerW = Math.min(blindW, Math.max(16, m.blindFillerW ?? 50));
+      const blindPanelW = Math.max(0, blindW - fillerW);
       if (m.blindSide === 'left') {
         // Глухая заглушка + L-планка угла + полноценная внутренняя стенка-перегородка по линии blindW
-        b.box('Глухая заглушка (угловая)', 'corpus', [1, P + 2, D - t], [blindPanelW, bodyH - 4, t], 2 * (blindPanelW + bodyH));
+        if (blindPanelW >= 20) {
+          b.box('Глухая заглушка (угловая)', 'corpus', [1, P + 2, D - t], [blindPanelW, bodyH - 4, t], 2 * (blindPanelW + bodyH));
+        }
         b.box(`Угловая планка ${fillerW} мм`, 'facade', [blindPanelW, P + 2, D], [fillerW, bodyH - 4, FACADE_T], 2 * (fillerW + bodyH));
-        if (fillerW > FACADE_T) {
+        if (fillerW > FACADE_T && blindPanelW >= 20) {
           b.box(`Угловая планка возврат`, 'facade', [blindPanelW, P + 2, D + FACADE_T], [FACADE_T, bodyH - 4, fillerW - FACADE_T], 2 * (fillerW - FACADE_T + bodyH));
         }
         b.box('Стенка-перегородка угла', 'corpus', [blindW - t, P + t, BK], [t, Hi, D - BK], Hi);
         fx0 = blindW + 2;
-        openZoneX0 = blindW;
-        openZoneW = Math.max(120, (x0 + cw) - blindW);
+        openZoneX0 = Math.max(x0, blindW);
+        openZoneW = Math.max(120, (x0 + cw) - openZoneX0);
       } else {
         const xStart = segR - blindW;
-        b.box('Глухая заглушка (угловая)', 'corpus', [xStart + fillerW, P + 2, D - t], [blindPanelW, bodyH - 4, t], 2 * (blindPanelW + bodyH));
+        if (blindPanelW >= 20) {
+          b.box('Глухая заглушка (угловая)', 'corpus', [xStart + fillerW, P + 2, D - t], [blindPanelW, bodyH - 4, t], 2 * (blindPanelW + bodyH));
+        }
         b.box(`Угловая планка ${fillerW} мм`, 'facade', [xStart, P + 2, D], [fillerW, bodyH - 4, FACADE_T], 2 * (fillerW + bodyH));
-        if (fillerW > FACADE_T) {
+        if (fillerW > FACADE_T && blindPanelW >= 20) {
           b.box(`Угловая планка возврат`, 'facade', [xStart + fillerW - FACADE_T, P + 2, D + FACADE_T], [FACADE_T, bodyH - 4, fillerW - FACADE_T], 2 * (fillerW - FACADE_T + bodyH));
         }
         b.box('Стенка-перегородка угла', 'corpus', [xStart, P + t, BK], [t, Hi, D - BK], Hi);

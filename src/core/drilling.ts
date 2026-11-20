@@ -129,7 +129,7 @@ export function computeModuleDrilling(m: Module, builtParts: Part[]): ModuleDril
     let fx0 = segL + (i === 0 ? 1 : 1.5);
     let fx1 = segR - (i === n - 1 ? 1 : 1.5);
     if (m.blindSide && (m.blindW ?? 0) > 0) {
-      const blindW = Math.min(Math.round((segR - segL) - 150), Math.max(100, m.blindW ?? 330));
+      const blindW = Math.min(Math.round((segR - segL) - 120), Math.max(25, m.blindW ?? 330));
       if (m.blindSide === 'left' && i === 0) fx0 = blindW + 2;
       else if (m.blindSide === 'right' && i === n - 1) fx1 = segR - blindW - 2;
     }

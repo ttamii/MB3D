@@ -57,7 +57,7 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
   const topTrim = topTrimVal > 0 && kind !== 'base' && kind !== 'corner' ? topTrimVal : undefined;
   const modWall = r.wall === 'left' || r.wall === 'right' || r.wall === 'back' ? r.wall : undefined;
   const blindSide = r.blindSide === 'left' || r.blindSide === 'right' ? r.blindSide : undefined;
-  const blindW = blindSide ? int(r.blindW, 330, 100, Math.max(150, w - 150)) : undefined;
+  const blindW = blindSide ? int(r.blindW, 330, 25, Math.max(150, w - 150)) : undefined;
   const blindFillerW = blindSide ? int(r.blindFillerW, 30, 16, 100) : undefined;
   const doorCount = r.doorCount === 1 || r.doorCount === 2 ? r.doorCount : undefined;
   const ovenH = typeof r.ovenH === 'number' ? int(r.ovenH, 600, 350, 750) : undefined;

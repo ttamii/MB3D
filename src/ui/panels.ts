@@ -885,7 +885,7 @@ export function renderProps(root: HTMLElement, store: Store): void {
             });
           }),
           curBlind !== 'none' ? h('div', { class: 'grid2' },
-            numField('Глухая зона (мм)', 'blindW', m.blindW ?? defaultBlindW, [100, Math.max(150, m.w - 150)], (v) => set((t) => { t.blindW = v; }, 'blindW')),
+            numField('Глухая зона (мм)', 'blindW', m.blindW ?? defaultBlindW, [25, Math.max(150, m.w - 120)], (v) => set((t) => { t.blindW = v; }, 'blindW')),
             numField('L-планка угла (мм)', 'blindFillerW', m.blindFillerW ?? 50, [16, 100], (v) => set((t) => { t.blindFillerW = v; }, 'blindFillerW')),
           ) : null,
         ),
