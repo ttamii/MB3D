@@ -19,6 +19,8 @@ export type ViewName = 'front' | 'iso' | 'top' | 'side';
 export interface SnapshotOptions {
   preset?: 'day' | 'evening' | 'studio';
   led?: 'warm' | 'neutral' | 'off';
+  /** Множитель яркости экспозиции (по умолчанию 1.0 — спокойный натуральный свет без пересвета). */
+  exposure?: number;
 }
 
 const MM = 0.001;
@@ -124,6 +126,9 @@ export class Viewer {
   private modules = new Group();
   private roomGroup = new Group();
   private roomMats: MeshStandardMaterial[] = [];
+  private roomFloorMat: MeshStandardMaterial | null = null;
+  private roomWallMat: MeshStandardMaterial | null = null;
+  private roomGrid: GridHelper | null = null;
   private floor: Mesh;
   private wall: Mesh;
   private sun: DirectionalLight;
@@ -539,19 +544,19 @@ export class Viewer {
         b.geos.push(partGeo(sp.part, [0, 0, 0]));
         spanBuckets.set(mat.uuid, b);
 
-        // Добавляем точечные источники LED-подсветки рабочей зоны вдоль светодиодной ленты под верхними шкафами
+        // Добавляем точечные источники LED-подсветки рабочей зоны вдоль светодиодной ленты под верхними шкафами (локальный мягкий радиус на фартук без засвета фасадов)
         if (sp.part.mat === 'led-warm') {
           const [px, py, pz] = sp.part.pos;
           const [sx, , sz] = sp.part.size;
           const isAlongX = sx >= sz;
           const spanMm = isAlongX ? sx : sz;
-          const count = Math.max(1, Math.min(5, Math.round(spanMm / 850)));
+          const count = Math.max(1, Math.min(5, Math.round(spanMm / 900)));
           for (let li = 0; li < count; li++) {
             const frac = (li + 0.5) / count;
             const lx = isAlongX ? px + sx * frac : px + sx / 2;
             const lz = isAlongX ? pz + sz / 2 : pz + sz * frac;
-            const pLight = new PointLight(0xffcf72, 0, 1.35, 1.5);
-            pLight.position.set(lx * MM, (py - 32) * MM, lz * MM);
+            const pLight = new PointLight(0xffb84d, 0, 0.95, 1.85);
+            pLight.position.set(lx * MM, (py - 36) * MM, lz * MM);
             spanGroup.add(pLight);
             this.apronLights.push(pLight);
           }
@@ -702,73 +707,98 @@ export class Viewer {
   snapshot(width: number, height: number, opts?: SnapshotOptions): string {
     const preset = opts?.preset ?? 'day';
     const ledMode = opts?.led ?? 'warm';
+    const expMul = opts?.exposure ?? 1.0;
     const el = this.renderer.domElement;
     const prevPR = this.renderer.getPixelRatio();
     const prevSize = new Vector2();
     this.renderer.getSize(prevSize);
     const prevAspect = this.camera.aspect;
     const prevMap = this.sun.shadow.mapSize.clone();
+    const prevSunPos = this.sun.position.clone();
+    const prevHemiSky = this.hemi.color.clone();
+    const prevHemiGround = this.hemi.groundColor.clone();
     const helperVis = this.helper?.visible ?? false;
     const dimVis = this.dimGroup.visible;
     const prevLineOp = this.lineMat.opacity;
+    const prevLineColor = this.lineMat.color.clone();
     const prevBg = (this.scene.background as Color).clone();
+    const prevFloorCol = this.roomFloorMat ? this.roomFloorMat.color.clone() : null;
+    const prevWallCol = this.roomWallMat ? this.roomWallMat.color.clone() : null;
+    const prevGridVis = this.roomGrid ? this.roomGrid.visible : true;
 
     const ledMat = this.mats.get('led-warm');
     const prevLedEmissive = ledMat ? ledMat.emissive.clone() : null;
     const prevLedInt = ledMat ? ledMat.emissiveIntensity : 2.3;
 
-    // Включаем полноценный студийный фото-рендер строго на момент генерации кадра «Рендер»
+    // Включаем сбалансированный архитектурный фото-рендер без пересвета и без «мыла»
     if (this.helper) this.helper.visible = false;
     this.dimGroup.visible = false;
-    this.lineMat.opacity = preset === 'evening' ? 0.1 : 0.15;
+    if (this.roomGrid) this.roomGrid.visible = false;
+    // Сохраняем чёткие теневые зазоры 3 мм между фасадами и ящиками, чтобы белая/айвори мебель не сливалась в «мыло»!
+    this.lineMat.color.setHex(0x27303f);
+    this.lineMat.opacity = preset === 'evening' ? 0.36 : 0.44;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.needsUpdate = true;
     this.renderer.toneMapping = ACESFilmicToneMapping;
     this.scene.environment = this.envTex;
 
-    const ledColorHex = ledMode === 'neutral' ? 0xfff5e4 : 0xffca63;
+    // Боковой архитектурный угол солнца (даёт мягкий объём и рельеф ручкам, свесу столешницы и верхним шкафам вместо плоской вспышки в лоб)
+    const c = this.bounds.getCenter(new Vector3());
+    const s = this.bounds.getSize(new Vector3());
+    this.sun.position.set(c.x + 3.8, Math.max(s.y, 2.2) * 1.65 + 1.1, 2.65);
+    this.hemi.color.setHex(0xfffcf6);
+    this.hemi.groundColor.setHex(0x8b929e);
+
+    const ledColorHex = ledMode === 'neutral' ? 0xffeccf : 0xffb84d;
     if (ledMat) {
       if (ledMode === 'off') {
         ledMat.emissiveIntensity = 0;
       } else {
         ledMat.emissive.setHex(ledColorHex);
-        ledMat.emissiveIntensity = preset === 'evening' ? 3.4 : 2.5;
+        ledMat.emissiveIntensity = preset === 'evening' ? 2.4 : 1.65;
       }
     }
 
     if (preset === 'evening') {
-      // Вечерний атмосферный интерьер: мягкий сумрак комнаты и яркий тёплый акцент LED на фартуке, столешнице и в бронзовых витринах!
-      this.scene.background = new Color('#cfc9bf');
-      this.renderer.toneMappingExposure = 0.96;
-      this.scene.environmentIntensity = 0.22;
-      this.hemi.intensity = 0.22;
-      this.amb.intensity = 0.06;
-      this.sun.intensity = 0.38;
-      const vInt = ledMode === 'off' ? 0 : 1.75;
-      const aInt = ledMode === 'off' ? 0 : 1.05;
+      // Вечерний уютный интерьер: приглушённые стены/пол и мягкий тёплый свет LED на фартуке и в бронзовой витрине
+      this.scene.background = new Color('#b4aea4');
+      if (this.roomWallMat && this.wallMode === 'solid') this.roomWallMat.color.set('#b9b2a7');
+      if (this.roomFloorMat) this.roomFloorMat.color.set('#9e968b');
+      this.renderer.toneMappingExposure = 0.72 * expMul;
+      this.scene.environmentIntensity = 0.12;
+      this.hemi.intensity = 0.14;
+      this.amb.intensity = 0.03;
+      this.sun.intensity = 0.26;
+      const vInt = ledMode === 'off' ? 0 : 1.15;
+      const aInt = ledMode === 'off' ? 0 : 0.68;
       this.vLights.forEach((l) => { l.color.setHex(ledColorHex); l.intensity = vInt; });
       this.apronLights.forEach((l) => { l.color.setHex(ledColorHex); l.intensity = aInt; });
     } else if (preset === 'studio') {
-      this.scene.background = new Color('#edece8');
-      this.renderer.toneMappingExposure = 0.95;
-      this.scene.environmentIntensity = 0.48;
-      this.hemi.intensity = 0.56;
-      this.amb.intensity = 0.14;
-      this.sun.intensity = 1.45;
-      const vInt = ledMode === 'off' ? 0 : 0.95;
-      const aInt = ledMode === 'off' ? 0 : 0.45;
+      // Чёткий каталожный свет с благородным серо-бежевым фоном стен (высокая читаемость белых и айвори фасадов)
+      this.scene.background = new Color('#d5d1c9');
+      if (this.roomWallMat && this.wallMode === 'solid') this.roomWallMat.color.set('#dbd6ce');
+      if (this.roomFloorMat) this.roomFloorMat.color.set('#c4bdb2');
+      this.renderer.toneMappingExposure = 0.78 * expMul;
+      this.scene.environmentIntensity = 0.22;
+      this.hemi.intensity = 0.28;
+      this.amb.intensity = 0.05;
+      this.sun.intensity = 0.88;
+      const vInt = ledMode === 'off' ? 0 : 0.75;
+      const aInt = ledMode === 'off' ? 0 : 0.34;
       this.vLights.forEach((l) => { l.color.setHex(ledColorHex); l.intensity = vInt; });
       this.apronLights.forEach((l) => { l.color.setHex(ledColorHex); l.intensity = aInt; });
     } else {
-      // Дневной мягкий интерьер + тёплая LED-подсветка
-      this.scene.background = new Color('#e6e3dc');
-      this.renderer.toneMappingExposure = 0.93;
-      this.scene.environmentIntensity = 0.42;
-      this.hemi.intensity = 0.42;
-      this.amb.intensity = 0.1;
-      this.sun.intensity = 1.55;
-      const vInt = ledMode === 'off' ? 0 : 1.25;
-      const aInt = ledMode === 'off' ? 0 : 0.68;
+      // Дневной мягкий интерьер (по умолчанию): спокойная яркость без рези в глазах + контрастные тёплые стены и пол
+      this.scene.background = new Color('#cfc9bf');
+      if (this.roomWallMat && this.wallMode === 'solid') this.roomWallMat.color.set('#d6d0c6');
+      if (this.roomFloorMat) this.roomFloorMat.color.set('#bfb7ab');
+      this.renderer.toneMappingExposure = 0.74 * expMul;
+      this.scene.environmentIntensity = 0.19;
+      this.hemi.intensity = 0.25;
+      this.amb.intensity = 0.04;
+      this.sun.intensity = 0.82;
+      const vInt = ledMode === 'off' ? 0 : 0.88;
+      const aInt = ledMode === 'off' ? 0 : 0.44;
       this.vLights.forEach((l) => { l.color.setHex(ledColorHex); l.intensity = vInt; });
       this.apronLights.forEach((l) => { l.color.setHex(ledColorHex); l.intensity = aInt; });
     }
@@ -785,6 +815,12 @@ export class Viewer {
 
     // Возвращаем чёткий рабочий CAD-режим конструктора
     this.scene.background = prevBg;
+    if (this.roomFloorMat && prevFloorCol) this.roomFloorMat.color.copy(prevFloorCol);
+    if (this.roomWallMat && prevWallCol) this.roomWallMat.color.copy(prevWallCol);
+    if (this.roomGrid) this.roomGrid.visible = prevGridVis;
+    this.sun.position.copy(prevSunPos);
+    this.hemi.color.copy(prevHemiSky);
+    this.hemi.groundColor.copy(prevHemiGround);
     this.renderer.shadowMap.enabled = false;
     this.renderer.toneMapping = NoToneMapping;
     this.renderer.toneMappingExposure = 1.0;
@@ -799,6 +835,7 @@ export class Viewer {
       ledMat.emissive.copy(prevLedEmissive);
       ledMat.emissiveIntensity = prevLedInt;
     }
+    this.lineMat.color.copy(prevLineColor);
     this.lineMat.opacity = prevLineOp;
     this.dimGroup.visible = dimVis;
 
@@ -851,7 +888,17 @@ export class Viewer {
     let key: string;
     switch (p.mat) {
       case 'corpus': key = m.matCorpus; break;
-      case 'facade': key = m.matFacade; break;
+      case 'facade': {
+        if (m.matFacade === 'vitrine-bronze-gold' || m.matFacade === 'vitrine-graphite-black' || m.matFacade === 'm-glass-fl') {
+          const neighborSolid = this.currentModules.find(
+            (o) => o.matFacade !== 'vitrine-bronze-gold' && o.matFacade !== 'vitrine-graphite-black' && o.matFacade !== 'm-glass-fl',
+          )?.matFacade;
+          key = neighborSolid ?? m.matCorpus;
+        } else {
+          key = m.matFacade;
+        }
+        break;
+      }
       case 'back': key = m.matBack; break;
       case 'top': key = m.matTop; break;
       default: key = p.mat;
@@ -1322,6 +1369,9 @@ export class Viewer {
       if (obj instanceof Mesh || obj instanceof LineSegments) obj.geometry.dispose();
     }
     this.roomMats.forEach((m) => m.dispose());
+    this.roomFloorMat = null;
+    this.roomWallMat = null;
+    this.roomGrid = null;
 
     const W = room.w * MM;
     const D = room.d * MM;
@@ -1331,8 +1381,9 @@ export class Viewer {
     const isGhost = this.wallMode === 'ghost';
     const isHidden = this.wallMode === 'hidden';
 
-    // 1. Пол помещения (дизайнерский светлый оттенок)
-    const floorMat = new MeshStandardMaterial({ color: '#f1f5f9', roughness: 0.88 });
+    // 1. Пол помещения (спокойный нейтральный оттенок без ослепительной белизны)
+    const floorMat = new MeshStandardMaterial({ color: '#e2dfd9', roughness: 0.9 });
+    this.roomFloorMat = floorMat;
     this.roomMats = [floorMat];
 
     const roomFloor = new Mesh(new BoxGeometry(W, 0.02, D), floorMat);
@@ -1342,8 +1393,9 @@ export class Viewer {
 
     // 2. CAD-разметка пола шагом 500 мм
     const gridDivs = Math.max(2, Math.round(Math.max(W, D) / 0.5));
-    const grid = new GridHelper(Math.max(W, D), gridDivs, 0x94a3b8, 0xe2e8f0);
+    const grid = new GridHelper(Math.max(W, D), gridDivs, 0x94a3b8, 0xd1d5db);
     grid.position.set(W / 2, 0.002, D / 2);
+    this.roomGrid = grid;
     this.roomGroup.add(grid);
 
     if (isHidden) {
@@ -1354,8 +1406,8 @@ export class Viewer {
       return;
     }
 
-    // 3. Материалы стен
-    const wallColor = isGhost ? '#cbd5e1' : '#ffffff';
+    // 3. Материалы стен (спокойный тёпло-серый тон штукатурки, на фоне которого белая/айвори кухня чётко читается)
+    const wallColor = isGhost ? '#cbd5e1' : '#ebe8e2';
     const wallMat = new MeshStandardMaterial({
       color: wallColor,
       roughness: 0.95,
@@ -1363,6 +1415,7 @@ export class Viewer {
       opacity: isGhost ? 0.22 : 1.0,
       depthWrite: !isGhost,
     });
+    this.roomWallMat = wallMat;
     const trimMat = new MeshStandardMaterial({
       color: '#ffffff',
       roughness: 0.8,

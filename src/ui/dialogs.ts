@@ -1496,6 +1496,7 @@ export function renderDialog(store: Store, viewer: Viewer): void {
 
   let preset: 'day' | 'evening' | 'studio' = 'day';
   let ledMode: 'warm' | 'neutral' | 'off' = 'warm';
+  let expMul = 1.0;
   let aspectMode: '16:9' | '4:5' = '16:9';
   let activeCam: 'current' | 'hero' | 'workzone' | 'front' = 'current';
   let lastCanvas: HTMLCanvasElement | null = null;
@@ -1507,13 +1508,13 @@ export function renderDialog(store: Store, viewer: Viewer): void {
   const holder = h('div', { class: 'render-box' });
 
   const renderShot = () => {
-    status.textContent = 'Рендерим студийный свет, тени 4K и LED-подсветку…';
+    status.textContent = 'Рендерим мягкий интерьерный свет, чёткие контуры и LED-подсветку…';
     requestAnimationFrame(() => setTimeout(() => {
       try {
         const [W, H] = aspectMode === '4:5'
           ? (small ? [1120, 1400] : [1600, 2000])
           : (small ? [1600, 900] : [2560, 1440]);
-        const url = viewer.snapshot(W, H, { preset, led: ledMode });
+        const url = viewer.snapshot(W, H, { preset, led: ledMode, exposure: expMul });
         const img = new Image();
         img.onload = () => {
           const c = document.createElement('canvas');
@@ -1528,8 +1529,8 @@ export function renderDialog(store: Store, viewer: Viewer): void {
           lastCanvas = c;
           const out = c.toDataURL('image/png');
           clear(holder);
-          holder.append(h('img', { src: out, alt: 'Фото-рендер проекта', style: 'max-height:58vh; width:auto; margin:0 auto; display:block; border-radius:6px;' }));
-          status.textContent = `Готово (${W}×${H} px). Переключайте свет, LED-подсветку и ракурс кнопками выше — кадр обновится автоматически.`;
+          holder.append(h('img', { src: out, alt: 'Фото-рендер проекта', style: 'max-height:56vh; width:auto; margin:0 auto; display:block; border-radius:6px;' }));
+          status.textContent = `Готово (${W}×${H} px). Без пересвета и с чёткими зазорами фасадов.`;
         };
         img.src = url;
       } catch {
@@ -1550,22 +1551,27 @@ export function renderDialog(store: Store, viewer: Viewer): void {
 
     controlsWrap.append(
       pillRow('1. Свет сцены:', [
-        pBtn('Дневной интерьер + LED', preset === 'day', () => { preset = 'day'; renderToolbar(); renderShot(); }),
-        pBtn('Вечерний уют (яркий акцент LED)', preset === 'evening', () => { preset = 'evening'; if (ledMode === 'off') ledMode = 'warm'; renderToolbar(); renderShot(); }),
-        pBtn('Светлая студия', preset === 'studio', () => { preset = 'studio'; renderToolbar(); renderShot(); }),
+        pBtn('Дневной мягкий + LED', preset === 'day', () => { preset = 'day'; renderToolbar(); renderShot(); }),
+        pBtn('Вечерний уют (акцент LED)', preset === 'evening', () => { preset = 'evening'; if (ledMode === 'off') ledMode = 'warm'; renderToolbar(); renderShot(); }),
+        pBtn('Каталог (контрастный)', preset === 'studio', () => { preset = 'studio'; renderToolbar(); renderShot(); }),
       ]),
-      pillRow('2. LED-подсветка:', [
+      pillRow('2. Яркость кадра:', [
+        pBtn('Приглушённо (-18%)', Math.abs(expMul - 0.82) < 0.02, () => { expMul = 0.82; renderToolbar(); renderShot(); }),
+        pBtn('Комфорт (норма)', Math.abs(expMul - 1.0) < 0.02, () => { expMul = 1.0; renderToolbar(); renderShot(); }),
+        pBtn('Посветлее (+15%)', Math.abs(expMul - 1.15) < 0.02, () => { expMul = 1.15; renderToolbar(); renderShot(); }),
+      ]),
+      pillRow('3. LED-подсветка:', [
         pBtn('Тёплая 3000K (Золото)', ledMode === 'warm', () => { ledMode = 'warm'; renderToolbar(); renderShot(); }),
         pBtn('Дневная 4000K (Белая)', ledMode === 'neutral', () => { ledMode = 'neutral'; renderToolbar(); renderShot(); }),
         pBtn('Выключена', ledMode === 'off', () => { ledMode = 'off'; renderToolbar(); renderShot(); }),
       ]),
-      pillRow('3. Ракурс камеры:', [
+      pillRow('4. Ракурс камеры:', [
         pBtn('Текущий (как в 3D)', activeCam === 'current', () => { activeCam = 'current'; renderToolbar(); renderShot(); }),
         pBtn('Дизайнерский 3/4 (с уровня глаз)', activeCam === 'hero', () => { activeCam = 'hero'; viewer.frameShowroom('hero', false); renderToolbar(); renderShot(); }),
         pBtn('Крупно: Рабочая зона + LED', activeCam === 'workzone', () => { activeCam = 'workzone'; viewer.frameShowroom('workzone', false); renderToolbar(); renderShot(); }),
         pBtn('Фронтально ровно', activeCam === 'front', () => { activeCam = 'front'; viewer.frameShowroom('front', false); renderToolbar(); renderShot(); }),
       ]),
-      pillRow('4. Формат кадра:', [
+      pillRow('5. Формат кадра:', [
         pBtn('Альбомный 16:9 (Презентация)', aspectMode === '16:9', () => { aspectMode = '16:9'; renderToolbar(); renderShot(); }),
         pBtn('Вертикальный 4:5 (WhatsApp / Телефон)', aspectMode === '4:5', () => { aspectMode = '4:5'; renderToolbar(); renderShot(); }),
       ]),
