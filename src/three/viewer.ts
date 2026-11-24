@@ -1,7 +1,7 @@
 import {
   ACESFilmicToneMapping, AmbientLight, Box3, Box3Helper, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight,
-  EdgesGeometry, GridHelper, Group, HemisphereLight, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, MathUtils, PCFSoftShadowMap,
-  PerspectiveCamera, Plane, PlaneGeometry, PMREMGenerator, PointLight, Raycaster, Scene, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer,
+  EdgesGeometry, GridHelper, Group, HemisphereLight, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, MathUtils, NoToneMapping, PCFSoftShadowMap,
+  PerspectiveCamera, Plane, PlaneGeometry, PMREMGenerator, PointLight, Raycaster, Scene, Sprite, SpriteMaterial, type Texture, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -122,12 +122,16 @@ export class Viewer {
   private floor: Mesh;
   private wall: Mesh;
   private sun: DirectionalLight;
+  private hemi: HemisphereLight;
+  private amb: AmbientLight;
+  private envTex: Texture | null = null;
+  private vLights: PointLight[] = [];
   private helper: Box3Helper | null = null;
   private pickables: Mesh[] = [];
   private lines: LineSegments[] = [];
   private anims: AnimRef[] = [];
   private mats = new Map<string, MeshStandardMaterial>();
-  private lineMat = new LineBasicMaterial({ color: 0x1b1b1f, transparent: true, opacity: 0.3 });
+  private lineMat = new LineBasicMaterial({ color: 0x1e293b, transparent: true, opacity: 0.62 });
   private bounds = new Box3(new Vector3(-0.5, 0, 0), new Vector3(0.5, 2, 0.6));
   private raycaster = new Raycaster();
   private lastTick = 0;
@@ -218,9 +222,11 @@ export class Viewer {
     this.resolve = resolve;
     this.renderer = new WebGLRenderer({ antialias: true, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
-    this.renderer.shadowMap.enabled = true;
+    // В рабочем окне конструктора рендер ВЫКЛЮЧЕН (чёткий CAD-вид без пересветов и тяжёлых теней).
+    // Реалистичный фото-рендер (тени 4K, ACES ToneMapping, отражения RoomEnvironment, свечение витрин) включается строго по кнопке «Рендер».
+    this.renderer.shadowMap.enabled = false;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
-    this.renderer.toneMapping = ACESFilmicToneMapping;
+    this.renderer.toneMapping = NoToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     container.appendChild(this.renderer.domElement);
     this.renderer.domElement.style.touchAction = 'none';
@@ -229,14 +235,17 @@ export class Viewer {
 
     this.scene.background = new Color('#e9e7e2');
     const pm = new PMREMGenerator(this.renderer);
-    this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environmentIntensity = 0.55;
+    this.envTex = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environment = null;
+    this.scene.environmentIntensity = 0.45;
     pm.dispose();
 
-    this.scene.add(new HemisphereLight(0xffffff, 0xd2cbbf, 0.45), new AmbientLight(0xffffff, 0.12));
+    this.hemi = new HemisphereLight(0xffffff, 0xcbd5e1, 0.72);
+    this.amb = new AmbientLight(0xffffff, 0.22);
+    this.scene.add(this.hemi, this.amb);
 
     const small = Math.min(window.innerWidth, window.innerHeight) < 600;
-    this.sun = new DirectionalLight(0xffffff, 2.1);
+    this.sun = new DirectionalLight(0xffffff, 0.85);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(small ? 1024 : 2048, small ? 1024 : 2048);
     this.sun.shadow.bias = -0.0004;
@@ -471,11 +480,12 @@ export class Viewer {
         }
       };
 
-      // Реальный источник тёплого света 3000K внутри шкафов-витрин с подсветкой!
+      // Источник тёплого света 3000K внутри шкафов-витрин (зажигается на полную мощность при нажатии кнопки «Рендер»)
       if (m.matFacade === 'vitrine-bronze-gold' || m.matFacade === 'vitrine-graphite-black') {
-        const vLight = new PointLight(0xffcf75, 0.95, Math.max(1.2, (m.h * MM) * 1.15), 1.4);
+        const vLight = new PointLight(0xffcf75, 0, Math.max(1.2, (m.h * MM) * 1.15), 1.4);
         vLight.position.set((m.w / 2) * MM, (m.h * 0.58) * MM, Math.max(0.12, (m.d * 0.55) * MM));
         g.add(vLight);
+        this.vLights.push(vLight);
       }
 
       buckets.forEach((b) => emit(g, b.mat, b.geos));
@@ -641,8 +651,22 @@ export class Viewer {
     const prevAspect = this.camera.aspect;
     const prevMap = this.sun.shadow.mapSize.clone();
     const helperVis = this.helper?.visible ?? false;
+    const dimVis = this.dimGroup.visible;
+    const prevLineOp = this.lineMat.opacity;
+
+    // Включаем полноценный студийный фото-рендер строго на момент генерации кадра «Рендер»
     if (this.helper) this.helper.visible = false;
-    this.lines.forEach((l) => (l.visible = false));
+    this.dimGroup.visible = false;
+    this.lineMat.opacity = 0.14; // тонкие реалистичные теневые зазоры между фасадами
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.needsUpdate = true;
+    this.renderer.toneMapping = ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 0.92;
+    this.scene.environment = this.envTex;
+    this.hemi.intensity = 0.42;
+    this.amb.intensity = 0.1;
+    this.sun.intensity = 1.65;
+    this.vLights.forEach((l) => (l.intensity = 1.05));
 
     this.sun.shadow.mapSize.set(4096, 4096);
     this.sun.shadow.map?.dispose();
@@ -654,6 +678,18 @@ export class Viewer {
     this.renderer.render(this.scene, this.camera);
     const url = el.toDataURL('image/png');
 
+    // Возвращаем чёткий рабочий CAD-режим конструктора
+    this.renderer.shadowMap.enabled = false;
+    this.renderer.toneMapping = NoToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
+    this.scene.environment = null;
+    this.hemi.intensity = 0.72;
+    this.amb.intensity = 0.22;
+    this.sun.intensity = 0.85;
+    this.vLights.forEach((l) => (l.intensity = 0));
+    this.lineMat.opacity = prevLineOp;
+    this.dimGroup.visible = dimVis;
+
     this.sun.shadow.mapSize.copy(prevMap);
     (this.sun.shadow as { map?: { dispose(): void } | null }).map?.dispose();
     this.sun.shadow.map = null;
@@ -661,7 +697,6 @@ export class Viewer {
     this.renderer.setSize(prevSize.x, prevSize.y, false);
     this.camera.aspect = prevAspect;
     this.camera.updateProjectionMatrix();
-    this.lines.forEach((l) => (l.visible = true));
     if (this.helper) this.helper.visible = helperVis;
     this.invalidate();
     return url;
@@ -765,6 +800,7 @@ export class Viewer {
     this.pickables = [];
     this.lines = [];
     this.anims = [];
+    this.vLights = [];
     this.clearFasteners();
   }
 
@@ -782,8 +818,8 @@ export class Viewer {
       mesh.castShadow = !this.isXray;
       mesh.receiveShadow = !this.isXray;
     }
-    this.lineMat.color.set(this.isXray ? 0x0284c7 : 0x1b1b1f);
-    this.lineMat.opacity = this.isXray ? 0.7 : 0.3;
+    this.lineMat.color.set(this.isXray ? 0x0284c7 : 0x1e293b);
+    this.lineMat.opacity = this.isXray ? 0.75 : 0.62;
     this.rebuildFasteners();
   }
 
