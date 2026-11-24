@@ -991,6 +991,45 @@ export function renderProps(root: HTMLElement, store: Store): void {
       }),
     );
     facadeNodes.push(toggle('Лицевые ручки', 'handles', m.handles, (v) => set((t) => { t.handles = v; })));
+    if (m.handles) {
+      facadeNodes.push(
+        h('div', { style: 'background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:8px 10px; display:flex; flex-direction:column; gap:7px;' },
+          segmented('Расположение ручки на двери', [
+            ['side', 'Сбоку (вертик.)'],
+            ['top-horiz', 'Сверху (под ящики)'],
+            ['edge-top', 'Торцевая сверху'],
+          ] as ['side' | 'top-horiz' | 'edge-top', string][], m.handlePos ?? 'side', (v) => set((t) => {
+            if (v === 'side') delete t.handlePos;
+            else t.handlePos = v;
+          }, 'handle-pos')),
+          segmented('Цвет ручек и профиля', [
+            ['silver', 'Хром / Сатин'],
+            ['black', 'Чёрный мат'],
+            ['gold', 'Золото браш'],
+          ] as ['silver' | 'black' | 'gold', string][], m.handleColor ?? 'silver', (v) => set((t) => {
+            if (v === 'silver') delete t.handleColor;
+            else t.handleColor = v;
+          }, 'handle-color')),
+          h('button', {
+            type: 'button',
+            class: 'btn btn-ghost sm',
+            onClick: () => {
+              store.commit((p) => {
+                for (const mod of p.modules) {
+                  if (!isWall(mod.kind) && mod.kind !== 'tall') {
+                    mod.handles = true;
+                    if (m.handlePos) mod.handlePos = m.handlePos;
+                    else delete mod.handlePos;
+                  }
+                  if (m.handleColor) mod.handleColor = m.handleColor;
+                  else delete mod.handleColor;
+                }
+              }, 'sync-handles');
+            },
+          }, 'Применить стиль ручек ко всему нижнему ряду'),
+        ),
+      );
+    }
     if (m.kind === 'base' || m.kind === 'corner') {
       facadeNodes.push(toggle('Столешница 38 мм', 'top', m.countertop, (v) => set((t) => { t.countertop = v; })));
     }

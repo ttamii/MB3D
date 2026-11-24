@@ -32,25 +32,61 @@ class Builder {
 
 export const hingesFor = (h: number) => (h <= 900 ? 2 : h <= 1600 ? 3 : h <= 2000 ? 4 : 5);
 
-/** Ручка-скоба на двери (визуально + учёт в фурнитуре). */
+function resolveHandleMat(m: Module): PartMat {
+  if (m.handleColor === 'gold' || m.matFacade === 'vitrine-bronze-gold') return 'handle-gold';
+  if (m.handleColor === 'black' || m.matFacade === 'vitrine-graphite-black') return 'handle-black';
+  return 'handle';
+}
+
+function isVitrineFacade(m: Module): 'gold' | 'black' | null {
+  if (m.matFacade === 'vitrine-bronze-gold') return 'gold';
+  if (m.matFacade === 'vitrine-graphite-black' || m.matFacade === 'm-glass-fl') return 'black';
+  return null;
+}
+
+/** Ручка на фасаде двери: сбоку вертикально, сверху горизонтально (в одну линию с ящиками!) или торцевая сверху. */
 function doorHandle(
   b: Builder, m: Module, anim: PartAnim, x0: number, x1: number, y0: number, y1: number,
   hinge: 'left' | 'right' | 'top', zFront: number,
 ): void {
   if (!m.handles) return;
+  const hMat = resolveHandleMat(m);
+  const dw = x1 - x0;
+  const dh = y1 - y0;
+
   if (hinge === 'top') {
-    const hw = Math.max(90, Math.min(240, (x1 - x0) * 0.35));
-    b.decor('Ручка', 'handle', [(x0 + x1 - hw) / 2, y0 + 24, zFront], [hw, 14, 22], anim);
+    const hw = Math.max(90, Math.min(240, dw * 0.35));
+    b.decor('Ручка', hMat, [(x0 + x1 - hw) / 2, y0 + 24, zFront], [hw, 14, 22], anim);
     b.add('handle');
     return;
   }
-  const hl = Math.max(100, Math.min(320, (y1 - y0) * 0.25));
+
+  // Торцевая накладная ручка-профиль по верхнему торцу фасада
+  if (m.handlePos === 'edge-top') {
+    const hw = Math.max(100, Math.min(260, dw * 0.45));
+    const hy = isWall(m.kind) ? y0 : y1 - 4;
+    b.decor('Ручка торцевая', hMat, [(x0 + x1 - hw) / 2, hy, zFront - FACADE_T], [hw, 4, FACADE_T + 18], anim);
+    b.add('handle');
+    return;
+  }
+
+  // Горизонтальная ручка сверху по центру фасада (строго на высоте y1 - 38 в одну линию с верхними ящиками!)
+  if (m.handlePos === 'top-horiz') {
+    const hw = Math.min(220, Math.max(96, dw * 0.5));
+    const hy = isWall(m.kind) ? y0 + 24 : y1 - 38;
+    b.decor('Ручка', hMat, [(x0 + x1 - hw) / 2, hy, zFront], [hw, 14, 22], anim);
+    b.add('handle');
+    return;
+  }
+
+  // Классическая вертикальная ручка со стороны открывания
+  const hl = Math.max(100, Math.min(320, dh * 0.25));
   const hx = hinge === 'left' ? x1 - 38 : x0 + 24;
   let y: number;
   if (isWall(m.kind)) y = y0 + 30;
   else if (m.kind === 'base' || m.kind === 'corner') y = y1 - 30 - hl;
   else y = Math.max(y0 + 20, Math.min(y1 - hl - 20, 1000 - hl / 2));
-  b.decor('Ручка', 'handle', [hx, y, zFront], [14, hl, 22], anim);
+  b.decor('Ручка', hMat, [hx, y, zFront], [14, hl, 22], anim);
   b.add('handle');
 }
 
@@ -111,8 +147,24 @@ function frontDoor(
   const dw = x1 - x0;
   const dh = y1 - y0;
   const milling = m.milling ?? 'modern';
+  const vitrineFrame = isVitrineFacade(m);
 
-  if (milling === 'frame') {
+  if (vitrineFrame && dw > 90 && dh > 120) {
+    // Витринный фасад: тонкий анодированный алюминиевый профиль (Золото / Чёрный) + полупрозрачное тонированное стекло Бронза / Графит
+    const profW = 22;
+    const frameMat: PartMat = vitrineFrame === 'gold' ? 'gold' : 'black';
+    const glassMat: PartMat = vitrineFrame === 'gold' ? 'glass-bronze' : 'glass-graphite';
+    // Рамка профиля по периметру (учитывается по площади фасада в смете + декоративный 3D-профиль)
+    b.box(label, 'facade', [x0, y1 - profW, D], [dw, profW, FACADE_T], 0, anim, false);
+    b.decor(`${label}: профиль верх`, frameMat, [x0, y1 - profW, D], [dw, profW, FACADE_T], anim);
+    b.decor(`${label}: профиль низ`, frameMat, [x0, y0, D], [dw, profW, FACADE_T], anim);
+    b.decor(`${label}: профиль лево`, frameMat, [x0, y0 + profW, D], [profW, dh - 2 * profW, FACADE_T], anim);
+    b.decor(`${label}: профиль право`, frameMat, [x1 - profW, y0 + profW, D], [profW, dh - 2 * profW, FACADE_T], anim);
+    // Стеклянная вставка 4 мм внутри профиля (участвует в стоимости витрины по м²)
+    b.box(`${label}: стекло витрины`, glassMat, [x0 + profW - 2, y0 + profW - 2, D + 6], [dw - 2 * profW + 4, dh - 2 * profW + 4, 4], 0, anim, false);
+    // Учёт квадратуры витринного фасада в смете (скрытая расчётная строка без непрозрачной геометрии в 3D)
+    b.parts.push({ name: `${label} (витрина в профиле)`, mat: 'facade', pos: [x0, y0, D], size: [0.01, dh, dw], edgeMm: 0, sheet: true, shape: 'box' });
+  } else if (milling === 'frame') {
     // Рамочный фасад (классика / shaker): основа + декоративная рамка 50 мм толщиной 3 мм
     b.box(label, 'facade', [x0, y0, D], [dw, dh, FACADE_T - 3], 2 * (dw + dh), anim);
     const fw = Math.min(50, Math.floor(dw * 0.22));
@@ -459,19 +511,40 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
           b.box(`${lbl}: фасад`, 'facade', [fx0, yk, zFront], [fw, fhBox, FACADE_T], 2 * (fw + fhBox), anim);
         }
 
-        b.box(`${lbl}: бок`, 'corpus', [x0 + 13, yk + 30, zs], [16, boxH, rail], 0, anim);
-        b.box(`${lbl}: бок`, 'corpus', [x0 + cw - 13 - 16, yk + 30, zs], [16, boxH, rail], 0, anim);
-        b.box(`${lbl}: задняя`, 'corpus', [x0 + 13 + 16, yk + 30, zs], [boxW - 32, boxH, 16], 0, anim);
-        b.box(`${lbl}: дно`, 'back', [x0 + 13 + 12, yk + 38, zs + 8], [boxW - 24, 4, rail - 16], 0, anim);
-        b.add('rail');
+        const isPulloutMech = m.kind === 'base' && nd === 1 && /механизм|карго|бутылочн/i.test(m.name);
+        if (isPulloutMech) {
+          // Встроенный выдвижной многоуровневый сетчатый механизм (на 200 / 300 / 400 мм) с доводчиком
+          const basketLevels = fhBox >= 550 ? 2 : 1;
+          for (let bl = 0; bl < basketLevels; bl++) {
+            const by = yk + 45 + bl * Math.round((fhBox - 150) / Math.max(1, basketLevels));
+            b.decor('Выдвижная корзина: дно', 'metal', [x0 + 24, by, zs + 16], [Math.max(80, boxW - 22), 6, rail - 28], anim);
+            b.decor('Выдвижная корзина: борт Л', 'metal', [x0 + 22, by + 6, zs + 16], [5, 58, rail - 28], anim);
+            b.decor('Выдвижная корзина: борт П', 'metal', [x0 + cw - 27, by + 6, zs + 16], [5, 58, rail - 28], anim);
+            b.decor('Выдвижная корзина: борт задний', 'metal', [x0 + 22, by + 6, zs + 16], [Math.max(84, boxW - 18), 58, 5], anim);
+          }
+          if (m.w >= 350) b.add('mech400');
+          else b.add('rail');
+        } else {
+          b.box(`${lbl}: бок`, 'corpus', [x0 + 13, yk + 30, zs], [16, boxH, rail], 0, anim);
+          b.box(`${lbl}: бок`, 'corpus', [x0 + cw - 13 - 16, yk + 30, zs], [16, boxH, rail], 0, anim);
+          b.box(`${lbl}: задняя`, 'corpus', [x0 + 13 + 16, yk + 30, zs], [boxW - 32, boxH, 16], 0, anim);
+          b.box(`${lbl}: дно`, 'back', [x0 + 13 + 12, yk + 38, zs + 8], [boxW - 24, 4, rail - 16], 0, anim);
+          b.add('rail');
+        }
         // Встроенная выдвижная сушка для посуды в верхнем ящике (если модуль предназначен под сушку)
         if (m.kind === 'base' && /сушк/i.test(m.name) && k === nd - 1 && boxW > 200) {
           b.decor('Сушка в ящике: поддон (нерж.)', 'metal', [x0 + 34, yk + 44, zs + 16], [boxW - 42, 4, rail - 32], anim);
           b.decor('Сушка в ящике: решётка (тарелки)', 'metal', [x0 + 40, yk + 52, zs + 24], [boxW - 54, 16, Math.max(80, rail - 60)], anim);
         }
         if (m.handles) {
-          const hw = Math.min(220, (fx1 - fx0) * 0.5);
-          b.decor('Ручка', 'handle', [(fx0 + fx1) / 2 - hw / 2, yk + fhBox - 38, zFront + FACADE_T], [hw, 14, 22], anim);
+          const hMat = resolveHandleMat(m);
+          if (m.handlePos === 'edge-top') {
+            const hw = Math.max(100, Math.min(260, (fx1 - fx0) * 0.45));
+            b.decor('Ручка торцевая', hMat, [(fx0 + fx1 - hw) / 2, yk + fhBox - 4, zFront], [hw, 4, FACADE_T + 18], anim);
+          } else {
+            const hw = Math.min(220, Math.max(96, (fx1 - fx0) * 0.5));
+            b.decor('Ручка', hMat, [(fx0 + fx1) / 2 - hw / 2, yk + fhBox - 38, zFront + FACADE_T], [hw, 14, 22], anim);
+          }
           b.add('handle');
         }
       }
@@ -591,10 +664,24 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
         b.decor('Сушилка хромированная (чашки)', 'metal', [x0 + 2, yCups, BK + 10], [cw - 4, 12, D - BK - 28]);
         b.add('pin', 8);
       } else {
+        const vitFrame = isVitrineFacade(m);
         const nShelvesToPlace = sec.shelves;
+        if (vitFrame) {
+          // Врезная тёплая LED-подсветка внутри шкафа-витрины (вертикальные световые линии в боковинах + верхний профиль)
+          b.decor('LED-подсветка витрины (верх)', 'led-warm', [openZoneX0 + 8, zTop - 5, Math.min(D - 28, Math.max(40, D * 0.55))], [Math.max(40, openZoneW - 16), 5, 10]);
+          b.decor('LED-линия боковая Л', 'led-warm', [openZoneX0 + 1, shelfZoneBase + 8, Math.max(30, D - 75)], [4, Math.max(60, zoneH - 16), 8]);
+          b.decor('LED-линия боковая П', 'led-warm', [openZoneX0 + openZoneW - 5, shelfZoneBase + 8, Math.max(30, D - 75)], [4, Math.max(60, zoneH - 16), 8]);
+          b.add('ledVitrine', 1);
+        }
         for (let k = 1; k <= nShelvesToPlace; k++) {
           const y = shelfZoneBase + (k * zoneH) / (nShelvesToPlace + 1) - t / 2;
-          b.box('Полка', 'corpus', [openZoneX0, y, BK], [openZoneW, t, D - BK - 20], openZoneW);
+          if (vitFrame) {
+            const glassShelfMat: PartMat = vitFrame === 'gold' ? 'glass-bronze' : 'glass-graphite';
+            b.decor('Полка стеклянная (витрина)', glassShelfMat, [openZoneX0 + 2, y + 4, BK + 6], [openZoneW - 4, 8, D - BK - 26]);
+            b.decor('LED-подсветка полки', 'led-warm', [openZoneX0 + 8, y + 5, BK + 4], [Math.max(40, openZoneW - 16), 6, 8]);
+          } else {
+            b.box('Полка', 'corpus', [openZoneX0, y, BK], [openZoneW, t, D - BK - 20], openZoneW);
+          }
           b.add('pin', 4);
         }
       }
@@ -1187,7 +1274,8 @@ export function buildContinuousSpans(modules: Module[], splitForCutlist = false,
       const partName = isMulti ? 'Столешница цельная' : 'Столешница';
 
       let curU = uStart;
-      for (const segW of splitSpanLengths(totalW, 3050, splitForCutlist)) {
+      const maxSlabLen = first.matTop === 'top-white-matt' ? 4200 : 3050;
+      for (const segW of splitSpanLengths(totalW, maxSlabLen, splitForCutlist)) {
         const wbTop = wallBox(wall, curU, H, 0, segW, COUNTERTOP_T, D + 30);
         spans.push({
           refModule: first, groupName, groupId,

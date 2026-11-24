@@ -58,6 +58,12 @@ export const DEFAULT_MATERIALS: Material[] = [
   { id: 'kr-wenge', name: 'KronoSpan 0854 Венге Магия тёмный', kind: 'sheet', color: '#3b2b23', grain: true, category: 'KronoSpan / Lamarty Древесные', price: 4600 },
   { id: 'kr-shimo-l', name: 'Lamarty Ясень Шимо светлый', kind: 'sheet', color: '#cfc0ad', grain: true, category: 'KronoSpan / Lamarty Древесные', price: 4700 },
 
+  // ——— 2б. ЛДСП Томск (Томсклесдрев Lamarty / Томск 16 мм) ———
+  { id: 'tomsk-white', name: 'ЛДСП Томск Белый матовый (выбор клиента)', kind: 'sheet', color: '#f7f7f5', supermat: true, category: 'ЛДСП Томск (Томсклесдрев)', price: 4300 },
+  { id: 'tomsk-ivory', name: 'ЛДСП Томск Айвори / Слоновая кость матовый', kind: 'sheet', color: '#f2eadc', supermat: true, category: 'ЛДСП Томск (Томсклесдрев)', price: 4500 },
+  { id: 'tomsk-grey', name: 'ЛДСП Томск Светло-серый матовый', kind: 'sheet', color: '#cecfcc', supermat: true, category: 'ЛДСП Томск (Томсклесдрев)', price: 4400 },
+  { id: 'tomsk-sonoma', name: 'ЛДСП Томск Дуб Сонома светлый', kind: 'sheet', color: '#cbb089', grain: true, category: 'ЛДСП Томск (Томсклесдрев)', price: 4600 },
+
   // ——— 3. ЛДСП EGGER: Однотонные (ST9 Matt — Белые, Бежевые, Серые, Акцентные) ———
   { id: 'eg-w1000', name: 'EGGER W1000 ST9 Белый Премиум', kind: 'sheet', color: '#faf9f5', category: 'EGGER Однотонные', price: 4800 },
   { id: 'eg-w1100', name: 'EGGER W1100 ST9 Белый Альпийский', kind: 'sheet', color: '#ffffff', category: 'EGGER Однотонные', price: 4900 },
@@ -121,6 +127,13 @@ export const DEFAULT_MATERIALS: Material[] = [
   { id: 'agt-605', name: 'AGT 605 Капучино высокий глянец', kind: 'facade', color: '#cbb9a6', gloss: true, category: 'AGT Панели', price: 24500 },
   { id: 'agt-734', name: 'AGT 734 Антрацит высокий глянец', kind: 'facade', color: '#383b40', gloss: true, category: 'AGT Панели', price: 24500 },
 
+  // ——— 6б. Фасады: МДФ Модерн в Плёнке ПВХ Софт-тач (Айвори Софт и др.) ———
+  { id: 'pvc-ivory-soft', name: 'МДФ Плёнка ПВХ Айвори Софт (Ivory Soft-Touch)', kind: 'facade', color: '#f2ebdc', supermat: true, category: 'МДФ Плёнка ПВХ (Софт-тач)', price: 21500 },
+  { id: 'pvc-white-soft', name: 'МДФ Плёнка ПВХ Белый Снег Софт', kind: 'facade', color: '#f9f9f7', supermat: true, category: 'МДФ Плёнка ПВХ (Софт-тач)', price: 21000 },
+  { id: 'pvc-cashmere-soft', name: 'МДФ Плёнка ПВХ Кашемир Софт', kind: 'facade', color: '#cdc3b4', supermat: true, category: 'МДФ Плёнка ПВХ (Софт-тач)', price: 21500 },
+  { id: 'pvc-latte-soft', name: 'МДФ Плёнка ПВХ Латте Софт', kind: 'facade', color: '#bcae9e', supermat: true, category: 'МДФ Плёнка ПВХ (Софт-тач)', price: 21500 },
+  { id: 'pvc-graphite-soft', name: 'МДФ Плёнка ПВХ Графит Софт', kind: 'facade', color: '#46494f', supermat: true, category: 'МДФ Плёнка ПВХ (Софт-тач)', price: 22000 },
+
   // ——— 7. Фасады: МДФ Эмаль (Покраска по каталогу RAL / NCS) ———
   { id: 'm-white', name: 'МДФ Эмаль Белый сигнал (RAL 9003 мат)', kind: 'facade', color: '#fafaf7', gloss: false, category: 'МДФ Эмаль (RAL / NCS)', price: 24000 },
   { id: 'm-ral9010', name: 'МДФ Эмаль Сливочно-белый (RAL 9010 мат)', kind: 'facade', color: '#f5f2e9', gloss: false, category: 'МДФ Эмаль (RAL / NCS)', price: 24000 },
@@ -137,11 +150,13 @@ export const DEFAULT_MATERIALS: Material[] = [
   { id: 'm-ral3012', name: 'МДФ Эмаль Пыльная роза (RAL 3012 мат)', kind: 'facade', color: '#c4968b', gloss: false, category: 'МДФ Эмаль (RAL / NCS)', price: 26000 },
   { id: 'm-terra', name: 'МДФ Эмаль Терракот (RAL 2001 мат)', kind: 'facade', color: '#b9694c', gloss: false, category: 'МДФ Эмаль (RAL / NCS)', price: 26000 },
 
-  // ——— 8. Фасады: Витрины, Зеркала и Базовые ———
-  { id: 'm-mirror', name: 'Зеркало серебро 4 мм на подложке ЛДСП', kind: 'facade', color: '#d8e3ec', gloss: true, category: 'Зеркала и стекло', price: 22000 },
-  { id: 'm-mirror-gr', name: 'Зеркало Графит тонированное в тонком профиле', kind: 'facade', color: '#69727a', gloss: true, category: 'Зеркала и стекло', price: 27000 },
-  { id: 'm-mirror-br', name: 'Зеркало Бронза тёплое в рамке', kind: 'facade', color: '#9c8672', gloss: true, category: 'Зеркала и стекло', price: 27000 },
-  { id: 'm-glass-fl', name: 'Витрина Стекло рифлёное Flutes (Мору) в чёрной рамке', kind: 'facade', color: '#b8c7d4', gloss: true, category: 'Зеркала и стекло', price: 32000 },
+  // ——— 8. Фасады: Витрины с подсветкой (Стекло в алюминиевом профиле Золото / Чёрный), Зеркала и Базовые ———
+  { id: 'vitrine-bronze-gold', name: 'Витрина: Стекло Бронза в профиле Золото + LED подсветка', kind: 'facade', color: '#9c784c', gloss: true, category: 'Витрины Стекло и Зеркала', price: 38000 },
+  { id: 'vitrine-graphite-black', name: 'Витрина: Стекло Графит в чёрном профиле + LED подсветка', kind: 'facade', color: '#4b525a', gloss: true, category: 'Витрины Стекло и Зеркала', price: 36000 },
+  { id: 'm-mirror', name: 'Зеркало серебро 4 мм на подложке ЛДСП', kind: 'facade', color: '#d8e3ec', gloss: true, category: 'Витрины Стекло и Зеркала', price: 22000 },
+  { id: 'm-mirror-gr', name: 'Зеркало Графит тонированное в тонком профиле', kind: 'facade', color: '#69727a', gloss: true, category: 'Витрины Стекло и Зеркала', price: 27000 },
+  { id: 'm-mirror-br', name: 'Зеркало Бронза тёплое в рамке', kind: 'facade', color: '#9c8672', gloss: true, category: 'Витрины Стекло и Зеркала', price: 27000 },
+  { id: 'm-glass-fl', name: 'Витрина Стекло рифлёное Flutes (Мору) в чёрной рамке', kind: 'facade', color: '#b8c7d4', gloss: true, category: 'Витрины Стекло и Зеркала', price: 32000 },
   { id: 'f-white', name: 'Фасад ЛДСП Белый гладкий', kind: 'facade', color: '#f4f3ef', category: 'Базовые фасады', price: 4200 },
   { id: 'f-sonoma', name: 'Фасад ЛДСП Дуб Сонома', kind: 'facade', color: '#cfae82', grain: true, category: 'Базовые фасады', price: 5200 },
   { id: 'f-walnut', name: 'Фасад ЛДСП Орех', kind: 'facade', color: '#6c4a35', grain: true, category: 'Базовые фасады', price: 5600 },
@@ -157,6 +172,7 @@ export const DEFAULT_MATERIALS: Material[] = [
   { id: 'top-trav', name: 'Slotex 2264 Травертин Римский бежевый 38 мм', kind: 'top', color: '#d4c8b4', stone: true, category: 'Столешницы Камень и Мрамор', price: 38000 },
   { id: 'top-terrazzo', name: 'Slotex 3180 Терраццо Венеция светлый 38 мм', kind: 'top', color: '#dad5cc', stone: true, category: 'Столешницы Камень и Мрамор', price: 41000 },
   { id: 'top-quartz-w', name: 'Компакт-плита HPL Белый Кварц с чёрным ядром', kind: 'top', color: '#f4f3ef', stone: true, category: 'Столешницы Камень и Мрамор', price: 54000 },
+  { id: 'top-white-matt', name: 'Столешница Белая матовая широкая 38 мм (до 4.2 м без стыка)', kind: 'top', color: '#f8f8f6', supermat: true, category: 'Столешницы Камень и Мрамор', price: 39500 },
   { id: 'top-w1000', name: 'EGGER W1000 ST76 Белый Премиум влагостойкий 38 мм', kind: 'top', color: '#f5f4ef', category: 'Столешницы Камень и Мрамор', price: 36000 },
   { id: 't-stone', name: 'Столешница Камень светлый базовый 38 мм', kind: 'top', color: '#d8d5ce', stone: true, category: 'Столешницы Камень и Мрамор', price: 38000 },
   { id: 't-dark', name: 'Столешница Камень тёмный базовый 38 мм', kind: 'top', color: '#2b2b2e', stone: true, category: 'Столешницы Камень и Мрамор', price: 40000 },
@@ -197,6 +213,8 @@ export const DEFAULT_HARDWARE: Record<string, HardwareItem> = {
   confirmat: { name: 'Конфирмат / стяжка', unit: 'шт', price: 30 },
   hanger: { name: 'Навес (комплект)', unit: 'компл', price: 2800 },
   sliding: { name: 'Система купе (на дверь)', unit: 'шт', price: 32000 },
+  mech400: { name: 'Встроенный выдвижной механизм на 400 мм (с доводчиком)', unit: 'компл', price: 38000 },
+  ledVitrine: { name: 'LED-подсветка витрины тёплая (профиль + блок питания)', unit: 'компл', price: 14500 },
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -210,12 +228,12 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const LIMITS = {
-  w: [50, 4000],
-  h: [150, 2800],
+  w: [50, 4200],
+  h: [150, 3200],
   d: [150, 800],
   plinth: [0, 200],
   topTrim: [0, 250],
-  lift: [0, 2700],
+  lift: [0, 3000],
   sections: [1, 5],
   shelves: [0, 12],
   drawers: [0, 6],
@@ -300,7 +318,7 @@ const tvZone = (): Module[] => [
 
 export const PRESET_GROUPS: PresetGroup[] = [
   { id: 'corners', label: 'Угловые модули (для Г и П-кухонь)', ids: ['corner-blind', 'corner-sink-blind', 'corner', 'corner-diag', 'cornerWall-blind', 'cornerWall', 'cornerWall-diag', 'filler-corner'] },
-  { id: 'kitchen', label: 'Кухня (прямые модули и пеналы)', ids: ['base', 'base-drawers', 'sink', 'oven', 'cargo', 'wall', 'dish-dryer', 'mezzanine', 'tall', 'tall-oven', 'fridge', 'filler', 'filler-wall'] },
+  { id: 'kitchen', label: 'Кухня (прямые модули, витрины и пеналы)', ids: ['base', 'base-drawers', 'mech-400', 'sink', 'oven', 'cargo', 'wall', 'wall-vitrine-bronze', 'dish-dryer', 'mezzanine', 'tall', 'tall-vitrine-bronze', 'tall-oven', 'fridge', 'filler', 'filler-wall'] },
   { id: 'living', label: 'Гостиная и ТВ-зона', ids: ['tv-zone', 'tv-stand', 'tv-hanging', 'bookcase', 'dresser'] },
   { id: 'storage', label: 'Шкафы и прихожая', ids: ['wardrobe-sliding', 'wardrobe-hinged', 'hall-wardrobe', 'filler-tall', 'shoe', 'bedside'] },
   { id: 'fillers', label: 'Доборные планки (к стене / углу)', ids: ['filler', 'filler-wall', 'filler-tall', 'filler-corner'] },
@@ -539,12 +557,42 @@ export const PRESETS: Preset[] = [
   },
   {
     id: 'cargo',
-    label: 'Бутылочница (карго)',
+    label: 'Бутылочница (карго 200)',
     hint: '200 × 820, выкатная корзина',
     make: () =>
       base('base', 'Бутылочница (карго)', {
         w: 200, h: 820, d: 560, plinth: 100, countertop: true, doorMode: 'none',
         sections: [sec({ drawers: 1, door: false })],
+      }),
+  },
+  {
+    id: 'mech-400',
+    label: 'Встроенный механизм 400 мм',
+    hint: '400 × 820, выкатная система хранения с доводчиком',
+    make: () =>
+      base('base', 'Модуль со встр. механизмом 400', {
+        w: 400, h: 820, d: 500, plinth: 100, countertop: true, doorMode: 'none', drawerH: 716, handlePos: 'top-horiz',
+        sections: [sec({ drawers: 1, door: false })],
+      }),
+  },
+  {
+    id: 'wall-vitrine-bronze',
+    label: 'Витрина навесная Бронза / Золото + LED',
+    hint: '600 × 800 × 300, стекло бронза в золотом профиле',
+    make: () =>
+      base('wall', 'Витрина Бронза в профиле Золото', {
+        w: 600, h: 800, d: 300, lift: 1450, matFacade: 'vitrine-bronze-gold', handleColor: 'gold',
+        sections: [sec({ shelves: 2 })],
+      }),
+  },
+  {
+    id: 'tall-vitrine-bronze',
+    label: 'Пенал-витрина Бронза / Золото + LED',
+    hint: '600 × 2400 × 500, стеклянные полки с подсветкой',
+    make: () =>
+      base('tall', 'Пенал-витрина Бронза в профиле Золото', {
+        w: 600, h: 2400, d: 500, plinth: 100, matFacade: 'vitrine-bronze-gold', handleColor: 'gold',
+        sections: [sec({ shelves: 5 })],
       }),
   },
   {

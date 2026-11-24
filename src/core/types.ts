@@ -58,6 +58,10 @@ export interface Module {
   cornerW2?: number;
   /** Врезная мойка в угловом модуле. */
   cornerSink?: boolean;
+  /** Положение ручки на распашном фасаде: сбоку вертикально, сверху горизонтально (в линию с ящиками) или торцевая сверху. */
+  handlePos?: 'side' | 'top-horiz' | 'edge-top';
+  /** Цвет лицевой фурнитуры / ручек ('silver' | 'black' | 'gold'). */
+  handleColor?: 'silver' | 'black' | 'gold';
   /** Высота ниши под духовой шкаф в пенале, мм (по умолчанию 600). */
   ovenH?: number;
   /** Высота ниши под встроенную СВЧ в пенале, мм (по умолчанию 380, 0 = без СВЧ). */
@@ -117,7 +121,20 @@ export interface Settings {
   labor: LaborSettings;
 }
 
-export type PartMat = 'corpus' | 'facade' | 'back' | 'top' | 'metal' | 'handle' | 'black';
+export type PartMat =
+  | 'corpus'
+  | 'facade'
+  | 'back'
+  | 'top'
+  | 'metal'
+  | 'handle'
+  | 'handle-black'
+  | 'handle-gold'
+  | 'black'
+  | 'gold'
+  | 'glass-bronze'
+  | 'glass-graphite'
+  | 'led-warm';
 
 export interface PartAnim {
   type: 'door' | 'flap' | 'drawer' | 'sliding';

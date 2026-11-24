@@ -141,7 +141,8 @@ export function planKitchen(opts: KitchenWizardOptions, room?: RoomConfig): Kitc
       .some((w) => x0 < w.x + w.w && x1 > w.x && y0 < w.lift + w.h && y1 > w.lift);
 
   const ceiling = room?.h ?? 2530;
-  const topY = Math.min(ceiling, 2560);
+  const trimReserve = opts.topTrimH && opts.topTrimH > 0 ? Math.min(250, Math.round(opts.topTrimH)) : 0;
+  const topY = Math.min(ceiling - trimReserve, 3000);
   const upperH = Math.min(WALL_H, ceiling - WALL_LIFT);
   const mezzLift = WALL_LIFT + WALL_H;
   const mezzH = topY - mezzLift;

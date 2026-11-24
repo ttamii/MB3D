@@ -121,15 +121,28 @@ export function showModuleContextMenu(
     ),
   );
 
-  // Ручки / Push-to-open
+  // Ручки / Push-to-open (с быстрым переключением ручки сверху у мойки и тумб!)
+  const curHandlePos = m.handlePos ?? 'side';
   const handlesRow = h('div', { class: 'ctx-row' },
     h('span', { class: 'ctx-row-label' }, 'Ручки:'),
     h('div', { class: 'ctx-pills' },
-      pill('Ручка 128', m.handles, () => {
+      pill('Сбоку', m.handles && curHandlePos === 'side', () => {
         store.commit((p) => {
           const target = p.modules.find((item) => item.id === moduleId);
-          if (target) target.handles = true;
-        }, 'handles-on');
+          if (target) { target.handles = true; delete target.handlePos; }
+        }, 'handles-side');
+      }),
+      pill('Сверху (горизонт.)', m.handles && curHandlePos === 'top-horiz', () => {
+        store.commit((p) => {
+          const target = p.modules.find((item) => item.id === moduleId);
+          if (target) { target.handles = true; target.handlePos = 'top-horiz'; }
+        }, 'handles-top');
+      }),
+      pill('Торцевая', m.handles && curHandlePos === 'edge-top', () => {
+        store.commit((p) => {
+          const target = p.modules.find((item) => item.id === moduleId);
+          if (target) { target.handles = true; target.handlePos = 'edge-top'; }
+        }, 'handles-edge');
       }),
       pill('Push-to-open', !m.handles, () => {
         store.commit((p) => {

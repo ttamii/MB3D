@@ -1,7 +1,7 @@
 import {
   ACESFilmicToneMapping, AmbientLight, Box3, Box3Helper, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight,
   EdgesGeometry, GridHelper, Group, HemisphereLight, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, MathUtils, PCFSoftShadowMap,
-  PerspectiveCamera, Plane, PlaneGeometry, PMREMGenerator, Raycaster, Scene, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer,
+  PerspectiveCamera, Plane, PlaneGeometry, PMREMGenerator, PointLight, Raycaster, Scene, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -420,6 +420,7 @@ export class Viewer {
       const animGroups = new Map<string, { group: Group; geos: Map<string, { mat: MeshStandardMaterial; geos: BufferGeometry[] }>; anim: PartAnim }>();
 
       for (const p of built.parts) {
+        if (p.size[0] < 0.5 && p.size[1] > 50 && p.sheet) continue; // расчётная строка площади витрины (без геометрии)
         const mat = this.partMaterial(p, m, matMap);
         const a = p.anim;
         if (a) {
@@ -451,21 +452,31 @@ export class Viewer {
         const merged = mergeGeometries(geos, false);
         geos.forEach((x) => x.dispose());
         if (!merged) return;
+        const isGlassOrLed = mat.transparent || mat.emissiveIntensity > 0.5;
         const meshMat = this.isXray ? this.xrayMat : mat;
         const mesh = new Mesh(merged, meshMat);
         mesh.userData.origMat = mat;
-        mesh.castShadow = !this.isXray;
-        mesh.receiveShadow = !this.isXray;
+        mesh.castShadow = !this.isXray && !isGlassOrLed;
+        mesh.receiveShadow = !this.isXray && !mat.transparent;
         mesh.userData.moduleId = m.id;
         if (animKey) {
           mesh.userData.animKey = animKey;
         }
         parent.add(mesh);
         this.pickables.push(mesh);
-        const edges = new LineSegments(new EdgesGeometry(merged, 25), this.lineMat);
-        parent.add(edges);
-        this.lines.push(edges);
+        if (mat.emissiveIntensity <= 0.5) {
+          const edges = new LineSegments(new EdgesGeometry(merged, 25), this.lineMat);
+          parent.add(edges);
+          this.lines.push(edges);
+        }
       };
+
+      // Реальный источник тёплого света 3000K внутри шкафов-витрин с подсветкой!
+      if (m.matFacade === 'vitrine-bronze-gold' || m.matFacade === 'vitrine-graphite-black') {
+        const vLight = new PointLight(0xffcf75, 0.95, Math.max(1.2, (m.h * MM) * 1.15), 1.4);
+        vLight.position.set((m.w / 2) * MM, (m.h * 0.58) * MM, Math.max(0.12, (m.d * 0.55) * MM));
+        g.add(vLight);
+      }
 
       buckets.forEach((b) => emit(g, b.mat, b.geos));
       animGroups.forEach((ag) => {
@@ -703,6 +714,11 @@ export class Viewer {
     let mat: MeshStandardMaterial;
     if (key === 'metal') mat = new MeshStandardMaterial({ color: '#c3c6cb', metalness: 0.95, roughness: 0.22 });
     else if (key === 'handle') mat = new MeshStandardMaterial({ color: '#b5b8bd', metalness: 0.9, roughness: 0.3 });
+    else if (key === 'handle-black') mat = new MeshStandardMaterial({ color: '#1f2126', metalness: 0.35, roughness: 0.7 });
+    else if (key === 'handle-gold' || key === 'gold') mat = new MeshStandardMaterial({ color: '#d4af62', metalness: 0.92, roughness: 0.24 });
+    else if (key === 'glass-bronze') mat = new MeshStandardMaterial({ color: '#7a5636', transparent: true, opacity: 0.38, metalness: 0.22, roughness: 0.06, depthWrite: false });
+    else if (key === 'glass-graphite') mat = new MeshStandardMaterial({ color: '#374151', transparent: true, opacity: 0.42, metalness: 0.22, roughness: 0.07, depthWrite: false });
+    else if (key === 'led-warm') mat = new MeshStandardMaterial({ color: '#fff4d6', emissive: new Color('#ffcf6e'), emissiveIntensity: 2.3, roughness: 0.2 });
     else if (key === 'black') mat = new MeshStandardMaterial({ color: '#1b1d21', metalness: 0.08, roughness: 0.85 });
     else if (key === 'm-mirror') mat = new MeshStandardMaterial({ color: '#dce6ef', metalness: 0.92, roughness: 0.06 });
     else {

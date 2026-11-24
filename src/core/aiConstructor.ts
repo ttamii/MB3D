@@ -303,7 +303,12 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
   let matCorpus = 'eg-w1000';
   let matTop = 'top-f812';
 
-  if (/графит|черн|антрацит|темн/i.test(text)) {
+  if (/айвори|ivory|слонов\w*\s*кост/i.test(text)) {
+    matFacade = 'pvc-ivory-soft';
+    matCorpus = /томск/i.test(text) ? 'tomsk-white' : 'eg-w1000';
+    matTop = /бел\w*\s*мат/i.test(text) ? 'top-white-matt' : 'top-f812';
+    features.push('Фасады: МДФ Плёнка ПВХ Айвори Софт');
+  } else if (/графит|черн|антрацит|темн/i.test(text)) {
     matFacade = 'eg-u999';
     matCorpus = 'eg-u999';
     matTop = 'top-f206';
@@ -333,8 +338,20 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
     features.push('Цвет: Белый премиум (EGGER W1000)');
   }
 
+  if (/томск/i.test(text)) {
+    matCorpus = 'tomsk-white';
+    features.push('Корпус: ЛДСП Томск (белый матовый)');
+  }
+  if (/бел\w*\s*матов\w*\s*широк|столешниц[^\n]*бел\w*\s*мат/i.test(text)) {
+    matTop = 'top-white-matt';
+    features.push('Столешница: Белая матовая широкая 38 мм (цельная 4 м)');
+  }
+
   const hasMirror = /зеркал|зеркальн/i.test(text);
-  if (hasMirror) {
+  const hasBronzeGoldVitrine = /бронз[^\n]*золот|золот[^\n]*бронз|стекло\s*с\s*подсветк/i.test(text);
+  if (hasBronzeGoldVitrine) {
+    features.push('Витрина: Стекло Бронза в профиле Золото + тёплая LED-подсветка');
+  } else if (hasMirror) {
     matFacade = 'm-mirror';
     features.push('Зеркальные фасады');
   }
@@ -386,6 +403,87 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
     matTop,
     ...(wantsTopTrim && kind !== 'base' ? { topTrim: 60 } : {}),
   };
+
+  // Специальный генератор клиентского заказа 4.3 м × 2800 × 500 (МДФ Модерн Айвори Софт + ЛДСП Томск + Столешница 4м Белая матовая + Витрина Бронза/Золото с LED + Механизм 400)
+  if ((/айвори|ivory/i.test(text) && (/4[.,]3|4300|бронз|томск|механизм/i.test(text))) || (/бронз/i.test(text) && /золот/i.test(text) && /400/i.test(text))) {
+    const mk = (o: Partial<Module> & { name: string; kind: Kind; x: number; w: number; h: number; d: number }): Module => ({
+      id: uid(),
+      mirror: false,
+      plinth: o.kind === 'wall' ? 0 : 100,
+      lift: 0,
+      t: 16,
+      sections: [sec()],
+      doorMode: 'hinged',
+      slidingCount: 2,
+      drawerH: 200,
+      handles: true,
+      handlePos: 'top-horiz',
+      handleColor: 'gold',
+      countertop: false,
+      matCorpus: 'tomsk-white',
+      matFacade: 'pvc-ivory-soft',
+      matBack: 'b-white',
+      matTop: 'top-white-matt',
+      milling: 'modern',
+      plinthColor: 'facade',
+      ...o,
+    });
+
+    const orderMods: Module[] = [
+      // 1. Высокий пенал-витрина: Стекло Бронза в профиле Золото с тёплой LED-подсветкой (600 × 2740 + карниз 60 = 2800 мм, глубина 500)
+      mk({
+        name: 'Пенал-витрина Стекло Бронза в профиле Золото + LED',
+        kind: 'tall', x: 0, w: 600, h: 2740, d: 500, topTrim: 60,
+        matFacade: 'vitrine-bronze-gold', handlePos: 'side', handleColor: 'gold', hinge: 'left',
+        sections: [sec({ shelves: 5 })],
+      }),
+
+      // 2. Нижний ряд 3700 мм под цельную 4-метровую Белую матовую столешницу 38 мм (глубина 500, ручки сверху горизонтально в одну линию!):
+      mk({ name: 'Модуль под мойку (ручка сверху)', kind: 'base', x: 600, w: 800, h: 820, d: 500, countertop: true, doorCount: 2, sections: [sec({ shelves: 0 })] }),
+      mk({ name: 'Модуль со встр. механизмом 400 мм', kind: 'base', x: 1400, w: 400, h: 820, d: 500, countertop: true, doorMode: 'none', drawerH: 716, sections: [sec({ drawers: 1, door: false })] }),
+      mk({ name: 'Модуль с 3 выдвижными ящиками', kind: 'base', x: 1800, w: 700, h: 820, d: 500, countertop: true, doorMode: 'none', drawerH: 238, sections: [sec({ drawers: 3, door: false })] }),
+      mk({ name: 'Модуль под варочную и духовой шкаф', kind: 'base', x: 2500, w: 600, h: 820, d: 500, countertop: true, doorMode: 'none', drawerH: 160, sections: [sec({ drawers: 1, shelves: 1, door: false })] }),
+      mk({ name: 'Модуль с 2 ящиками (сушка посуды)', kind: 'base', x: 3100, w: 600, h: 820, d: 500, countertop: true, doorMode: 'none', drawerH: 355, sections: [sec({ drawers: 2, door: false })] }),
+      mk({ name: 'Нижний модуль хранения (ручка сверху)', kind: 'base', x: 3700, w: 600, h: 820, d: 500, countertop: true, doorCount: 1, hinge: 'right', sections: [sec({ shelves: 1 })] }),
+
+      // 3. Верхний ярус (высота 820 мм, отметка 1460 мм, глубина 320 мм): МДФ Айвори Софт + акцентные витрины Бронза в профиле Золото с LED-подсветкой
+      mk({ name: 'Верхний шкаф (Айвори Софт, Push)', kind: 'wall', x: 600, w: 800, h: 820, d: 320, lift: 1460, handles: false, doorCount: 2, sections: [sec({ shelves: 2 })] }),
+      mk({ name: 'Витрина Бронза в профиле Золото + LED', kind: 'wall', x: 1400, w: 400, h: 820, d: 320, lift: 1460, matFacade: 'vitrine-bronze-gold', handles: false, doorCount: 1, hinge: 'left', sections: [sec({ shelves: 2 })] }),
+      mk({ name: 'Верхний шкаф (Айвори Софт, Push)', kind: 'wall', x: 1800, w: 700, h: 820, d: 320, lift: 1460, handles: false, doorCount: 2, sections: [sec({ shelves: 2 })] }),
+      mk({ name: 'Шкаф под встроенную вытяжку', kind: 'wall', x: 2500, w: 600, h: 820, d: 320, lift: 1460, handles: false, doorCount: 1, sections: [sec({ shelves: 2 })] }),
+      mk({ name: 'Витрина Бронза в профиле Золото + LED (2 створки)', kind: 'wall', x: 3100, w: 600, h: 820, d: 320, lift: 1460, matFacade: 'vitrine-bronze-gold', handles: false, doorCount: 2, sections: [sec({ shelves: 2 })] }),
+      mk({ name: 'Верхний шкаф (Айвори Софт, Push)', kind: 'wall', x: 3700, w: 600, h: 820, d: 320, lift: 1460, handles: false, doorCount: 1, hinge: 'right', sections: [sec({ shelves: 2 })] }),
+
+      // 4. Антресоли в потолок 2800 мм (отметка 2280, высота 460 + карниз 60 = 2800 мм, глубина 500 мм вровень с пеналом)
+      ...[
+        [600, 800], [1400, 400], [1800, 700], [2500, 600], [3100, 600], [3700, 600],
+      ].map(([ax, aw], idx) =>
+        mk({
+          name: `Антресоль ${idx + 1} (газлифт)`,
+          kind: 'wall', x: ax, w: aw, h: 460, d: 500, lift: 2280, topTrim: 60, hinge: 'top', handles: false,
+          sections: [sec({ shelves: 0 })],
+        }),
+      ),
+    ];
+
+    return {
+      module: orderMods[0],
+      modules: orderMods,
+      room: { w: 4600, d: 2800, h: 2850 },
+      title: 'Заказ клиента: Кухня 4300 × 2800 × 500 (Айвори Софт + Бронза/Золото)',
+      description: 'МДФ Модерн Айвори Софт · ЛДСП Томск белый матовый · Столешница 4м белая матовая 38 мм · Витрины Стекло Бронза в профиле Золото с LED · Встр. механизм 400 мм',
+      features: [
+        'Габарит: 4300 × 2800 × 500 мм',
+        'МДФ Модерн: Плёнка Айвори Софт',
+        'Корпус: ЛДСП Томск белый матовый',
+        'Столешница 38 мм белая матовая (цельная из 4 м)',
+        'Витрины: Стекло Бронза + профиль Золото + LED',
+        'Встроенный выдвижной механизм на 400 мм',
+        'Ручки сверху горизонтально в линию (Золото)',
+      ],
+      dimensionsSummary: '4300 × 2800 × 500 мм',
+    };
+  }
 
   // Специальный генератор Г-образной кухни по эскизу (3930 × 1920 × 2770, левое крыло с пеналами + невстроенный холодильник)
   if (/эскиз|3930/i.test(text)) {
