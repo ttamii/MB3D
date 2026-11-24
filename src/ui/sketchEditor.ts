@@ -260,14 +260,20 @@ export function openSketchEditor(store: Store, viewer: Viewer): void {
   const canvasWrap = h('div', { class: 'sk-canvas-wrap' });
   const rightInspector = h('aside', { class: 'sk-right' });
   const bottomBar = h('div', { class: 'sk-bottom' });
+  const svgHost = h('div', { class: 'sk-svg-host' });
   const ctxPopup = h('div', { class: 'sk-ctx-popup', style: 'display:none;' });
-  canvasWrap.append(ctxPopup);
+  canvasWrap.append(svgHost, ctxPopup);
 
   overlay.append(topBar, bodyWrap, bottomBar);
   bodyWrap.append(leftPanel, canvasWrap, rightInspector);
 
-  const svgHost = h('div', { class: 'sk-svg-host' });
-  canvasWrap.append(svgHost);
+  const fitWall = () => {
+    const r = canvasWrap.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    scale = Math.max(0.14, Math.min(0.32, Math.min((r.width - 120) / Math.max(1800, wallLen()), (r.height - 150) / Math.max(2400, room.h))));
+    panX = Math.max(50, (r.width - wallLen() * scale) / 2);
+    panY = r.height - 84;
+  };
 
   const toMm = (px: number, py: number) => ({
     x: Math.round(((px - panX) / scale) / 10) * 10,
@@ -382,7 +388,7 @@ export function openSketchEditor(store: Store, viewer: Viewer): void {
     const wLen = wallLen();
     const mods = wallMods();
 
-    // Сетка 100 мм
+    // Бесконечная сетка 100/500 мм по всему экрану (как в 2D CAD)
     const gx = (mm: number) => panX + mm * scale;
     const gy = (mm: number) => panY - mm * scale;
 
@@ -393,13 +399,18 @@ export function openSketchEditor(store: Store, viewer: Viewer): void {
 
     const gridLines: string[] = [];
     const stepMm = scale < 0.16 ? 200 : 100;
-    for (let x = 0; x <= wLen; x += stepMm) {
+    const minMmX = Math.floor((-panX / scale) / stepMm) * stepMm;
+    const maxMmX = Math.ceil(((W - panX) / scale) / stepMm) * stepMm;
+    const minMmY = Math.floor(((panY - H) / scale) / stepMm) * stepMm;
+    const maxMmY = Math.ceil((panY / scale) / stepMm) * stepMm;
+
+    for (let x = minMmX; x <= maxMmX; x += stepMm) {
       const px = gx(x);
-      gridLines.push(`<line x1="${px.toFixed(1)}" y1="${ceilY.toFixed(1)}" x2="${px.toFixed(1)}" y2="${floorY.toFixed(1)}" stroke="${x % 500 === 0 ? '#334155' : '#262d38'}" stroke-width="${x % 500 === 0 ? 1 : 0.7}" />`);
+      gridLines.push(`<line x1="${px.toFixed(1)}" y1="0" x2="${px.toFixed(1)}" y2="${H}" stroke="${x % 500 === 0 ? '#323946' : '#292f3a'}" stroke-width="${x % 500 === 0 ? 1 : 0.7}" />`);
     }
-    for (let y = 0; y <= room.h; y += stepMm) {
+    for (let y = minMmY; y <= maxMmY; y += stepMm) {
       const py = gy(y);
-      gridLines.push(`<line x1="${wallX0.toFixed(1)}" y1="${py.toFixed(1)}" x2="${wallX1.toFixed(1)}" y2="${py.toFixed(1)}" stroke="${y % 500 === 0 ? '#334155' : '#262d38'}" stroke-width="${y % 500 === 0 ? 1 : 0.7}" />`);
+      gridLines.push(`<line x1="0" y1="${py.toFixed(1)}" x2="${W}" y2="${py.toFixed(1)}" stroke="${y % 500 === 0 ? '#323946' : '#292f3a'}" stroke-width="${y % 500 === 0 ? 1 : 0.7}" />`);
     }
 
     // Если боковая стена — подсвечиваем слева зону глубины заднего ряда (500 мм / 300 мм)
@@ -656,6 +667,7 @@ export function openSketchEditor(store: Store, viewer: Viewer): void {
               activeWall = wId;
               selectedId = wallMods()[0]?.id ?? null;
               ctxPopup.style.display = 'none';
+              fitWall();
               renderAll();
             },
           }, wId === 'back' ? `Задняя (${room.w} мм)` : wId === 'left' ? `Левая Г-крыло (${room.d} мм)` : `Правая (${room.d} мм)`),
@@ -1087,10 +1099,7 @@ export function openSketchEditor(store: Store, viewer: Viewer): void {
 
   // Центрируем стену на экране после монтирования
   requestAnimationFrame(() => {
-    const r = canvasWrap.getBoundingClientRect();
-    scale = Math.max(0.14, Math.min(0.32, Math.min((r.width - 140) / Math.max(1800, wallLen()), (r.height - 160) / Math.max(2400, room.h))));
-    panX = Math.max(60, (r.width - wallLen() * scale) / 2);
-    panY = r.height - 82;
+    fitWall();
     renderAll();
   });
 }

@@ -219,18 +219,66 @@ export function renderRoomPlanSvg(
     }
   });
 
-  // Модули мебели на плане
+  // Модули мебели на плане (задняя, левая, правая стены + Г-образные и трапециевидные углы)
   const modShapes: string[] = [];
-  modules.forEach((m) => {
-    const mx0 = rx0 + m.x;
-    const my0 = ry0; // у задней стены
-    const mw = m.w;
-    const md = m.d;
-    const isBase = m.kind === 'base' || m.kind === 'tall' || m.kind === 'wardrobe';
-    modShapes.push(`
-      <rect x="${mx0}" y="${my0}" width="${mw}" height="${md}" fill="${isBase ? '#e2e8f0' : '#f8fafc'}" stroke="#475569" stroke-width="2"/>
-      <text x="${mx0 + mw / 2}" y="${my0 + md / 2 + 5}" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#334155" text-anchor="middle">${m.name}</text>
-    `);
+  // Сначала рисуем нижний/высокий ярус, затем верхний (с лёгкой прозрачностью)
+  const sortedForPlan = [...modules].sort((a, b) => (a.lift ?? 0) - (b.lift ?? 0));
+  sortedForPlan.forEach((m) => {
+    const wall = m.wall ?? 'back';
+    const isUpper = m.kind === 'wall' || m.kind === 'cornerWall';
+    const fill = isUpper ? 'rgba(241, 245, 249, 0.72)' : '#e2e8f0';
+    const stroke = isUpper ? '#64748b' : '#334155';
+    const dash = isUpper ? ' stroke-dasharray="5,3"' : '';
+
+    if (m.kind === 'corner' || m.kind === 'cornerWall') {
+      const s1 = m.w;
+      const s2 = m.cornerW2 ?? m.w;
+      const d = m.d;
+      const x0 = rx0 + m.x;
+      const y0 = ry0;
+      if (!m.mirror) {
+        const pts = m.cornerMode === 'diagonal'
+          ? `${x0},${y0} ${x0 + s1},${y0} ${x0 + s1},${y0 + d} ${x0 + d},${y0 + s2} ${x0},${y0 + s2}`
+          : `${x0},${y0} ${x0 + s1},${y0} ${x0 + s1},${y0 + d} ${x0 + d},${y0 + d} ${x0 + d},${y0 + s2} ${x0},${y0 + s2}`;
+        modShapes.push(`
+          <polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="2"${dash}/>
+          <text x="${x0 + d / 2 + 12}" y="${y0 + d / 2 + 5}" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#334155" text-anchor="middle">${m.w}×${s2}</text>
+        `);
+      } else {
+        const xR = x0 + s1;
+        const pts = m.cornerMode === 'diagonal'
+          ? `${x0},${y0} ${xR},${y0} ${xR},${y0 + s2} ${xR - d},${y0 + s2} ${x0},${y0 + d}`
+          : `${x0},${y0} ${xR},${y0} ${xR},${y0 + s2} ${xR - d},${y0 + s2} ${xR - d},${y0 + d} ${x0},${y0 + d}`;
+        modShapes.push(`
+          <polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="2"${dash}/>
+          <text x="${xR - d / 2 - 12}" y="${y0 + d / 2 + 5}" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#334155" text-anchor="middle">${m.w}×${s2}</text>
+        `);
+      }
+      return;
+    }
+
+    if (wall === 'left') {
+      const mx0 = rx0;
+      const my0 = ry0 + m.x;
+      modShapes.push(`
+        <rect x="${mx0}" y="${my0}" width="${m.d}" height="${m.w}" fill="${fill}" stroke="${stroke}" stroke-width="2"${dash}/>
+        ${!isUpper ? `<text x="${mx0 + m.d / 2}" y="${my0 + m.w / 2 + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#334155" text-anchor="middle">${m.w}</text>` : ''}
+      `);
+    } else if (wall === 'right') {
+      const mx0 = rx0 + W - m.d;
+      const my0 = ry0 + m.x;
+      modShapes.push(`
+        <rect x="${mx0}" y="${my0}" width="${m.d}" height="${m.w}" fill="${fill}" stroke="${stroke}" stroke-width="2"${dash}/>
+        ${!isUpper ? `<text x="${mx0 + m.d / 2}" y="${my0 + m.w / 2 + 4}" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#334155" text-anchor="middle">${m.w}</text>` : ''}
+      `);
+    } else {
+      const mx0 = rx0 + m.x;
+      const my0 = ry0;
+      modShapes.push(`
+        <rect x="${mx0}" y="${my0}" width="${m.w}" height="${m.d}" fill="${fill}" stroke="${stroke}" stroke-width="2"${dash}/>
+        ${!isUpper ? `<text x="${mx0 + m.w / 2}" y="${my0 + m.d / 2 + 5}" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#334155" text-anchor="middle">${m.w}</text>` : ''}
+      `);
+    }
   });
 
   // Маркер масштабирования комнаты за угол (как в CAD)

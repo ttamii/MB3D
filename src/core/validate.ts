@@ -40,7 +40,10 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
   const t = r.t === 18 ? 18 : 16;
   const d = int(r.d, 560, ...LIMITS.d);
   let w = int(r.w, 600, ...LIMITS.w);
-  if (corner) w = Math.max(w, d + 200);
+  if (corner) w = Math.max(w, d + 180);
+  const cornerW2 = corner ? Math.max(d + 180, int(r.cornerW2, w, ...LIMITS.w)) : undefined;
+  const cornerMode = corner ? (r.cornerMode === 'diagonal' ? 'diagonal' : 'l-shape') : undefined;
+  const cornerSink = corner && kind === 'corner' && r.cornerSink === true ? true : undefined;
   const h = int(r.h, 720, ...LIMITS.h);
   const plinth = wall ? 0 : Math.min(int(r.plinth, 0, ...LIMITS.plinth), h - 200);
 
@@ -92,6 +95,9 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
     ...(modWall && modWall !== 'back' ? { wall: modWall } : {}),
     ...(blindSide ? { blindSide, blindW, blindFillerW } : {}),
     ...(doorCount ? { doorCount } : {}),
+    ...(cornerMode ? { cornerMode } : {}),
+    ...(cornerW2 !== undefined ? { cornerW2 } : {}),
+    ...(cornerSink ? { cornerSink } : {}),
     ...(ovenH !== undefined ? { ovenH } : {}),
     ...(mwH !== undefined ? { mwH } : {}),
   };

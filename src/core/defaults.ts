@@ -299,7 +299,8 @@ const tvZone = (): Module[] => [
 ];
 
 export const PRESET_GROUPS: PresetGroup[] = [
-  { id: 'kitchen', label: 'Кухня', ids: ['base', 'base-drawers', 'sink', 'oven', 'cargo', 'filler', 'filler-wall', 'wall', 'dish-dryer', 'mezzanine', 'corner', 'cornerWall', 'tall', 'fridge'] },
+  { id: 'corners', label: 'Угловые модули (для Г и П-кухонь)', ids: ['corner-blind', 'corner-sink-blind', 'corner', 'corner-diag', 'cornerWall-blind', 'cornerWall', 'cornerWall-diag', 'filler-corner'] },
+  { id: 'kitchen', label: 'Кухня (прямые модули и пеналы)', ids: ['base', 'base-drawers', 'sink', 'oven', 'cargo', 'wall', 'dish-dryer', 'mezzanine', 'tall', 'tall-oven', 'fridge', 'filler', 'filler-wall'] },
   { id: 'living', label: 'Гостиная и ТВ-зона', ids: ['tv-zone', 'tv-stand', 'tv-hanging', 'bookcase', 'dresser'] },
   { id: 'storage', label: 'Шкафы и прихожая', ids: ['wardrobe-sliding', 'wardrobe-hinged', 'hall-wardrobe', 'filler-tall', 'shoe', 'bedside'] },
   { id: 'fillers', label: 'Доборные планки (к стене / углу)', ids: ['filler', 'filler-wall', 'filler-tall', 'filler-corner'] },
@@ -357,22 +358,93 @@ export const PRESETS: Preset[] = [
     make: () => base('wall', 'Антресоль', { w: 600, h: 360, d: 560, lift: 2170, hinge: 'top', milling: 'ribbed', handles: false, sections: [sec({ shelves: 0 })] }),
   },
   {
+    id: 'corner-blind',
+    label: 'Угловой нижний прямой (с L-планкой)',
+    hint: '1050 × 820 × 560, глухая зона + L-бленда 90°',
+    make: () =>
+      base('base', 'Угловой нижний (прямой)', {
+        w: 1050, h: 820, d: 560, plinth: 100, countertop: true,
+        blindSide: 'left', blindW: 605, blindFillerW: 45, doorCount: 1, hinge: 'left',
+        sections: [sec({ shelves: 1 })],
+      }),
+  },
+  {
+    id: 'corner-sink-blind',
+    label: 'Угловой под мойку прямой',
+    hint: '1100 × 820 × 560, мойка + L-бленда 90°',
+    make: () =>
+      base('base', 'Модуль под мойку (угловой)', {
+        w: 1100, h: 820, d: 560, plinth: 100, countertop: true,
+        blindSide: 'left', blindW: 605, blindFillerW: 45, doorCount: 1, hinge: 'right',
+        sections: [sec({ shelves: 0 })],
+      }),
+  },
+  {
     id: 'corner',
-    label: 'Угловой нижний',
-    hint: '900 × 900, Г-образный',
-    make: () => base('corner', 'Угловой нижний', { w: 900, h: 820, d: 560, plinth: 100, countertop: true, sections: [sec({ shelves: 1 })] }),
+    label: 'Угловой нижний Г-образный 90°',
+    hint: '900 × 900, фасад-гармошка 2 створки',
+    make: () =>
+      base('corner', 'Угловой нижний 90°', {
+        w: 900, cornerW2: 900, cornerMode: 'l-shape', h: 820, d: 560, plinth: 100, countertop: true,
+        sections: [sec({ shelves: 1 })],
+      }),
+  },
+  {
+    id: 'corner-diag',
+    label: 'Угловой нижний Трапеция 45°',
+    hint: '900 × 900, скошенная дверь 45° + мойка',
+    make: () =>
+      base('corner', 'Угловой трапеция 45°', {
+        w: 900, cornerW2: 900, cornerMode: 'diagonal', cornerSink: true, h: 820, d: 560, plinth: 100, countertop: true,
+        sections: [sec({ shelves: 1 })],
+      }),
+  },
+  {
+    id: 'cornerWall-blind',
+    label: 'Угловой верхний прямой (с L-планкой)',
+    hint: '950 × 720 × 300, глухая зона + L-бленда 90°',
+    make: () =>
+      base('wall', 'Угловой верхний (прямой)', {
+        w: 950, h: 720, d: 300, lift: 1450,
+        blindSide: 'left', blindW: 340, blindFillerW: 40, doorCount: 1, hinge: 'left',
+        sections: [sec({ shelves: 2 })],
+      }),
   },
   {
     id: 'cornerWall',
-    label: 'Угловой верхний',
-    hint: '600 × 600, навесной',
-    make: () => base('cornerWall', 'Угловой верхний', { w: 600, h: 720, d: 300, lift: 1450, sections: [sec({ shelves: 2 })] }),
+    label: 'Угловой верхний Г-образный 90°',
+    hint: '600 × 600 × 300, навесной Г-модуль',
+    make: () =>
+      base('cornerWall', 'Угловой верхний 90°', {
+        w: 600, cornerW2: 600, cornerMode: 'l-shape', h: 720, d: 300, lift: 1450,
+        sections: [sec({ shelves: 2 })],
+      }),
+  },
+  {
+    id: 'cornerWall-diag',
+    label: 'Угловой верхний Трапеция 45°',
+    hint: '600 × 600 × 300, скошенная дверь 45°',
+    make: () =>
+      base('cornerWall', 'Угловой верхний 45°', {
+        w: 600, cornerW2: 600, cornerMode: 'diagonal', h: 720, d: 300, lift: 1450,
+        sections: [sec({ shelves: 2 })],
+      }),
   },
   {
     id: 'tall',
-    label: 'Пенал',
+    label: 'Пенал хранения',
     hint: '600 × 2200, 4 полки',
     make: () => base('tall', 'Пенал', { w: 600, h: 2200, d: 560, plinth: 100, sections: [sec({ shelves: 4 })] }),
+  },
+  {
+    id: 'tall-oven',
+    label: 'Пенал под духовку и СВЧ',
+    hint: '600 × 2200, ящик + ниши 600/380 + полки',
+    make: () =>
+      base('tall', 'Пенал под духовку и СВЧ', {
+        w: 600, h: 2200, d: 560, plinth: 100, drawerH: 360, ovenH: 600, mwH: 380,
+        sections: [sec({ drawers: 1, shelves: 2 })],
+      }),
   },
   {
     id: 'fridge',

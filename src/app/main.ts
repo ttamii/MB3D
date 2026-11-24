@@ -99,7 +99,7 @@ async function boot(): Promise<void> {
     }
   };
 
-  let est: Estimate = estimate(store.project.modules, store.settings);
+  let est: Estimate = estimate(store.project.modules, store.settings, store.project.room?.w ?? DEFAULT_ROOM.w);
   let lastIds = '';
   let lastProjectId = '';
 
@@ -239,16 +239,18 @@ async function boot(): Promise<void> {
     const m = store.selected;
     const mods = store.project.modules;
     const roomW = store.project.room?.w ?? DEFAULT_ROOM.w;
+    const backMods = mods.filter((x) => (x.wall ?? 'back') === 'back');
     let runLen = 0;
-    if (mods.length > 0) {
-      const minX = Math.min(...mods.map((x) => x.x));
-      const maxX = Math.max(...mods.map((x) => x.x + x.w));
+    if (backMods.length > 0) {
+      const minX = Math.min(...backMods.map((x) => x.x));
+      const maxX = Math.max(...backMods.map((x) => x.x + x.w));
       runLen = maxX - minX;
     }
     const overflow = runLen > roomW;
     const overWarn = overflow ? ` · [ВНИМАНИЕ: ряд (${runLen} мм) шире стены (${roomW} мм)!]` : '';
+    const wallTag = m?.wall === 'left' ? ' [Левое крыло]' : m?.wall === 'right' ? ' [Правое крыло]' : '';
     hud.textContent = m
-      ? `${m.name} · ${m.w}×${m.h}×${m.d} мм (X: ${m.x})${overWarn}`
+      ? `${m.name}${wallTag} · ${m.w}×${m.h}×${m.d} мм (X: ${m.x})${overWarn}`
       : `${mods.length} мод. · Ряд кухни: ${runLen} мм / комната: ${roomW} мм${overWarn}`;
   };
 
@@ -259,9 +261,10 @@ async function boot(): Promise<void> {
   };
 
   const full = rafThrottle(() => {
-    est = estimate(store.project.modules, store.settings);
+    const roomCfg = store.project.room ?? DEFAULT_ROOM;
+    est = estimate(store.project.modules, store.settings, roomCfg.w);
+    viewer.updateRoom(roomCfg);
     viewer.update(store.project.modules);
-    viewer.updateRoom(store.project.room ?? DEFAULT_ROOM);
     const ids = store.project.modules.map((m) => m.id).join(',');
     const grew = store.project.modules.length > lastIds.split(',').filter(Boolean).length;
     if (store.project.id !== lastProjectId || (grew && ids !== lastIds)) viewer.frame('iso', lastProjectId !== '');

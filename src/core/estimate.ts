@@ -55,7 +55,7 @@ export function partDims(p: Part): { l: number; w: number; t: number } {
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-export function estimate(modules: Module[], settings: Settings): Estimate {
+export function estimate(modules: Module[], settings: Settings, roomW = 4500): Estimate {
   const matMap = new Map<string, Material>(settings.materials.map((m) => [m.id, m]));
   const cutMap = new Map<string, CutRow>();
   const matArea = new Map<string, number>();
@@ -95,7 +95,7 @@ export function estimate(modules: Module[], settings: Settings): Estimate {
     perDirect[m.id] = direct;
   }
 
-  for (const sp of buildContinuousSpans(modules, true)) {
+  for (const sp of buildContinuousSpans(modules, true, roomW)) {
     const p = sp.part;
     if (!p.sheet) continue;
     const id = partMaterialId(p, sp.refModule);

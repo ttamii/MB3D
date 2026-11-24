@@ -50,6 +50,9 @@ function partGeo(p: Part, off: [number, number, number]): BufferGeometry {
       g.rotateZ(Math.PI / 2);
     }
   } else g = boxGeo(sx, sy, sz);
+  if (p.rotY) {
+    g.rotateY(MathUtils.degToRad(p.rotY));
+  }
   g.translate(
     (p.pos[0] + p.size[0] / 2) * MM - off[0],
     (p.pos[1] + p.size[1] / 2) * MM - off[1],
@@ -329,7 +332,8 @@ export class Viewer {
               this.dragCandidate.moduleId,
               rawX,
               this.dragCandidate.startModuleX,
-              wallLimit
+              wallLimit,
+              this.currentRoom?.w ?? 4500,
             );
 
             const g = this.moduleGroups.get(this.dragCandidate.moduleId);
@@ -397,7 +401,7 @@ export class Viewer {
 
     for (const m of modules) {
       const modWall = m.wall ?? 'back';
-      const built = buildModule(m, { skipContinuous: modWall === 'back' });
+      const built = buildModule(m, { skipContinuous: true });
       const g = new Group();
       if (modWall === 'left') {
         g.rotation.y = Math.PI / 2;
@@ -497,8 +501,8 @@ export class Viewer {
       }
     }
 
-    // Единые цельные детали на весь ряд: цоколь на клипсах, столешница 38 мм и верхняя планка (карниз)
-    const spans = buildContinuousSpans(modules, false);
+    // Единые цельные детали на весь ряд (на всех 3 стенах): цоколь на клипсах, столешница 38 мм и верхняя планка (карниз)
+    const spans = buildContinuousSpans(modules, false, this.currentRoom?.w ?? 4500);
     if (spans.length > 0) {
       const spanGroup = new Group();
       const spanBuckets = new Map<string, { mat: MeshStandardMaterial; geos: BufferGeometry[] }>();
@@ -775,7 +779,17 @@ export class Viewer {
       const built = buildModule(m);
       const drilling = computeModuleDrilling(m, built.parts);
       const modGroup = new Group();
-      modGroup.position.set(m.x * MM, m.lift * MM, 0);
+      const modWall = m.wall ?? 'back';
+      if (modWall === 'left') {
+        modGroup.rotation.y = Math.PI / 2;
+        modGroup.position.set(0, m.lift * MM, (m.x + m.w) * MM);
+      } else if (modWall === 'right') {
+        const roomW = this.currentRoom?.w ?? 4500;
+        modGroup.rotation.y = -Math.PI / 2;
+        modGroup.position.set(roomW * MM, m.lift * MM, m.x * MM);
+      } else {
+        modGroup.position.set(m.x * MM, m.lift * MM, 0);
+      }
 
       const P = (m.kind === 'wall' || m.kind === 'cornerWall') ? 0 : m.plinth;
       const t = m.t;
@@ -934,12 +948,15 @@ export class Viewer {
         spH.position.set(xr + 0.05, (y0 + y1) / 2, z1);
         this.dimGroup.add(spH);
 
-        // Depth dimension (right side bottom edge)
-        segments.push([new Vector3(xr, y0, z0), new Vector3(xr, y0, z1)]);
+        // Depth / second wing dimension (right side bottom edge)
+        const isCornerMod = selMod.kind === 'corner' || selMod.kind === 'cornerWall';
+        const spanZMm = isCornerMod ? (selMod.cornerW2 ?? selMod.w) : selMod.d;
+        const zEnd = spanZMm * MM;
+        segments.push([new Vector3(xr, y0, z0), new Vector3(xr, y0, zEnd)]);
         segments.push([new Vector3(xr - 0.03, y0, z0), new Vector3(xr + 0.03, y0, z0)]);
-        segments.push([new Vector3(xr - 0.03, y0, z1), new Vector3(xr + 0.03, y0, z1)]);
-        const spD = makeTextSprite(`Г: ${selMod.d} мм`, '#38bdf8');
-        spD.position.set(xr + 0.05, y0 + 0.04, (z0 + z1) / 2);
+        segments.push([new Vector3(xr - 0.03, y0, zEnd), new Vector3(xr + 0.03, y0, zEnd)]);
+        const spD = makeTextSprite(isCornerMod ? `Крыло: ${spanZMm} мм` : `Г: ${selMod.d} мм`, '#38bdf8');
+        spD.position.set(xr + 0.05, y0 + 0.04, (z0 + zEnd) / 2);
         this.dimGroup.add(spD);
 
         // Lift dimension (if elevated off the floor)
@@ -976,7 +993,7 @@ export class Viewer {
       }
     }
 
-    // 2. Kitchen / furniture run overall width line
+    // 2. Kitchen / furniture run overall width lines (Back + Left/Right wings)
     if (this.showDimensions) {
       let minX = Infinity;
       let maxX = -Infinity;
@@ -991,17 +1008,59 @@ export class Viewer {
         const rx0 = minX * MM;
         const rx1 = maxX * MM;
         const ry = 0.015;
-      const rz = (maxD + 120) * MM;
-      segments.push([new Vector3(rx0, ry, rz), new Vector3(rx1, ry, rz)]);
-      segments.push([new Vector3(rx0, ry, rz - 0.04), new Vector3(rx0, ry, rz + 0.04)]);
-      segments.push([new Vector3(rx1, ry, rz - 0.04), new Vector3(rx1, ry, rz + 0.04)]);
+        const rz = (maxD + 120) * MM;
+        segments.push([new Vector3(rx0, ry, rz), new Vector3(rx1, ry, rz)]);
+        segments.push([new Vector3(rx0, ry, rz - 0.04), new Vector3(rx0, ry, rz + 0.04)]);
+        segments.push([new Vector3(rx1, ry, rz - 0.04), new Vector3(rx1, ry, rz + 0.04)]);
 
-      const totalW = Math.round(maxX - minX);
-      const isOver = this.currentRoom && totalW > this.currentRoom.w;
-      const spRun = makeTextSprite(`Итого L = ${totalW} мм${isOver ? ' (!)' : ''}`, isOver ? '#ef4444' : '#10b981');
-      spRun.position.set((rx0 + rx1) / 2, ry + 0.04, rz);
-      this.dimGroup.add(spRun);
-    }
+        const totalW = Math.round(maxX - minX);
+        const isOver = this.currentRoom && totalW > this.currentRoom.w;
+        const spRun = makeTextSprite(`Итого L = ${totalW} мм${isOver ? ' (!)' : ''}`, isOver ? '#ef4444' : '#10b981');
+        spRun.position.set((rx0 + rx1) / 2, ry + 0.04, rz);
+        this.dimGroup.add(spRun);
+      }
+
+      // Левое и правое крылья (для Г и П-образных кухонь)
+      const roomW = this.currentRoom?.w ?? 4500;
+      for (const sideWall of ['left', 'right'] as const) {
+        let minZ = Infinity;
+        let maxZ = -Infinity;
+        let sideMaxD = 560;
+        for (const m of this.currentModules) {
+          if (m.wall === sideWall) {
+            if (m.x < minZ) minZ = m.x;
+            if (m.x + m.w > maxZ) maxZ = m.x + m.w;
+            if (m.d > sideMaxD) sideMaxD = m.d;
+          } else if ((m.wall ?? 'back') === 'back') {
+            if (sideWall === 'left' && m.x <= 30) {
+              minZ = 0;
+              const reachZ = (m.kind === 'corner' || m.kind === 'cornerWall') && !m.mirror ? (m.cornerW2 ?? m.w) : m.d;
+              if (reachZ > maxZ && this.currentModules.some((s) => s.wall === 'left')) maxZ = Math.max(maxZ, reachZ);
+            } else if (sideWall === 'right' && Math.abs((m.x + m.w) - roomW) <= 45) {
+              minZ = 0;
+              const reachZ = (m.kind === 'corner' || m.kind === 'cornerWall') && m.mirror ? (m.cornerW2 ?? m.w) : m.d;
+              if (reachZ > maxZ && this.currentModules.some((s) => s.wall === 'right')) maxZ = Math.max(maxZ, reachZ);
+            }
+          }
+        }
+        const hasSideMods = this.currentModules.some((s) => s.wall === sideWall) ||
+          this.currentModules.some((c) => (c.kind === 'corner' || c.kind === 'cornerWall') && (sideWall === 'left' ? !c.mirror : c.mirror));
+        if (hasSideMods && minZ < maxZ && maxZ > 350) {
+          const sz0 = minZ * MM;
+          const sz1 = maxZ * MM;
+          const ry = 0.015;
+          const sx = (sideWall === 'left' ? sideMaxD + 120 : roomW - (sideMaxD + 120)) * MM;
+          segments.push([new Vector3(sx, ry, sz0), new Vector3(sx, ry, sz1)]);
+          segments.push([new Vector3(sx - 0.04, ry, sz0), new Vector3(sx + 0.04, ry, sz0)]);
+          segments.push([new Vector3(sx - 0.04, ry, sz1), new Vector3(sx + 0.04, ry, sz1)]);
+          const totalWing = Math.round(maxZ - minZ);
+          const isOverD = this.currentRoom && maxZ > this.currentRoom.d;
+          const lbl = `${sideWall === 'left' ? 'Крыло Л' : 'Крыло П'} = ${totalWing} мм${isOverD ? ' (!)' : ''}`;
+          const spWing = makeTextSprite(lbl, isOverD ? '#ef4444' : '#0ea5e9');
+          spWing.position.set(sx, ry + 0.04, (sz0 + sz1) / 2);
+          this.dimGroup.add(spWing);
+        }
+      }
     }
 
     if (segments.length > 0) {

@@ -471,13 +471,23 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
   let kitchenModules: Module[] | undefined;
   if (isKitchen && w >= 1200) {
     const wantsThreeTiers = /антресол|до потолка|3\s*ярус|трехъярус|трёхъярус|высок/i.test(text) || h >= 2400;
-    const wantsCorner = /углов|г-образ|г образ/i.test(text);
+    const wantsUShape = /п-образ|п образ/i.test(text);
+    const wantsCornerRight = /углов\w*\s+справ|правое\s+крыл|угол\s+справ/i.test(text);
+    const wantsCorner = wantsUShape || wantsCornerRight || /углов|г-образ|г образ/i.test(text) || (customW && customD && d >= 1300);
+    const cornerType = /трапец|45\s*град|скошен|пятиугол/i.test(text)
+      ? 'diagonal'
+      : /гармошк|900\s*[xх×*]\s*900/i.test(text)
+        ? 'l-shape'
+        : 'blind';
     const wantsNoTall = /без пенал/i.test(text);
     const wantsTallRight = /пенал справ/i.test(text);
     const layoutVariant = wantsNoTall ? 2 : wantsTallRight ? 1 : 0;
+    const wingLen = customD && d >= 1200 ? d : 2100;
 
     kitchenModules = generateKitchenLayout({
       wallLength: Math.max(1600, w),
+      leftLength: wingLen,
+      rightLength: wingLen,
       tiers: wantsThreeTiers ? 3 : 2,
       facadeMat: matFacade,
       corpusMat: matCorpus,
@@ -485,7 +495,8 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
       plinthColor: 'facade',
       millingMix: milling === 'modern' && wantsThreeTiers ? 'trend' : milling,
       layoutVariant,
-      shape: wantsCorner ? 'corner-left' : 'linear',
+      shape: wantsUShape ? 'u-shape' : wantsCornerRight ? 'corner-right' : wantsCorner ? 'corner-left' : 'linear',
+      cornerType,
       topTrimH: wantsTopTrim || wantsThreeTiers ? 60 : 0,
     });
 

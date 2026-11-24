@@ -12,16 +12,20 @@ class Builder {
   }
 
   box(
-    name: string, mat: PartMat, pos: V3, size: V3, edgeMm = 0, anim?: PartAnim, sheet = true,
+    name: string, mat: PartMat, pos: V3, size: V3, edgeMm = 0, anim?: PartAnim, sheet = true, rotY?: number,
   ): void {
     this.parts.push({
-      name, mat, pos: [...pos], size: [...size], edgeMm, sheet, shape: 'box', ...(anim ? { anim } : {}),
+      name, mat, pos: [...pos], size: [...size], edgeMm, sheet, shape: 'box',
+      ...(rotY !== undefined ? { rotY } : {}),
+      ...(anim ? { anim } : {}),
     });
   }
 
-  decor(name: string, mat: PartMat, pos: V3, size: V3, anim?: PartAnim, shape: 'box' | 'cyl' = 'box'): void {
+  decor(name: string, mat: PartMat, pos: V3, size: V3, anim?: PartAnim, shape: 'box' | 'cyl' = 'box', rotY?: number): void {
     this.parts.push({
-      name, mat, pos: [...pos], size: [...size], edgeMm: 0, sheet: false, shape, ...(anim ? { anim } : {}),
+      name, mat, pos: [...pos], size: [...size], edgeMm: 0, sheet: false, shape,
+      ...(rotY !== undefined ? { rotY } : {}),
+      ...(anim ? { anim } : {}),
     });
   }
 }
@@ -377,19 +381,21 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
 
     const hasBlind = m.blindSide && (m.blindW ?? 0) > 0 && ((m.blindSide === 'left' && i === 0) || (m.blindSide === 'right' && i === n - 1));
     if (hasBlind) {
-      const blindW = Math.min(Math.round((segR - segL) - 120), Math.max(25, m.blindW ?? 350));
-      const fillerW = Math.min(blindW, Math.max(16, m.blindFillerW ?? 50));
+      const blindW = Math.min(Math.round((segR - segL) - 120), Math.max(25, m.blindW ?? (wall ? 340 : 605)));
+      const fillerW = Math.min(blindW, Math.max(16, m.blindFillerW ?? (wall ? 40 : 45)));
       const blindPanelW = Math.max(0, blindW - fillerW);
       if (m.blindSide === 'left') {
-        // Глухая заглушка + L-планка угла + полноценная внутренняя стенка-перегородка по линии blindW
+        // Глухая заглушка + Г-образная угловая бленда 90° + внутренняя стойка-перегородка по линии blindW
         if (blindPanelW >= 20) {
           b.box('Глухая заглушка (угловая)', 'corpus', [1, P + 2, D - t], [blindPanelW, bodyH - 4, t], 2 * (blindPanelW + bodyH));
         }
-        b.box(`Угловая планка ${fillerW} мм`, 'facade', [blindPanelW, P + 2, D], [fillerW, bodyH - 4, FACADE_T], 2 * (fillerW + bodyH));
-        if (fillerW > FACADE_T && blindPanelW >= 20) {
-          b.box(`Угловая планка возврат`, 'facade', [blindPanelW, P + 2, D + FACADE_T], [FACADE_T, bodyH - 4, fillerW - FACADE_T], 2 * (fillerW - FACADE_T + bodyH));
+        b.box(`Угловая бленда ${fillerW} мм`, 'facade', [blindPanelW, P + 2, D], [fillerW, bodyH - 4, FACADE_T], 2 * (fillerW + bodyH));
+        // Перпендикулярный возврат бленды 90° заподлицо с фасадом соседней стены (перекрывает торец и даёт зазор открывания)
+        const retDepth = Math.max(FACADE_T, fillerW);
+        if (blindPanelW >= 20) {
+          b.box('Угловая бленда (возврат 90°)', 'facade', [blindPanelW, P + 2, D + FACADE_T], [FACADE_T, bodyH - 4, retDepth], 2 * (retDepth + bodyH));
         }
-        b.box('Стенка-перегородка угла', 'corpus', [blindW - t, P + t, BK], [t, Hi, D - BK], Hi);
+        b.box('Стойка-перегородка угла', 'corpus', [Math.max(t, blindW - t), P + t, BK], [t, Hi, D - BK], Hi);
         fx0 = blindW + 2;
         openZoneX0 = Math.max(x0, blindW);
         openZoneW = Math.max(120, (x0 + cw) - openZoneX0);
@@ -398,11 +404,12 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
         if (blindPanelW >= 20) {
           b.box('Глухая заглушка (угловая)', 'corpus', [xStart + fillerW, P + 2, D - t], [blindPanelW, bodyH - 4, t], 2 * (blindPanelW + bodyH));
         }
-        b.box(`Угловая планка ${fillerW} мм`, 'facade', [xStart, P + 2, D], [fillerW, bodyH - 4, FACADE_T], 2 * (fillerW + bodyH));
-        if (fillerW > FACADE_T && blindPanelW >= 20) {
-          b.box(`Угловая планка возврат`, 'facade', [xStart + fillerW - FACADE_T, P + 2, D + FACADE_T], [FACADE_T, bodyH - 4, fillerW - FACADE_T], 2 * (fillerW - FACADE_T + bodyH));
+        b.box(`Угловая бленда ${fillerW} мм`, 'facade', [xStart, P + 2, D], [fillerW, bodyH - 4, FACADE_T], 2 * (fillerW + bodyH));
+        const retDepth = Math.max(FACADE_T, fillerW);
+        if (blindPanelW >= 20) {
+          b.box('Угловая бленда (возврат 90°)', 'facade', [xStart + fillerW - FACADE_T, P + 2, D + FACADE_T], [FACADE_T, bodyH - 4, retDepth], 2 * (retDepth + bodyH));
         }
-        b.box('Стенка-перегородка угла', 'corpus', [xStart, P + t, BK], [t, Hi, D - BK], Hi);
+        b.box('Стойка-перегородка угла', 'corpus', [Math.min(W - 2 * t, xStart), P + t, BK], [t, Hi, D - BK], Hi);
         fx1 = xStart - 2;
         openZoneW = Math.max(120, xStart - x0);
       }
@@ -707,7 +714,9 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
 }
 
 function cornerCabinet(b: Builder, m: Module): void {
-  const { w: S, h: H, d: D, t } = m;
+  const S1 = m.w;
+  const S2 = Math.max(m.d + 180, m.cornerW2 ?? m.w);
+  const { h: H, d: D, t } = m;
   const wall = isWall(m.kind);
   const P = wall ? 0 : m.plinth;
   const bodyH = H - P;
@@ -715,33 +724,167 @@ function cornerCabinet(b: Builder, m: Module): void {
   const sec = m.sections[0];
   const Hi = H - P - 2 * t;
   const trimH = m.topTrim && m.topTrim > 0 && m.kind === 'cornerWall' ? m.topTrim : 0;
+  const isDiag = m.cornerMode === 'diagonal';
+  const hasSink = m.kind === 'corner' && (m.cornerSink === true || /мойк|раковин/i.test(m.name));
 
-  // Профессиональный Г-образный угловой модуль (900×900 / 600×600):
-  // Задний угол в (0,0), правое плечо вдоль +X (0..S, глубина 0..D), левое плечо вдоль +Z (0..S, глубина 0..D),
-  // фасады смотрят во внутренний угол (x = D, z = D).
-  b.box('Боковина задняя L', 'corpus', [0, P, BK], [t, bodyH, S - BK], bodyH);
-  b.box('Боковина левого плеча (торец)', 'corpus', [t, P, S - t], [D - t, bodyH, t], bodyH);
-  b.box('Боковина правого плеча (торец)', 'corpus', [S - t, P, BK], [t, bodyH, D - BK], bodyH);
-  b.box('Задняя стенка', 'back', [1, P + 1, 0], [S - 2, bodyH - 2, BK], 0);
-  b.box('Задняя стенка левого плеча', 'back', [0, P + 1, BK], [BK, bodyH - 2, S - BK - 1], 0);
+  // Задние стенки и торцевые боковины (стыкуются заподлицо с соседними шкафами глубины D по обеим стенам)
+  b.box('Боковина задняя L', 'corpus', [0, P, BK], [t, bodyH, S2 - BK], bodyH);
+  b.box('Боковина бокового крыла (торец)', 'corpus', [t, P, S2 - t], [D - t, bodyH, t], bodyH);
+  b.box('Боковина основного крыла (торец)', 'corpus', [S1 - t, P, BK], [t, bodyH, D - BK], bodyH);
+  b.box('Задняя стенка (основная)', 'back', [1, P + 1, 0], [S1 - 2, bodyH - 2, BK], 0);
+  b.box('Задняя стенка (боковая)', 'back', [0, P + 1, BK], [BK, bodyH - 2, S2 - BK - 1], 0);
 
+  if (isDiag) {
+    // ——— ТРАПЕЦИЕВИДНЫЙ (ПЯТИУГОЛЬНЫЙ 45°) УГЛОВОЙ МОДУЛЬ ———
+    // Диагональный проём идёт от точки A=(D, S2) до B=(S1, D)
+    const dx = S1 - D;
+    const dz = S2 - D;
+    const diagLen = Math.hypot(dx, dz);
+    const angleDeg = (Math.atan2(dz, dx) * 180) / Math.PI;
+    const nx = dz / diagLen;
+    const nz = dx / diagLen;
+    const midX = (D + S1) / 2;
+    const midZ = (S2 + D) / 2;
+
+    // Прямоугольное ядро дна и крышки + диагональный треугольный сегмент (аппроксимирован скошенной плитой вписанной геометрии)
+    b.box('Дно (основа пятиугольная)', 'corpus', [t, P, BK], [S1 - 2 * t, t, D - BK], S1 - 2 * t);
+    b.box('Дно (боковое крыло)', 'corpus', [t, P, D], [D - t, t, S2 - t - D], S2 - t - D);
+    const diagPlateDepth = Math.min(dx, dz) * 0.7;
+    const dcx = midX - nx * (diagPlateDepth / 2);
+    const dcz = midZ - nz * (diagPlateDepth / 2);
+    b.box('Дно (диагональный сектор)', 'corpus', [dcx - (diagLen - 8) / 2, P, dcz - diagPlateDepth / 2], [Math.max(80, diagLen - 8), t, diagPlateDepth], diagLen, undefined, false, angleDeg);
+
+    if (!hasSink) {
+      b.box('Крышка (основа пятиугольная)', 'corpus', [t, H - t, BK], [S1 - 2 * t, t, D - BK], S1 - 2 * t);
+      b.box('Крышка (боковое крыло)', 'corpus', [t, H - t, D], [D - t, t, S2 - t - D], S2 - t - D);
+      b.box('Крышка (диагональный сектор)', 'corpus', [dcx - (diagLen - 8) / 2, H - t, dcz - diagPlateDepth / 2], [Math.max(80, diagLen - 8), t, diagPlateDepth], diagLen, undefined, false, angleDeg);
+    } else {
+      // Царга жёсткости под врезную угловую мойку
+      b.box('Царга диагональная (под мойку)', 'corpus', [midX - nx * 12 - (diagLen - 16) / 2, H - 90, midZ - nz * 12 - t / 2], [Math.max(100, diagLen - 16), 90, t], diagLen, undefined, true, angleDeg);
+    }
+    b.add('confirmat', 16);
+
+    if (P > 0) {
+      const plinthMat: PartMat = m.plinthColor === 'black' ? 'black' : m.plinthColor === 'facade' ? 'facade' : 'corpus';
+      const inset = 50 + 8;
+      const px = midX - nx * inset;
+      const pz = midZ - nz * inset;
+      const pw = Math.max(100, diagLen + 24);
+      b.box('Цоколь диагональный 45°', plinthMat, [px - pw / 2, 0, pz - 8], [pw, P, 16], pw, undefined, true, angleDeg);
+      b.decor('Опора регулируемая', 'black', [45, 0, 45], [30, P, 30], undefined, 'cyl');
+      b.decor('Опора регулируемая', 'black', [S1 - 75, 0, 45], [30, P, 30], undefined, 'cyl');
+      b.decor('Опора регулируемая', 'black', [45, 0, S2 - 75], [30, P, 30], undefined, 'cyl');
+      b.decor('Опора регулируемая', 'black', [D - 45, 0, S2 - 75], [30, P, 30], undefined, 'cyl');
+      b.decor('Опора регулируемая', 'black', [S1 - 75, 0, D - 45], [30, P, 30], undefined, 'cyl');
+      b.add('leg', 5);
+    }
+    if (wall) b.add('hanger', 2);
+
+    const zoneTop = P + t;
+    const zoneH = H - t - zoneTop;
+    const nSh = hasSink ? 0 : sec.shelves;
+    for (let k = 1; k <= nSh; k++) {
+      const y = zoneTop + (k * zoneH) / (nSh + 1) - t / 2;
+      b.box('Полка пятиугольная (часть 1)', 'corpus', [t, y, BK], [S1 - 2 * t, t, D - BK - 12], S1 - 2 * t);
+      b.box('Полка пятиугольная (часть 2)', 'corpus', [t, y, D - 12], [D - t - 12, t, S2 - t - (D - 12)], S2 - D);
+      const spD = Math.max(40, diagPlateDepth - 18);
+      const scx = midX - nx * (spD / 2 + 16);
+      const scz = midZ - nz * (spD / 2 + 16);
+      b.box('Полка (диагональ)', 'corpus', [scx - (diagLen - 32) / 2, y, scz - spD / 2], [Math.max(60, diagLen - 32), t, spD], diagLen - 32, undefined, false, angleDeg);
+      b.add('pin', 6);
+    }
+
+    // Диагональный фасад 45° (одна широкая дверца на петлях 45°)
+    if (m.doorMode !== 'none' && sec.door && Hi > 100) {
+      const y0 = P + 2;
+      const hd = H - 4 - P;
+      const dw = Math.max(140, Math.round(diagLen - 6));
+      const hingeRight = m.hinge === 'right';
+      const pivX = hingeRight ? S1 - 2 : D + 2;
+      const pivZ = hingeRight ? D + 2 : S2 - 2;
+      const anim: PartAnim = {
+        type: 'door',
+        key: `${m.id}-door-diag`,
+        pivot: [pivX + nx * (FACADE_T / 2), pivZ + nz * (FACADE_T / 2)],
+        ang: hingeRight ? 85 : -85,
+      };
+      const fcx = midX + nx * (FACADE_T / 2 + 1);
+      const fcz = midZ + nz * (FACADE_T / 2 + 1);
+      b.box('Фасад угловой 45°', 'facade', [fcx - dw / 2, y0, fcz - FACADE_T / 2], [dw, hd, FACADE_T], 2 * (dw + hd), anim, true, angleDeg);
+      b.add('hinge', hingesFor(hd));
+
+      if (m.handles) {
+        const hl = Math.max(100, Math.min(300, hd * 0.25));
+        const hy = wall ? y0 + 30 : y0 + hd - 30 - hl;
+        // Смещаем ручку к краю, противоположному петлям, вдоль диагонали
+        const along = (hingeRight ? -1 : 1) * (dw / 2 - 34);
+        const ux = dx / diagLen;
+        const uz = -dz / diagLen;
+        const hcx = midX + ux * along + nx * (FACADE_T + 12);
+        const hcz = midZ + uz * along + nz * (FACADE_T + 12);
+        b.decor('Ручка', 'handle', [hcx - 7, hy, hcz - 11], [14, hl, 22], anim, 'box', angleDeg);
+        b.add('handle');
+      }
+    }
+
+    if (m.countertop && m.kind === 'corner') {
+      const topOut = D + 30;
+      const tdx = Math.max(40, S1 - topOut);
+      const tdz = Math.max(40, S2 - topOut);
+      const tDiag = Math.hypot(tdx, tdz);
+      const tMidX = (topOut + S1) / 2;
+      const tMidZ = (S2 + topOut) / 2;
+      b.box('Столешница пятиугольная (основа)', 'top', [0, H, 0], [S1, COUNTERTOP_T, topOut], S1);
+      b.box('Столешница пятиугольная (крыло)', 'top', [0, H, topOut], [topOut, COUNTERTOP_T, Math.max(20, S2 - topOut)], topOut);
+      const tPlateD = Math.min(tdx, tdz) * 0.72;
+      b.box('Столешница (скос 45°)', 'top', [tMidX - nx * (tPlateD / 2) - tDiag / 2, H, tMidZ - nz * (tPlateD / 2) - tPlateD / 2], [tDiag, COUNTERTOP_T, tPlateD], tDiag, undefined, false, angleDeg);
+      b.decor('Пристенный бортик (осн.)', 'top', [0, H + COUNTERTOP_T, 0], [S1, 24, 16]);
+      b.decor('Пристенный бортик (бок.)', 'top', [0, H + COUNTERTOP_T, 16], [16, 24, S2 - 16]);
+
+      if (hasSink) {
+        const sw = Math.min(480, Math.round(diagLen + 40));
+        const sd = 400;
+        const scx = midX - nx * 195;
+        const scz = midZ - nz * 195;
+        b.decor('Мойка угловая 45°: бортик', 'metal', [scx - sw / 2, H + COUNTERTOP_T - 1, scz - sd / 2], [sw, 2, sd], undefined, 'box', angleDeg);
+        b.decor('Мойка угловая 45°: чаша', 'black', [scx - (sw - 48) / 2, H + COUNTERTOP_T - 0.5, scz + 10 - (sd - 68) / 2], [sw - 48, 2.2, sd - 68], undefined, 'box', angleDeg);
+        b.decor('Смеситель угловой', 'metal', [scx - nx * (sd / 2 - 26) - 18, H + COUNTERTOP_T, scz - nz * (sd / 2 - 26) - 18], [36, 28, 36], undefined, 'cyl');
+      }
+    }
+
+    if (trimH > 0) {
+      const fcx = midX + nx * (FACADE_T / 2 + 1);
+      const fcz = midZ + nz * (FACADE_T / 2 + 1);
+      b.box('Верхняя планка (карниз 45°)', 'facade', [fcx - diagLen / 2, H, fcz - FACADE_T / 2], [diagLen, trimH, FACADE_T], 2 * (diagLen + trimH), undefined, true, angleDeg);
+      b.add('confirmat', 4);
+    }
+    return;
+  }
+
+  // ——— Г-ОБРАЗНЫЙ 90° УГЛОВОЙ МОДУЛЬ (ФАСАД-ГАРМОШКА BI-FOLD БЕЗ ЩЕЛИ) ———
   // Г-образное дно и крышка (из 2 частей без пересечений)
-  b.box('Дно (плечо 1)', 'corpus', [t, P, BK], [D - t, t, S - t - BK], S - t - BK);
-  b.box('Дно (плечо 2)', 'corpus', [D, P, BK], [S - t - D, t, D - BK], S - t - D);
-  b.box('Крышка (плечо 1)', 'corpus', [t, H - t, BK], [D - t, t, S - t - BK], S - t - BK);
-  b.box('Крышка (плечо 2)', 'corpus', [D, H - t, BK], [S - t - D, t, D - BK], S - t - D);
+  b.box('Дно (боковое крыло)', 'corpus', [t, P, BK], [D - t, t, S2 - t - BK], S2 - t - BK);
+  b.box('Дно (основное крыло)', 'corpus', [D, P, BK], [S1 - t - D, t, D - BK], S1 - t - D);
+  if (!hasSink) {
+    b.box('Крышка (боковое крыло)', 'corpus', [t, H - t, BK], [D - t, t, S2 - t - BK], S2 - t - BK);
+    b.box('Крышка (основное крыло)', 'corpus', [D, H - t, BK], [S1 - t - D, t, D - BK], S1 - t - D);
+  } else {
+    b.box('Царга верхняя (боковое крыло)', 'corpus', [D - t - 10, H - 90, D], [t, 90, S2 - t - D], S2 - t - D);
+    b.box('Царга верхняя (основное крыло)', 'corpus', [t, H - 90, D - t - 10], [S1 - 2 * t, 90, t], S1 - 2 * t);
+  }
+  // Внутренняя угловая планка притвора (исключает просвет на стыке двух створок)
+  b.box('Планка притвора угла', 'corpus', [D - t, P + t, D - t], [t, Hi, t], Hi);
   b.add('confirmat', 18);
 
   if (P > 0) {
     const plinthMat: PartMat = m.plinthColor === 'black' ? 'black' : m.plinthColor === 'facade' ? 'facade' : 'corpus';
     const px = Math.max(t, D - 50 - 16);
     const pz = Math.max(t, D - 50 - 16);
-    b.box('Цоколь внутренний (правое плечо)', plinthMat, [px, 0, pz], [S - px, P, 16], S - px);
-    b.box('Цоколь внутренний (левое плечо)', plinthMat, [px, 0, pz + 16], [16, P, S - (pz + 16)], S - (pz + 16));
-    // Регулируемые ножки-опоры под дном
+    b.box('Цоколь внутренний (основное крыло)', plinthMat, [px, 0, pz], [S1 - px, P, 16], S1 - px);
+    b.box('Цоколь внутренний (боковое крыло)', plinthMat, [px, 0, pz + 16], [16, P, S2 - (pz + 16)], S2 - (pz + 16));
     b.decor('Опора регулируемая', 'black', [45, 0, 45], [30, P, 30], undefined, 'cyl');
-    b.decor('Опора регулируемая', 'black', [S - 75, 0, 45], [30, P, 30], undefined, 'cyl');
-    b.decor('Опора регулируемая', 'black', [45, 0, S - 75], [30, P, 30], undefined, 'cyl');
+    b.decor('Опора регулируемая', 'black', [S1 - 75, 0, 45], [30, P, 30], undefined, 'cyl');
+    b.decor('Опора регулируемая', 'black', [45, 0, S2 - 75], [30, P, 30], undefined, 'cyl');
     b.decor('Опора регулируемая', 'black', [px - 36, 0, pz - 36], [30, P, 30], undefined, 'cyl');
     b.add('leg', 6);
   }
@@ -749,46 +892,56 @@ function cornerCabinet(b: Builder, m: Module): void {
 
   const zoneTop = P + t;
   const zoneH = H - t - zoneTop;
-  for (let k = 1; k <= sec.shelves; k++) {
-    const y = zoneTop + (k * zoneH) / (sec.shelves + 1) - t / 2;
-    b.box('Полка (плечо 1)', 'corpus', [t, y, BK], [D - t - 18, t, S - t - BK], S - t - BK);
-    b.box('Полка (плечо 2)', 'corpus', [D - 18, y, BK], [S - t - D + 18, t, D - BK - 18], S - t - D);
+  const nShelves = hasSink ? 0 : sec.shelves;
+  for (let k = 1; k <= nShelves; k++) {
+    const y = zoneTop + (k * zoneH) / (nShelves + 1) - t / 2;
+    b.box('Полка (боковое крыло)', 'corpus', [t, y, BK], [D - t - 18, t, S2 - t - BK], S2 - t - BK);
+    b.box('Полка (основное крыло)', 'corpus', [D - 18, y, BK], [S1 - t - D + 18, t, D - BK - 18], S1 - t - D);
     b.add('pin', 8);
   }
 
-  // Фасады во внутреннем углу: складная / распашная пара (петли 165° + зазор стыковки 18 мм в углу)
+  // Складной двухстворчатый фасад «гармошка» (Blum Clip Top 170° + междверная петля 60°, плотный притвор 2 мм в углу без щели!)
   if (m.doorMode !== 'none' && sec.door && Hi > 100) {
     const y0 = P + 2;
     const hd = H - 2 - y0;
-    const xStart = D + 18;
-    const dw1 = Math.max(120, (S - 1) - xStart);
-    const a1: PartAnim = { type: 'door', key: `${m.id}-door-c1`, pivot: [S - 1, D], ang: 85 };
-    b.box('Фасад угловой (правое плечо)', 'facade', [xStart, y0, D], [dw1, hd, FACADE_T], 2 * (dw1 + hd), a1);
+    // Первая створка перекрывает торец в углу (от D + 1 до S1 - 1.5)
+    const xStart = D + 1;
+    const dw1 = Math.max(100, (S1 - 1.5) - xStart);
+    const a1: PartAnim = { type: 'door', key: `${m.id}-door-c1`, pivot: [S1 - 1.5, D], ang: 85 };
+    b.box('Фасад гармошка (створка 1)', 'facade', [xStart, y0, D], [dw1, hd, FACADE_T], 2 * (dw1 + hd), a1);
     b.add('hinge', hingesFor(hd));
-    doorHandle(b, m, a1, xStart, S - 1, y0, y0 + hd, 'right', D + FACADE_T);
+    // Одна эргономичная ручка на ведущей створке гармошки (исключает соударение ручек в углу!)
+    doorHandle(b, m, a1, xStart, S1 - 1.5, y0, y0 + hd, 'right', D + FACADE_T);
 
-    const zStart = D + 18;
-    const dw2 = Math.max(120, (S - 1) - zStart);
-    const a2: PartAnim = { type: 'door', key: `${m.id}-door-c2`, pivot: [D, S - 1], ang: -85 };
-    b.box('Фасад угловой (левое плечо)', 'facade', [D, y0, zStart], [FACADE_T, hd, dw2], 2 * (dw2 + hd), a2);
+    // Вторая створка примыкает с зазором 2 мм к тыльной плоскости первой створки (от D + FACADE_T + 2 до S2 - 1.5)
+    const zStart = D + FACADE_T + 2;
+    const dw2 = Math.max(100, (S2 - 1.5) - zStart);
+    const a2: PartAnim = { type: 'door', key: `${m.id}-door-c2`, pivot: [D, S2 - 1.5], ang: -85 };
+    b.box('Фасад гармошка (створка 2)', 'facade', [D, y0, zStart], [FACADE_T, hd, dw2], 2 * (dw2 + hd), a2);
     b.add('hinge', hingesFor(hd));
-    if (m.handles) {
-      const hl = Math.max(100, Math.min(320, hd * 0.25));
-      const y = wall ? y0 + 30 : y0 + hd - 30 - hl;
-      b.decor('Ручка', 'handle', [D + FACADE_T, y, zStart + 24], [22, hl, 14], a2);
-      b.add('handle');
-    }
   }
 
   if (m.countertop && m.kind === 'corner') {
-    // Г-образная столешница со свесом +30 мм строго во внутренний угол (без вылета за боковые торцы S)
-    b.box('Столешница (часть 1)', 'top', [0, H, 0], [S, COUNTERTOP_T, D + 30], S);
-    b.box('Столешница (часть 2)', 'top', [0, H, D + 30], [D + 30, COUNTERTOP_T, S - (D + 30)], D + 30);
+    const topOut = D + 30;
+    b.box('Столешница Г-образная (часть 1)', 'top', [0, H, 0], [S1, COUNTERTOP_T, topOut], S1);
+    b.box('Столешница Г-образная (часть 2)', 'top', [0, H, topOut], [topOut, COUNTERTOP_T, Math.max(20, S2 - topOut)], topOut);
+    b.decor('Пристенный бортик (осн.)', 'top', [0, H + COUNTERTOP_T, 0], [S1, 24, 16]);
+    b.decor('Пристенный бортик (бок.)', 'top', [0, H + COUNTERTOP_T, 16], [16, 24, S2 - 16]);
+
+    if (hasSink && S1 >= 800 && D >= 450) {
+      const sw = Math.min(500, S1 - D + 140);
+      const sd = Math.min(420, D - 100);
+      const sx = Math.max(80, S1 - sw - 50);
+      const sz = Math.round((D - sd) / 2) + 12;
+      b.decor('Мойка врезная: бортик', 'metal', [sx, H + COUNTERTOP_T - 1, sz], [sw, 2, sd]);
+      b.decor('Мойка врезная: чаша', 'black', [sx + 22, H + COUNTERTOP_T - 0.5, sz + 42], [sw - 44, 2.2, sd - 62]);
+      b.decor('Смеситель: база', 'metal', [sx + sw / 2 - 18, H + COUNTERTOP_T, sz + 8], [36, 24, 30]);
+    }
   }
 
   if (trimH > 0) {
-    b.box('Верхняя планка (правое плечо)', 'facade', [D, H, D], [S - D, trimH, FACADE_T], 2 * (S - D + trimH));
-    b.box('Верхняя планка (левое плечо)', 'facade', [D, H, D + FACADE_T], [FACADE_T, trimH, S - D - FACADE_T], 2 * (S - D + trimH));
+    b.box('Верхняя планка (основное крыло)', 'facade', [D, H, D], [S1 - D, trimH, FACADE_T], 2 * (S1 - D + trimH));
+    b.box('Верхняя планка (боковое крыло)', 'facade', [D, H, D + FACADE_T], [FACADE_T, trimH, Math.max(20, S2 - D - FACADE_T)], 2 * (S2 - D + trimH));
     b.add('confirmat', 6);
   }
 }
@@ -809,6 +962,7 @@ export function buildModule(m: Module, opts?: BuildModuleOptions): BuiltModule {
     const visited = new Set<PartAnim>();
     for (const p of b.parts) {
       p.pos[0] = W - (p.pos[0] + p.size[0]);
+      if (p.rotY !== undefined) p.rotY = -p.rotY;
       if (p.anim && !visited.has(p.anim)) {
         visited.add(p.anim);
         if (p.anim.pivot) p.anim.pivot = [W - p.anim.pivot[0], p.anim.pivot[1]];
@@ -820,11 +974,12 @@ export function buildModule(m: Module, opts?: BuildModuleOptions): BuiltModule {
 
   const topExtra = (m.countertop && (m.kind === 'base' || m.kind === 'corner') ? COUNTERTOP_T : 0)
     + (m.topTrim && m.topTrim > 0 && m.kind !== 'base' && m.kind !== 'corner' ? m.topTrim : 0);
+  const cornerArmZ = corner ? Math.max(m.d + 180, m.cornerW2 ?? m.w) : m.d;
   return {
     parts: b.parts,
     hardware: b.hw,
     width: m.w,
-    depth: (corner ? m.w : m.d) + FACADE_T,
+    depth: cornerArmZ + FACADE_T,
     height: m.h + topExtra,
   };
 }
@@ -853,336 +1008,332 @@ function splitSpanLengths(totalW: number, maxSheetLen: number, split: boolean): 
 }
 
 /**
- * Формирует цельные (единые на весь непрерывный ряд стоящих вплотную шкафов) детали:
- * 1) Цельный нижний цоколь на клипсах к регулируемым ножкам (+ крайние торцевые возвраты),
- * 2) Цельная столешница 38 мм без швов между тумбами,
- * 3) Цельная верхняя доборная планка (карниз под потолок) над верхним рядом и пеналами.
+ * Формирует цельные (единые на весь непрерывный ряд стоящих вплотную шкафов) детали на ВСЕХ стенах ('back', 'left', 'right')
+ * с профессиональной угловой стыковкой 90° (еврозапил столешницы, замкнутый контур цоколя без щелей, единый карниз):
+ * 1) Цельный нижний цоколь на клипсах к регулируемым ножкам (+ крайние торцевые возвраты только на свободных краях),
+ * 2) Цельная столешница 38 мм без швов между тумбами + пристенный бортик,
+ * 3) Профиль LED-подсветки рабочей зоны,
+ * 4) Цельная верхняя доборная планка (карниз под потолок) над верхним рядом и пеналами.
  */
-export function buildContinuousSpans(modules: Module[], splitForCutlist = false): SpanPart[] {
+export function buildContinuousSpans(modules: Module[], splitForCutlist = false, roomW = 4500): SpanPart[] {
   const spans: SpanPart[] = [];
   const BK = BACK_T;
+  const WALLS: ('back' | 'left' | 'right')[] = ['back', 'left', 'right'];
 
-  // 1. Цельный нижний цоколь (напольные не-угловые модули на задней стене)
-  const plinthMods = modules
-    .filter((m) => (m.wall ?? 'back') === 'back' && !isWall(m.kind) && !isCorner(m.kind) && (m.lift ?? 0) === 0 && m.plinth > 0)
-    .sort((a, b) => a.x - b.x);
-
-  const plinthRuns: Module[][] = [];
-  for (const m of plinthMods) {
-    const prevRun = plinthRuns[plinthRuns.length - 1];
-    const prev = prevRun ? prevRun[prevRun.length - 1] : null;
-    if (
-      prev &&
-      Math.abs((prev.x + prev.w) - m.x) <= 5 &&
-      prev.plinth === m.plinth &&
-      prev.d === m.d &&
-      (prev.plinthColor ?? 'facade') === (m.plinthColor ?? 'facade')
-    ) {
-      prevRun.push(m);
-    } else {
-      plinthRuns.push([m]);
+  /** Преобразует локальный бокс ряда стены (вдоль оси стены u0..u0+uLen, по глубине от стены v0..v0+vLen) в мировые координаты [x, y, z] */
+  const wallBox = (wall: 'back' | 'left' | 'right', u0: number, y0: number, v0: number, uLen: number, yLen: number, vLen: number): { pos: V3; size: V3 } => {
+    if (wall === 'left') {
+      return { pos: [v0, y0, u0], size: [vLen, yLen, uLen] };
     }
-  }
+    if (wall === 'right') {
+      return { pos: [roomW - (v0 + vLen), y0, u0], size: [vLen, yLen, uLen] };
+    }
+    return { pos: [u0, y0, v0], size: [uLen, yLen, vLen] };
+  };
 
-  for (const run of plinthRuns) {
-    const first = run[0];
-    const last = run[run.length - 1];
-    const totalW = Math.round((last.x + last.w) - first.x);
-    const P = first.plinth;
-    const D = first.d;
-    const plinthZ = D - 50 - 16;
-    const plinthMat: PartMat = first.plinthColor === 'black' ? 'black' : first.plinthColor === 'facade' ? 'facade' : 'corpus';
-    const isMulti = run.length > 1;
-    const groupName = isMulti ? `Общий цоколь (${run.length} мод.)` : first.name;
-    const groupId = isMulti ? `span-plinth-${first.id}` : first.id;
-    const frontName = isMulti ? 'Цоколь цельный (на клипсах)' : 'Цоколь';
+  // Наличие угловых модулей в левом и правом углах задней стены (для точного примыкания без лишних боковых цоколей)
+  const leftCornerBase = modules.find((m) => (m.wall ?? 'back') === 'back' && m.kind === 'corner' && !m.mirror && m.x <= 20);
+  const rightCornerBase = modules.find((m) => (m.wall ?? 'back') === 'back' && m.kind === 'corner' && m.mirror && Math.abs((m.x + m.w) - roomW) <= 30);
+  const backBaseAtLeft = modules.find((m) => (m.wall ?? 'back') === 'back' && !isWall(m.kind) && !isCorner(m.kind) && m.x <= 20);
+  const backBaseAtRight = modules.find((m) => (m.wall ?? 'back') === 'back' && !isWall(m.kind) && !isCorner(m.kind) && Math.abs((m.x + m.w) - roomW) <= 30);
+  const leftBaseAtCorner = modules.find((m) => m.wall === 'left' && !isWall(m.kind) && m.x <= (backBaseAtLeft ? backBaseAtLeft.d + 110 : 20));
+  const rightBaseAtCorner = modules.find((m) => m.wall === 'right' && !isWall(m.kind) && m.x <= (backBaseAtRight ? backBaseAtRight.d + 110 : 20));
 
-    let curX = first.x;
-    for (const segW of splitSpanLengths(totalW, 2750, splitForCutlist)) {
-      spans.push({
-        refModule: first,
-        groupName,
-        groupId,
-        part: {
-          name: frontName,
-          mat: plinthMat,
-          pos: [curX, 0, plinthZ],
-          size: [segW, P, 16],
-          edgeMm: segW,
-          sheet: true,
-          shape: 'box',
-        },
-      });
-      curX += segW;
+  for (const wall of WALLS) {
+    const wSuffix = wall === 'left' ? ' [Левое крыло]' : wall === 'right' ? ' [Правое крыло]' : '';
+
+    // 1. Цельный нижний цоколь
+    const plinthMods = modules
+      .filter((m) => (m.wall ?? 'back') === wall && !isWall(m.kind) && !isCorner(m.kind) && (m.lift ?? 0) === 0 && m.plinth > 0)
+      .sort((a, b) => a.x - b.x);
+
+    const plinthRuns: Module[][] = [];
+    for (const m of plinthMods) {
+      const prevRun = plinthRuns[plinthRuns.length - 1];
+      const prev = prevRun ? prevRun[prevRun.length - 1] : null;
+      if (
+        prev &&
+        Math.abs((prev.x + prev.w) - m.x) <= 5 &&
+        prev.plinth === m.plinth &&
+        prev.d === m.d &&
+        (prev.plinthColor ?? 'facade') === (m.plinthColor ?? 'facade')
+      ) {
+        prevRun.push(m);
+      } else {
+        plinthRuns.push([m]);
+      }
     }
 
-    const sidePlinthDepth = plinthZ - BK;
-    if (sidePlinthDepth > 50 && totalW > 120) {
-      spans.push({
-        refModule: first,
-        groupName,
-        groupId,
-        part: {
-          name: 'Цоколь боковой L',
-          mat: plinthMat,
-          pos: [first.x, 0, BK],
-          size: [16, P, sidePlinthDepth],
-          edgeMm: sidePlinthDepth,
-          sheet: true,
-          shape: 'box',
-        },
-      });
-      spans.push({
-        refModule: last,
-        groupName,
-        groupId,
-        part: {
-          name: 'Цоколь боковой R',
-          mat: plinthMat,
-          pos: [last.x + last.w - 16, 0, BK],
-          size: [16, P, sidePlinthDepth],
-          edgeMm: sidePlinthDepth,
-          sheet: true,
-          shape: 'box',
-        },
-      });
-    }
-  }
+    for (const run of plinthRuns) {
+      const first = run[0];
+      const last = run[run.length - 1];
+      const P = first.plinth;
+      const D = first.d;
+      const plinthZ = D - 50 - 16;
+      const plinthMat: PartMat = first.plinthColor === 'black' ? 'black' : first.plinthColor === 'facade' ? 'facade' : 'corpus';
 
-  // 2. Цельная столешница 38 мм над рядом нижних тумб
-  const topMods = modules
-    .filter((m) => (m.wall ?? 'back') === 'back' && m.kind === 'base' && !isCorner(m.kind) && m.countertop)
-    .sort((a, b) => a.x - b.x);
+      let uStart = first.x;
+      let uEnd = last.x + last.w;
+      let skipStartReturn = false;
+      let skipEndReturn = false;
 
-  const topRuns: Module[][] = [];
-  for (const m of topMods) {
-    const prevRun = topRuns[topRuns.length - 1];
-    const prev = prevRun ? prevRun[prevRun.length - 1] : null;
-    if (
-      prev &&
-      Math.abs((prev.x + prev.w) - m.x) <= 5 &&
-      (prev.lift ?? 0) + prev.h === (m.lift ?? 0) + m.h &&
-      prev.d === m.d &&
-      prev.matTop === m.matTop
-    ) {
-      prevRun.push(m);
-    } else {
-      topRuns.push([m]);
-    }
-  }
+      // Замыкание 90° угла цоколя без щелей и без пересечений
+      if (wall === 'back') {
+        if (leftCornerBase && Math.abs(first.x - leftCornerBase.w) <= 10) skipStartReturn = true;
+        else if (first.x <= 20 && leftBaseAtCorner) {
+          uStart = Math.max(0, leftBaseAtCorner.d - 66);
+          skipStartReturn = true;
+        }
+        if (rightCornerBase && Math.abs((last.x + last.w) - rightCornerBase.x) <= 10) skipEndReturn = true;
+        else if (Math.abs((last.x + last.w) - roomW) <= 30 && rightBaseAtCorner) {
+          uEnd = Math.min(uEnd, roomW - Math.max(0, rightBaseAtCorner.d - 66));
+          skipEndReturn = true;
+        }
+      } else if (wall === 'left') {
+        const armZ = leftCornerBase ? (leftCornerBase.cornerW2 ?? leftCornerBase.w) : 0;
+        if (leftCornerBase && Math.abs(first.x - armZ) <= 10) skipStartReturn = true;
+        else if (backBaseAtLeft && first.x >= backBaseAtLeft.d - 5 && first.x <= backBaseAtLeft.d + 110) {
+          uStart = Math.max(0, backBaseAtLeft.d - 50);
+          skipStartReturn = true;
+        }
+      } else if (wall === 'right') {
+        const armZ = rightCornerBase ? (rightCornerBase.cornerW2 ?? rightCornerBase.w) : 0;
+        if (rightCornerBase && Math.abs(first.x - armZ) <= 10) skipStartReturn = true;
+        else if (backBaseAtRight && first.x >= backBaseAtRight.d - 5 && first.x <= backBaseAtRight.d + 110) {
+          uStart = Math.max(0, backBaseAtRight.d - 50);
+          skipEndReturn = false;
+        }
+      }
 
-  for (const run of topRuns) {
-    const first = run[0];
-    const last = run[run.length - 1];
-    const totalW = Math.round((last.x + last.w) - first.x);
-    const H = (first.lift ?? 0) + first.h;
-    const D = first.d;
-    const isMulti = run.length > 1;
-    const groupName = isMulti ? `Единая столешница (${run.length} мод.)` : first.name;
-    const groupId = isMulti ? `span-top-${first.id}` : first.id;
-    const partName = isMulti ? 'Столешница цельная' : 'Столешница';
+      const totalW = Math.max(40, Math.round(uEnd - uStart));
+      const isMulti = run.length > 1;
+      const groupName = (isMulti ? `Общий цоколь (${run.length} мод.)` : first.name) + wSuffix;
+      const groupId = isMulti ? `span-plinth-${wall}-${first.id}` : first.id;
+      const frontName = isMulti ? 'Цоколь цельный (на клипсах)' : 'Цоколь';
 
-    let curX = first.x;
-    for (const segW of splitSpanLengths(totalW, 3050, splitForCutlist)) {
-      spans.push({
-        refModule: first,
-        groupName,
-        groupId,
-        part: {
-          name: partName,
-          mat: 'top',
-          pos: [curX, H, 0],
-          size: [segW, COUNTERTOP_T, D + 30],
-          edgeMm: segW,
-          sheet: true,
-          shape: 'box',
-        },
-      });
-      // Пристенный бортик (плинтус столешницы) у стены
-      spans.push({
-        refModule: first,
-        groupName,
-        groupId,
-        part: {
-          name: 'Пристенный бортик столешницы',
-          mat: 'top',
-          pos: [curX, H + COUNTERTOP_T, 0],
-          size: [segW, 24, 16],
-          edgeMm: 0,
-          sheet: false,
-          shape: 'box',
-        },
-      });
-      curX += segW;
-    }
-  }
+      let curU = uStart;
+      for (const segW of splitSpanLengths(totalW, 2750, splitForCutlist)) {
+        const wb = wallBox(wall, curU, 0, plinthZ, segW, P, 16);
+        spans.push({
+          refModule: first,
+          groupName,
+          groupId,
+          part: { name: frontName, mat: plinthMat, pos: wb.pos, size: wb.size, edgeMm: segW, sheet: true, shape: 'box' },
+        });
+        curU += segW;
+      }
 
-  // 2б. Профиль LED-подсветки рабочей зоны — только под основным рядом верхних шкафов (не под антресолями!)
-  const wallMods = modules
-    .filter((m) => (m.wall ?? 'back') === 'back' && m.kind === 'wall' && !isCorner(m.kind) && (m.lift ?? 0) >= 1200 && (m.lift ?? 0) <= 1750)
-    .sort((a, b) => a.x - b.x);
-  const wallRuns: Module[][] = [];
-  for (const m of wallMods) {
-    const prevRun = wallRuns[wallRuns.length - 1];
-    const prev = prevRun ? prevRun[prevRun.length - 1] : null;
-    if (
-      prev &&
-      Math.abs((prev.x + prev.w) - m.x) <= 5 &&
-      Math.abs((prev.lift ?? 0) - (m.lift ?? 0)) <= 2 &&
-      prev.d === m.d
-    ) {
-      prevRun.push(m);
-    } else {
-      wallRuns.push([m]);
-    }
-  }
-  for (const run of wallRuns) {
-    const first = run[0];
-    const last = run[run.length - 1];
-    const totalW = Math.round((last.x + last.w) - first.x);
-    const botY = first.lift ?? 0;
-    if (botY >= 1000 && totalW >= 300) {
-      spans.push({
-        refModule: first,
-        groupName: run.length > 1 ? `LED-профиль (${run.length} мод.)` : first.name,
-        groupId: `span-led-${first.id}`,
-        part: {
-          name: 'Профиль LED-подсветки рабочей зоны',
-          mat: 'metal',
-          pos: [first.x + 8, botY - 5, Math.max(40, first.d - 65)],
-          size: [totalW - 16, 5, 16],
-          edgeMm: 0,
-          sheet: false,
-          shape: 'box',
-        },
-      });
-    }
-  }
-
-  // 3. Цельная верхняя доборная планка / карниз под потолок
-  const trimMods = modules
-    .filter((m) => (m.wall ?? 'back') === 'back' && !isCorner(m.kind) && m.kind !== 'base' && (m.topTrim ?? 0) > 0)
-    .sort((a, b) => a.x - b.x);
-
-  const trimRuns: Module[][] = [];
-  for (const m of trimMods) {
-    const prevRun = trimRuns[trimRuns.length - 1];
-    const prev = prevRun ? prevRun[prevRun.length - 1] : null;
-    if (
-      prev &&
-      Math.abs((prev.x + prev.w) - m.x) <= 5 &&
-      Math.abs(((prev.lift ?? 0) + prev.h) - ((m.lift ?? 0) + m.h)) <= 2 &&
-      prev.topTrim === m.topTrim &&
-      prev.d === m.d &&
-      prev.matFacade === m.matFacade
-    ) {
-      prevRun.push(m);
-    } else {
-      trimRuns.push([m]);
-    }
-  }
-
-  for (let ri = 0; ri < trimRuns.length; ri++) {
-    const run = trimRuns[ri];
-    const first = run[0];
-    const last = run[run.length - 1];
-    const totalW = Math.round((last.x + last.w) - first.x);
-    const topY = (first.lift ?? 0) + first.h;
-    const trimH = first.topTrim!;
-    const D = first.d;
-    const isMulti = run.length > 1;
-    const groupName = isMulti ? `Верхний карниз (${run.length} мод.)` : first.name;
-    const groupId = isMulti ? `span-trim-${first.id}` : first.id;
-    const partName = isMulti ? 'Верхняя планка (карниз цельный)' : 'Верхняя планка (карниз)';
-
-    let curX = first.x;
-    for (const segW of splitSpanLengths(totalW, 2750, splitForCutlist)) {
-      spans.push({
-        refModule: first,
-        groupName,
-        groupId,
-        part: {
-          name: partName,
-          mat: 'facade',
-          pos: [curX, topY, D],
-          size: [segW, trimH, FACADE_T],
-          edgeMm: 2 * (segW + trimH),
-          sheet: true,
-          shape: 'box',
-        },
-      });
-      curX += segW;
+      const sidePlinthDepth = plinthZ - BK;
+      if (sidePlinthDepth > 50 && totalW > 120) {
+        if (!skipStartReturn && first.x > 25) {
+          const wbL = wallBox(wall, uStart, 0, BK, 16, P, sidePlinthDepth);
+          spans.push({
+            refModule: first, groupName, groupId,
+            part: { name: 'Цоколь боковой L', mat: plinthMat, pos: wbL.pos, size: wbL.size, edgeMm: sidePlinthDepth, sheet: true, shape: 'box' },
+          });
+        }
+        if (!skipEndReturn) {
+          const wbR = wallBox(wall, uEnd - 16, 0, BK, 16, P, sidePlinthDepth);
+          spans.push({
+            refModule: last, groupName, groupId,
+            part: { name: 'Цоколь боковой R', mat: plinthMat, pos: wbR.pos, size: wbR.size, edgeMm: sidePlinthDepth, sheet: true, shape: 'box' },
+          });
+        }
+      }
     }
 
-    // Боковые планки карниза по внешнему периметру (до задней стены z=0) и при перепаде глубины
-    const prevRun = ri > 0 ? trimRuns[ri - 1] : undefined;
-    const leftJoin = prevRun && Math.abs((prevRun[prevRun.length - 1].x + prevRun[prevRun.length - 1].w) - first.x) <= 5;
-    if (!leftJoin && D > 50) {
-      spans.push({
-        refModule: first,
-        groupName,
-        groupId,
-        part: {
-          name: 'Верхняя планка боковая L',
-          mat: 'facade',
-          pos: [first.x, topY, 0],
-          size: [FACADE_T, trimH, D],
-          edgeMm: 2 * (D + trimH),
-          sheet: true,
-          shape: 'box',
-        },
-      });
-    } else if (leftJoin && prevRun && D > prevRun[0].d + 20) {
-      const dDiff = D - prevRun[0].d;
-      spans.push({
-        refModule: first,
-        groupName,
-        groupId,
-        part: {
-          name: 'Боковой возврат верхней планки',
-          mat: 'facade',
-          pos: [first.x, topY, prevRun[0].d],
-          size: [FACADE_T, trimH, dDiff],
-          edgeMm: 2 * (dDiff + trimH),
-          sheet: true,
-          shape: 'box',
-        },
-      });
+    // 2. Цельная столешница 38 мм над рядом нижних тумб (с еврозапилом в углу 90°)
+    const topMods = modules
+      .filter((m) => (m.wall ?? 'back') === wall && m.kind === 'base' && !isCorner(m.kind) && m.countertop)
+      .sort((a, b) => a.x - b.x);
+
+    const topRuns: Module[][] = [];
+    for (const m of topMods) {
+      const prevRun = topRuns[topRuns.length - 1];
+      const prev = prevRun ? prevRun[prevRun.length - 1] : null;
+      if (
+        prev &&
+        Math.abs((prev.x + prev.w) - m.x) <= 5 &&
+        (prev.lift ?? 0) + prev.h === (m.lift ?? 0) + m.h &&
+        prev.d === m.d &&
+        prev.matTop === m.matTop
+      ) {
+        prevRun.push(m);
+      } else {
+        topRuns.push([m]);
+      }
     }
 
-    const nextRun = trimRuns[ri + 1];
-    const rightJoin = nextRun && Math.abs((last.x + last.w) - nextRun[0].x) <= 5;
-    if (!rightJoin && D > 50) {
-      spans.push({
-        refModule: last,
-        groupName,
-        groupId,
-        part: {
-          name: 'Верхняя планка боковая R',
-          mat: 'facade',
-          pos: [last.x + last.w - FACADE_T, topY, 0],
-          size: [FACADE_T, trimH, D],
-          edgeMm: 2 * (D + trimH),
-          sheet: true,
-          shape: 'box',
-        },
-      });
-    } else if (rightJoin && nextRun && D > nextRun[0].d + 20) {
-      const dDiff = D - nextRun[0].d;
-      spans.push({
-        refModule: last,
-        groupName,
-        groupId,
-        part: {
-          name: 'Боковой возврат верхней планки',
-          mat: 'facade',
-          pos: [last.x + last.w - FACADE_T, topY, nextRun[0].d],
-          size: [FACADE_T, trimH, dDiff],
-          edgeMm: 2 * (dDiff + trimH),
-          sheet: true,
-          shape: 'box',
-        },
-      });
+    for (const run of topRuns) {
+      const first = run[0];
+      const last = run[run.length - 1];
+      const H = (first.lift ?? 0) + first.h;
+      const D = first.d;
+
+      let uStart = first.x;
+      const uEnd = last.x + last.w;
+
+      // Еврозапил столешницы в 90° углу: боковое крыло дотягивается ровно до переднего свеса задней столешницы (D_back + 30)
+      if (wall === 'left' && backBaseAtLeft && backBaseAtLeft.countertop && first.x >= backBaseAtLeft.d - 5 && first.x <= backBaseAtLeft.d + 110) {
+        uStart = backBaseAtLeft.d + 30;
+      } else if (wall === 'right' && backBaseAtRight && backBaseAtRight.countertop && first.x >= backBaseAtRight.d - 5 && first.x <= backBaseAtRight.d + 110) {
+        uStart = backBaseAtRight.d + 30;
+      }
+
+      const totalW = Math.max(40, Math.round(uEnd - uStart));
+      const isMulti = run.length > 1;
+      const groupName = (isMulti ? `Единая столешница (${run.length} мод.)` : first.name) + wSuffix;
+      const groupId = isMulti ? `span-top-${wall}-${first.id}` : first.id;
+      const partName = isMulti ? 'Столешница цельная' : 'Столешница';
+
+      let curU = uStart;
+      for (const segW of splitSpanLengths(totalW, 3050, splitForCutlist)) {
+        const wbTop = wallBox(wall, curU, H, 0, segW, COUNTERTOP_T, D + 30);
+        spans.push({
+          refModule: first, groupName, groupId,
+          part: { name: partName, mat: 'top', pos: wbTop.pos, size: wbTop.size, edgeMm: segW, sheet: true, shape: 'box' },
+        });
+        const wbSplash = wallBox(wall, curU, H + COUNTERTOP_T, 0, segW, 24, 16);
+        spans.push({
+          refModule: first, groupName, groupId,
+          part: { name: 'Пристенный бортик столешницы', mat: 'top', pos: wbSplash.pos, size: wbSplash.size, edgeMm: 0, sheet: false, shape: 'box' },
+        });
+        curU += segW;
+      }
+    }
+
+    // 3. Профиль LED-подсветки рабочей зоны
+    const wallMods = modules
+      .filter((m) => (m.wall ?? 'back') === wall && m.kind === 'wall' && !isCorner(m.kind) && (m.lift ?? 0) >= 1200 && (m.lift ?? 0) <= 1750)
+      .sort((a, b) => a.x - b.x);
+    const wallRuns: Module[][] = [];
+    for (const m of wallMods) {
+      const prevRun = wallRuns[wallRuns.length - 1];
+      const prev = prevRun ? prevRun[prevRun.length - 1] : null;
+      if (
+        prev &&
+        Math.abs((prev.x + prev.w) - m.x) <= 5 &&
+        Math.abs((prev.lift ?? 0) - (m.lift ?? 0)) <= 2 &&
+        prev.d === m.d
+      ) {
+        prevRun.push(m);
+      } else {
+        wallRuns.push([m]);
+      }
+    }
+    for (const run of wallRuns) {
+      const first = run[0];
+      const last = run[run.length - 1];
+      const totalW = Math.round((last.x + last.w) - first.x);
+      const botY = first.lift ?? 0;
+      if (botY >= 1000 && totalW >= 300) {
+        const wbLed = wallBox(wall, first.x + 8, botY - 5, Math.max(40, first.d - 65), totalW - 16, 5, 16);
+        spans.push({
+          refModule: first,
+          groupName: (run.length > 1 ? `LED-профиль (${run.length} мод.)` : first.name) + wSuffix,
+          groupId: `span-led-${wall}-${first.id}`,
+          part: { name: 'Профиль LED-подсветки рабочей зоны', mat: 'metal', pos: wbLed.pos, size: wbLed.size, edgeMm: 0, sheet: false, shape: 'box' },
+        });
+      }
+    }
+
+    // 4. Цельная верхняя доборная планка / карниз под потолок
+    const trimMods = modules
+      .filter((m) => (m.wall ?? 'back') === wall && !isCorner(m.kind) && m.kind !== 'base' && (m.topTrim ?? 0) > 0)
+      .sort((a, b) => a.x - b.x);
+
+    const trimRuns: Module[][] = [];
+    for (const m of trimMods) {
+      const prevRun = trimRuns[trimRuns.length - 1];
+      const prev = prevRun ? prevRun[prevRun.length - 1] : null;
+      if (
+        prev &&
+        Math.abs((prev.x + prev.w) - m.x) <= 5 &&
+        Math.abs(((prev.lift ?? 0) + prev.h) - ((m.lift ?? 0) + m.h)) <= 2 &&
+        prev.topTrim === m.topTrim &&
+        prev.d === m.d &&
+        prev.matFacade === m.matFacade
+      ) {
+        prevRun.push(m);
+      } else {
+        trimRuns.push([m]);
+      }
+    }
+
+    for (let ri = 0; ri < trimRuns.length; ri++) {
+      const run = trimRuns[ri];
+      const first = run[0];
+      const last = run[run.length - 1];
+      const topY = (first.lift ?? 0) + first.h;
+      const trimH = first.topTrim!;
+      const D = first.d;
+
+      let uStart = first.x;
+      const uEnd = last.x + last.w;
+      if (wall === 'left' || wall === 'right') {
+        const backUpperAtCorner = modules.find(
+          (o) =>
+            (o.wall ?? 'back') === 'back' &&
+            (o.topTrim ?? 0) > 0 &&
+            Math.abs(((o.lift ?? 0) + o.h) - topY) <= 5 &&
+            (wall === 'left' ? o.x <= 25 : Math.abs((o.x + o.w) - roomW) <= 35),
+        );
+        if (backUpperAtCorner && first.x >= backUpperAtCorner.d - 5 && first.x <= backUpperAtCorner.d + 110) {
+          uStart = backUpperAtCorner.d + FACADE_T;
+        }
+      }
+
+      const totalW = Math.max(40, Math.round(uEnd - uStart));
+      const isMulti = run.length > 1;
+      const groupName = (isMulti ? `Верхний карниз (${run.length} мод.)` : first.name) + wSuffix;
+      const groupId = isMulti ? `span-trim-${wall}-${first.id}` : first.id;
+      const partName = isMulti ? 'Верхняя планка (карниз цельный)' : 'Верхняя планка (карниз)';
+
+      let curU = uStart;
+      for (const segW of splitSpanLengths(totalW, 2750, splitForCutlist)) {
+        const wbTrim = wallBox(wall, curU, topY, D, segW, trimH, FACADE_T);
+        spans.push({
+          refModule: first, groupName, groupId,
+          part: { name: partName, mat: 'facade', pos: wbTrim.pos, size: wbTrim.size, edgeMm: 2 * (segW + trimH), sheet: true, shape: 'box' },
+        });
+        curU += segW;
+      }
+
+      // Боковые возвраты карниза только на открытых торцах (где модуль не упирается в стену/угол)
+      const prevRun = ri > 0 ? trimRuns[ri - 1] : undefined;
+      const leftJoin = prevRun && Math.abs((prevRun[prevRun.length - 1].x + prevRun[prevRun.length - 1].w) - first.x) <= 5;
+      if (!leftJoin && D > 50 && first.x > 400) {
+        const wbRetL = wallBox(wall, uStart, topY, 0, FACADE_T, trimH, D);
+        spans.push({
+          refModule: first, groupName, groupId,
+          part: { name: 'Верхняя планка боковая L', mat: 'facade', pos: wbRetL.pos, size: wbRetL.size, edgeMm: 2 * (D + trimH), sheet: true, shape: 'box' },
+        });
+      } else if (leftJoin && prevRun && D > prevRun[0].d + 20) {
+        const dDiff = D - prevRun[0].d;
+        const wbStepL = wallBox(wall, uStart, topY, prevRun[0].d, FACADE_T, trimH, dDiff);
+        spans.push({
+          refModule: first, groupName, groupId,
+          part: { name: 'Боковой возврат верхней планки', mat: 'facade', pos: wbStepL.pos, size: wbStepL.size, edgeMm: 2 * (dDiff + trimH), sheet: true, shape: 'box' },
+        });
+      }
+
+      const nextRun = trimRuns[ri + 1];
+      const rightJoin = nextRun && Math.abs((last.x + last.w) - nextRun[0].x) <= 5;
+      const maxSpanForWall = wall === 'back' ? roomW : 99999;
+      if (!rightJoin && D > 50 && uEnd < maxSpanForWall - 25) {
+        const wbRetR = wallBox(wall, uEnd - FACADE_T, topY, 0, FACADE_T, trimH, D);
+        spans.push({
+          refModule: last, groupName, groupId,
+          part: { name: 'Верхняя планка боковая R', mat: 'facade', pos: wbRetR.pos, size: wbRetR.size, edgeMm: 2 * (D + trimH), sheet: true, shape: 'box' },
+        });
+      } else if (rightJoin && nextRun && D > nextRun[0].d + 20) {
+        const dDiff = D - nextRun[0].d;
+        const wbStepR = wallBox(wall, uEnd - FACADE_T, topY, nextRun[0].d, FACADE_T, trimH, dDiff);
+        spans.push({
+          refModule: last, groupName, groupId,
+          part: { name: 'Боковой возврат верхней планки', mat: 'facade', pos: wbStepR.pos, size: wbStepR.size, edgeMm: 2 * (dDiff + trimH), sheet: true, shape: 'box' },
+        });
+      }
     }
   }
 

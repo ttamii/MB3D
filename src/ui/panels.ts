@@ -3,7 +3,7 @@ import type { Estimate } from '../core/estimate';
 import { buildModule, getTallOvenZones } from '../core/geometry';
 import type { DoorMode, Material, MatKind, Module, Section } from '../core/types';
 import { fmtNum, money, uid } from '../core/util';
-import { applyTopTrimToUpperRow, getActiveTopTrimH, isSameVerticalTier, resizeHeightWithStack, resizeModuleCascading, shiftModuleCascading, insertFillerWithShift, syncTierDepth, syncTierHeight } from '../core/collision';
+import { applyTopTrimToUpperRow, autoFitBlindZone, getActiveTopTrimH, getCornerClearanceForWall, isSameVerticalTier, resizeHeightWithStack, resizeModuleCascading, shiftModuleCascading, insertFillerWithShift, syncTierDepth, syncTierHeight, verticalOverlap } from '../core/collision';
 import type { Store } from '../app/store';
 import { clear, h, icon } from './dom';
 
@@ -256,18 +256,24 @@ function selectField(
 
 // ——— список модулей (CAD Outliner + Каталог) ———
 
-const openGroups = new Set<string>(['kitchen']);
+const openGroups = new Set<string>(['corners', 'kitchen']);
 let leftViewMode: 'split' | 'tree' | 'catalog' = 'split';
 
 export function renderModules(root: HTMLElement, store: Store, est: Estimate): void {
   const keepScroll = root.scrollTop;
   clear(root);
   const mods = store.project.modules;
+  const roomW = store.project.room?.w ?? 4500;
 
   const overlaps = new Set<string>();
   for (let i = 0; i < mods.length; i++) {
+    const a = mods[i];
+    const aWall = a.wall ?? 'back';
+    const { minStart } = getCornerClearanceForWall(mods, aWall, a.lift ?? 0, (a.lift ?? 0) + a.h, roomW, a.id);
+    if (a.x < minStart - 2) overlaps.add(a.id);
+
     for (let j = i + 1; j < mods.length; j++) {
-      const a = mods[i], b = mods[j];
+      const b = mods[j];
       if ((a.wall ?? 'back') !== (b.wall ?? 'back')) continue;
       const aw = buildModule(a).width, bw = buildModule(b).width;
       const xOverlap = a.x < b.x + bw - 1 && b.x < a.x + aw - 1;
@@ -285,6 +291,33 @@ export function renderModules(root: HTMLElement, store: Store, est: Estimate): v
       }
     }
   }
+
+  const cntBack = mods.filter((m) => (m.wall ?? 'back') === 'back').length;
+  const cntLeft = mods.filter((m) => m.wall === 'left').length;
+  const cntRight = mods.filter((m) => m.wall === 'right').length;
+
+  const wallBar = h('div', {
+    style: 'background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:6px 8px; margin-bottom:8px; display:flex; flex-direction:column; gap:5px;',
+  },
+    h('span', { style: 'font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:#475569;' }, 'Стена добавления (Г / П-кухня)'),
+    h('div', { class: 'seg' },
+      h('button', {
+        type: 'button',
+        class: `seg-b ${store.activeWall === 'back' ? 'on' : ''}`,
+        onClick: () => store.setActiveWall('back'),
+      }, `Задняя (${cntBack})`),
+      h('button', {
+        type: 'button',
+        class: `seg-b ${store.activeWall === 'left' ? 'on' : ''}`,
+        onClick: () => store.setActiveWall('left'),
+      }, `Левая Г (${cntLeft})`),
+      h('button', {
+        type: 'button',
+        class: `seg-b ${store.activeWall === 'right' ? 'on' : ''}`,
+        onClick: () => store.setActiveWall('right'),
+      }, `Правая (${cntRight})`),
+    ),
+  );
 
   const modeBar = h('div', { class: 'seg' },
     h('button', {
@@ -352,7 +385,7 @@ export function renderModules(root: HTMLElement, store: Store, est: Estimate): v
     ...groupSections,
   );
 
-  root.append(modeBar);
+  root.append(modeBar, wallBar);
   if (leftViewMode !== 'catalog') {
     root.append(head, mods.length ? list : h('p', { class: 'empty' }, 'Сцена пуста. Выберите модуль из каталога ниже или запустите «Мастер кухни».'));
   }
@@ -485,12 +518,70 @@ export function renderProps(root: HTMLElement, store: Store): void {
       ),
     ) : null;
 
+    const roomW = store.project.room?.w ?? 4500;
+    const cornerArm2 = m.cornerW2 ?? m.w;
+
+    const cornerConfigCard = corner ? h('div', {
+      style: 'background:#eff6ff; border:1px solid #93c5fd; border-radius:6px; padding:9px 10px; display:flex; flex-direction:column; gap:8px;',
+    },
+      h('div', { style: 'font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:#1e3a8a;' }, 'Конфигурация углового модуля'),
+      segmented('Форма угла', [
+        ['l-shape', 'Г-образный 90° (гармошка)'],
+        ['diagonal', 'Трапеция 45° (скошенный)'],
+      ] as ['l-shape' | 'diagonal', string][], m.cornerMode ?? 'l-shape', (v) => set((t) => { t.cornerMode = v; }, 'corner-mode')),
+      segmented('Расположение угла в комнате', [
+        ['left', 'Левый угол (Задняя + Левая)'],
+        ['right', 'Правый угол (Задняя + Правая)'],
+      ] as ['left' | 'right', string][], m.mirror ? 'right' : 'left', (side) => {
+        store.commit((p) => {
+          const cur = p.modules.find((x) => x.id === m.id);
+          if (!cur) return;
+          const rw = p.room?.w ?? 4500;
+          const isRight = side === 'right';
+          cur.mirror = isRight;
+          delete cur.wall;
+          cur.x = isRight ? Math.max(0, rw - cur.w) : 0;
+          const armZ = cur.cornerW2 ?? cur.w;
+          for (const o of p.modules) {
+            if (o.id === cur.id || !verticalOverlap(o, cur)) continue;
+            const ow = o.wall ?? 'back';
+            if (!isRight && ow === 'left' && o.x < armZ) o.x = armZ;
+            if (isRight && ow === 'right' && o.x < armZ) o.x = armZ;
+          }
+        }, 'corner-side');
+      }),
+      h('div', { class: 'fld wide' },
+        h('span', { class: 'fld-l' }, 'Типовой габарит угла (мм)'),
+        h('div', { class: 'quick-widths' },
+          ...(wall ? [[600, 600], [650, 650], [700, 600]] : [[850, 850], [900, 900], [1000, 900], [1050, 900]]).map(([s1, s2]) =>
+            h('button', {
+              type: 'button',
+              class: `qw-btn ${m.w === s1 && cornerArm2 === s2 ? 'on' : ''}`,
+              onClick: () => {
+                store.commit((p) => {
+                  const cur = p.modules.find((x) => x.id === m.id);
+                  if (!cur) return;
+                  resizeModuleCascading(p.modules, m.id, s1, p.room?.w);
+                  cur.cornerW2 = s2;
+                  if (cur.mirror) cur.x = Math.max(0, (p.room?.w ?? 4500) - cur.w);
+                }, 'corner-size');
+              },
+            }, `${s1}×${s2}`),
+          ),
+        ),
+      ),
+      m.kind === 'corner'
+        ? toggle('Врезная мойка в угловом модуле', 'cornerSink', m.cornerSink === true, (v) => set((t) => { t.cornerSink = v; }, 'cornerSink'))
+        : null,
+    ) : null;
+
     const dimsGrid = h('div', { class: 'grid2' },
-      numField(corner ? 'Сторона (ширина)' : 'Ширина (W)', 'w', m.w, LIMITS.w, (v) => {
+      numField(corner ? 'Крыло осн. (W)' : 'Ширина (W)', 'w', m.w, LIMITS.w, (v) => {
         store.commit((p) => {
           resizeModuleCascading(p.modules, m.id, v, wallSpanLimit);
         }, 'w');
       }),
+      corner ? numField('Крыло бок. (W2)', 'cornerW2', cornerArm2, LIMITS.w, (v) => set((t) => { t.cornerW2 = v; }, 'cornerW2')) : null,
       numField('Высота (H)', 'h', m.h, LIMITS.h, (v) => {
         store.commit((p) => {
           const ids = store.selectedIds.size > 1 ? Array.from(store.selectedIds) : [m.id];
@@ -502,7 +593,7 @@ export function renderProps(root: HTMLElement, store: Store): void {
         : numField('Высота цоколя', 'plinth', m.plinth, LIMITS.plinth, (v) => set((t) => { t.plinth = v; }, 'plinth')),
       numField('Координата X', 'x', m.x, LIMITS.x, (v) => {
         store.commit((p) => {
-          shiftModuleCascading(p.modules, m.id, v, wallSpanLimit);
+          shiftModuleCascading(p.modules, m.id, v, wallSpanLimit, roomW);
         }, 'x');
       }),
       m.kind !== 'base' && m.kind !== 'corner'
@@ -543,7 +634,7 @@ export function renderProps(root: HTMLElement, store: Store): void {
           onClick: () => {
             if (leftNeighbor) {
               store.commit((p) => {
-                shiftModuleCascading(p.modules, m.id, leftNeighbor.x + leftNeighbor.w, p.room?.w);
+                shiftModuleCascading(p.modules, m.id, leftNeighbor.x + leftNeighbor.w, wallSpanLimit, roomW);
               }, 'snap');
             }
           },
@@ -555,7 +646,7 @@ export function renderProps(root: HTMLElement, store: Store): void {
           onClick: () => {
             if (rightNeighbor) {
               store.commit((p) => {
-                shiftModuleCascading(p.modules, m.id, rightNeighbor.x - m.w, p.room?.w);
+                shiftModuleCascading(p.modules, m.id, rightNeighbor.x - m.w, wallSpanLimit, roomW);
               }, 'snap');
             }
           },
@@ -563,9 +654,48 @@ export function renderProps(root: HTMLElement, store: Store): void {
       ),
     );
 
-    const roomW = store.project.room?.w ?? 4500;
+    const effWallSpan = wallSpanLimit ?? roomW;
     const isNearLeftWall = m.x <= 25;
-    const isNearRightWall = m.x + m.w >= roomW - 25;
+    const isNearRightWall = m.x + m.w >= effWallSpan - 25;
+
+    const blindCornerQuickCard = !corner && m.kind !== 'wardrobe' && (m.blindSide || isNearLeftWall || isNearRightWall)
+      ? h('div', {
+          style: 'background:#eff6ff; border:1px solid #93c5fd; border-radius:6px; padding:8px 10px; display:flex; flex-direction:column; gap:7px;',
+        },
+          segmented('Прямой угловой стык (глухая зона + L-бленда 90°)', [
+            ['none', 'Нет'],
+            ['left', 'Угол слева'],
+            ['right', 'Угол справа'],
+          ] as ['none' | 'left' | 'right', string][], m.blindSide ?? 'none', (v) => {
+            store.commit((p) => {
+              const cur = p.modules.find((x) => x.id === m.id);
+              if (!cur) return;
+              if (v === 'none') {
+                delete cur.blindSide;
+                delete cur.blindW;
+                delete cur.blindFillerW;
+              } else {
+                cur.blindSide = v;
+                cur.blindFillerW = cur.blindFillerW ?? (wall ? 40 : 45);
+                autoFitBlindZone(p.modules, cur.id, p.room?.w ?? 4500);
+              }
+            }, 'blind-toggle');
+          }),
+          m.blindSide ? h('div', { class: 'grid2' },
+            numField('Глухая зона (мм)', 'blindW-d', m.blindW ?? (wall ? 340 : 605), [25, Math.max(150, m.w - 120)], (v) => set((t) => { t.blindW = v; }, 'blindW')),
+            numField('L-бленда 90° (мм)', 'blindFillerW-d', m.blindFillerW ?? (wall ? 40 : 45), [16, 100], (v) => set((t) => { t.blindFillerW = v; }, 'blindFillerW')),
+          ) : null,
+          m.blindSide ? h('button', {
+            type: 'button',
+            class: 'btn btn-ghost sm',
+            onClick: () => {
+              store.commit((p) => {
+                autoFitBlindZone(p.modules, m.id, p.room?.w ?? 4500);
+              }, 'blind-autofit');
+            },
+          }, 'Подогнать под глубину соседней стены') : null,
+        )
+      : null;
 
     const makeFiller = (xPos: number): Module => ({
       id: uid(),
@@ -607,7 +737,7 @@ export function renderProps(root: HTMLElement, store: Store): void {
             class: 'btn primary sm',
             onClick: () => {
               store.commit((p) => {
-                insertFillerWithShift(p.modules, 'left', m, makeFiller(0), p.room?.w);
+                insertFillerWithShift(p.modules, 'left', m, makeFiller(0), wallSpanLimit, roomW);
               }, 'add-filler');
             },
           }, '+ Добор слева 50 мм') : null,
@@ -616,7 +746,7 @@ export function renderProps(root: HTMLElement, store: Store): void {
             class: 'btn primary sm',
             onClick: () => {
               store.commit((p) => {
-                insertFillerWithShift(p.modules, 'right', m, makeFiller(0), p.room?.w);
+                insertFillerWithShift(p.modules, 'right', m, makeFiller(0), wallSpanLimit, roomW);
               }, 'add-filler');
             },
           }, '+ Добор справа 50 мм') : null,
@@ -633,7 +763,7 @@ export function renderProps(root: HTMLElement, store: Store): void {
           title: 'Вставить фальшпланку 50 мм слева от модуля',
           onClick: () => {
             store.commit((p) => {
-              insertFillerWithShift(p.modules, 'left', m, makeFiller(0), p.room?.w);
+              insertFillerWithShift(p.modules, 'left', m, makeFiller(0), wallSpanLimit, roomW);
             }, 'add-filler');
           },
         }, '+ Добор слева'),
@@ -643,7 +773,7 @@ export function renderProps(root: HTMLElement, store: Store): void {
           title: 'Вставить фальшпланку 50 мм справа от модуля',
           onClick: () => {
             store.commit((p) => {
-              insertFillerWithShift(p.modules, 'right', m, makeFiller(0), p.room?.w);
+              insertFillerWithShift(p.modules, 'right', m, makeFiller(0), wallSpanLimit, roomW);
             }, 'add-filler');
           },
         }, '+ Добор справа'),
@@ -696,8 +826,10 @@ export function renderProps(root: HTMLElement, store: Store): void {
     ) : null;
 
     contentArea.append(nameField);
+    if (cornerConfigCard) contentArea.append(cornerConfigCard);
     if (quickWidthsBar) contentArea.append(quickWidthsBar);
     contentArea.append(dimsGrid);
+    if (blindCornerQuickCard) contentArea.append(blindCornerQuickCard);
     if (syncTierBtn) contentArea.append(syncTierBtn);
     contentArea.append(topTrimCard);
     if (wallAlert) contentArea.append(wallAlert);

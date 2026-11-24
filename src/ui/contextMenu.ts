@@ -2,6 +2,7 @@ import type { Store } from '../app/store';
 import type { Viewer } from '../three/viewer';
 import { h, icon } from './dom';
 import { blueprintDialog } from './dialogs';
+import { resizeModuleCascading, shiftModuleCascading } from '../core/collision';
 import { uid } from '../core/util';
 
 let activeMenu: HTMLElement | null = null;
@@ -63,8 +64,8 @@ export function showModuleContextMenu(
       ...[400, 450, 600, 800].map((w) =>
         pill(`${w}`, m.w === w, () => {
           store.commit((p) => {
-            const target = p.modules.find((item) => item.id === moduleId);
-            if (target) target.w = w;
+            const span = (m.wall === 'left' || m.wall === 'right') ? p.room?.d : p.room?.w;
+            resizeModuleCascading(p.modules, moduleId, w, span);
           }, 'resize-w');
         })
       ),
@@ -206,26 +207,28 @@ export function showModuleContextMenu(
     }),
     h('div', { class: 'ctx-sep' }),
     item('Пристыковать слева встык', 'up', () => {
-      const otherMods = store.project.modules.filter((item) => item.id !== m.id);
+      const mWall = m.wall ?? 'back';
+      const otherMods = store.project.modules.filter((item) => item.id !== m.id && (item.wall ?? 'back') === mWall);
       const leftNeighbor = otherMods
         .filter((item) => item.x + item.w <= m.x + 5)
         .sort((a, b) => (b.x + b.w) - (a.x + a.w))[0];
       if (leftNeighbor) {
         store.commit((p) => {
-          const target = p.modules.find((item) => item.id === moduleId);
-          if (target) target.x = leftNeighbor.x + leftNeighbor.w;
+          const span = (mWall === 'left' || mWall === 'right') ? p.room?.d : p.room?.w;
+          shiftModuleCascading(p.modules, moduleId, leftNeighbor.x + leftNeighbor.w, span, p.room?.w ?? 4500);
         }, 'snap-left');
       }
     }),
     item('Пристыковать справа встык', 'down', () => {
-      const otherMods = store.project.modules.filter((item) => item.id !== m.id);
+      const mWall = m.wall ?? 'back';
+      const otherMods = store.project.modules.filter((item) => item.id !== m.id && (item.wall ?? 'back') === mWall);
       const rightNeighbor = otherMods
         .filter((item) => item.x >= m.x + m.w - 5)
         .sort((a, b) => a.x - b.x)[0];
       if (rightNeighbor) {
         store.commit((p) => {
-          const target = p.modules.find((item) => item.id === moduleId);
-          if (target) target.x = rightNeighbor.x - target.w;
+          const span = (mWall === 'left' || mWall === 'right') ? p.room?.d : p.room?.w;
+          shiftModuleCascading(p.modules, moduleId, rightNeighbor.x - m.w, span, p.room?.w ?? 4500);
         }, 'snap-right');
       }
     }),

@@ -1817,8 +1817,10 @@ model-viewer.mv { width: 100%; height: min(60dvh, 560px); background: radial-gra
 }
 .sk-fill-btn {
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
   padding: 8px 10px;
   border-radius: 6px;
   border: 1px solid #3a4454;
@@ -1829,6 +1831,11 @@ model-viewer.mv { width: 100%; height: min(60dvh, 560px); background: radial-gra
   cursor: pointer;
   text-align: left;
   transition: border-color 0.12s, background 0.12s;
+}
+.sk-fill-btn small {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #94a3b8;
 }
 .sk-fill-btn:hover {
   border-color: #38bdf8;

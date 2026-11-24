@@ -1609,14 +1609,19 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
 
   const room = store.project.room ?? DEFAULT_ROOM;
   let wallLength = Math.min(6000, Math.max(1600, Math.round(room.w / 50) * 50));
+  let leftLength = Math.min(4500, Math.max(1400, Math.min(2200, Math.round(room.d / 50) * 50)));
+  let rightLength = Math.min(4500, Math.max(1400, Math.min(2200, Math.round(room.d / 50) * 50)));
   let tiers: 2 | 3 = 3;
   let facadeMat = facadeMats.find((m) => m.id === 'm-ral1015')?.id ?? facadeMats[0]?.id ?? 'eg-w1000';
   let corpusMat = corpusMats.find((m) => m.id === 'eg-w1000')?.id ?? corpusMats[0]?.id ?? 'eg-w1000';
   let topMat = topMats.find((m) => m.id === 'top-f812')?.id ?? topMats[0]?.id ?? 'top-f812';
   let plinthColor: 'facade' | 'corpus' = 'facade';
   let millingMix: 'trend' | 'modern' | 'frame' | 'ribbed' = 'trend';
-  let layoutVariant = 0; // 0: пенал слева, 1: пенал справа, 2: без пенала
-  let shape: 'linear' | 'corner-left' = 'linear';
+  let layoutVariant = 0; // 0: пенал в крыле / слева, 1: пенал справа, 2: без пенала
+  let shape: 'linear' | 'corner-left' | 'corner-right' | 'u-shape' = 'corner-left';
+  let cornerType: 'blind' | 'l-shape' | 'diagonal' = 'blind';
+  let baseDepth: 560 | 500 = 560;
+  let mezzDepthMode: 'flush' | 'deep' = 'flush';
   let topTrimH = 60; // Верхняя доборная планка под потолок (карниз 60 мм по умолчанию)
 
   const container = h('div', { class: 'wizard-body', style: 'display:flex; flex-direction:column; gap:16px;' });
@@ -1624,46 +1629,129 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
   const renderContent = () => {
     clear(container);
 
+    const hasLeft = shape === 'corner-left' || shape === 'u-shape';
+    const hasRight = shape === 'corner-right' || shape === 'u-shape';
+    const isCornerAny = hasLeft || hasRight;
+
     const desc = h('div', { style: 'background:rgba(59,130,246,0.08); border-left:4px solid #3b82f6; padding:10px 14px; border-radius:6px; font-size:13px; line-height:1.5; color:#1e293b;' },
-      h('b', null, 'Справка технолога: '),
-      'Вводите длину стены, и алгоритм расставляет модули с учётом мебельных стандартов: пенал под встройку, мойка с сантехническим пространством, посудосушитель, ящики и антресоли.',
+      h('b', null, 'Профессиональная планировка прямых, угловых Г-образных и П-образных кухонь: '),
+      'Выберите форму кухни, тип углового соединения (прямой с L-блендой 90°, Г-образный 900×900 или трапеция 45°) и длины стен — модули автоматически расставятся по всем активным стенам без зазоров и пересечений.',
     );
 
-    // Длина стены
+    // 1. Форма гарнитура + Тип угла
+    const shapeWrap = h('div', { class: 'grp' },
+      h('h3', null, '1. Форма кухни и тип углового узла'),
+      h('div', { class: 'btn-bar', style: 'flex-wrap:wrap; gap:6px; margin-bottom:10px;' },
+        h('button', {
+          class: `btn sm ${shape === 'linear' ? 'primary' : 'ghost'}`,
+          onClick: () => { shape = 'linear'; renderContent(); },
+        }, 'Прямая (линейная)'),
+        h('button', {
+          class: `btn sm ${shape === 'corner-left' ? 'primary' : 'ghost'}`,
+          onClick: () => { shape = 'corner-left'; renderContent(); },
+        }, 'Угловая Г-образная (левое крыло)'),
+        h('button', {
+          class: `btn sm ${shape === 'corner-right' ? 'primary' : 'ghost'}`,
+          onClick: () => { shape = 'corner-right'; wallLength = room.w; renderContent(); },
+        }, 'Угловая Г-образная (правое крыло)'),
+        h('button', {
+          class: `btn sm ${shape === 'u-shape' ? 'primary' : 'ghost'}`,
+          onClick: () => { shape = 'u-shape'; wallLength = room.w; renderContent(); },
+        }, 'П-образная (3 стены)'),
+      ),
+      isCornerAny ? h('div', { style: 'display:flex; flex-direction:column; gap:6px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px;' },
+        h('span', { style: 'font-size:12px; font-weight:700; color:#1e293b;' }, 'Конструкция углового модуля:'),
+        h('div', { class: 'btn-bar', style: 'flex-wrap:wrap; gap:6px;' },
+          h('button', {
+            class: `btn sm ${cornerType === 'blind' ? 'primary' : 'ghost'}`,
+            onClick: () => { cornerType = 'blind'; renderContent(); },
+          }, 'Прямой приставной с L-блендой 90° (современный стандарт)'),
+          h('button', {
+            class: `btn sm ${cornerType === 'l-shape' ? 'primary' : 'ghost'}`,
+            onClick: () => { cornerType = 'l-shape'; renderContent(); },
+          }, 'Г-образный 900×900 (складной фасад-гармошка)'),
+          h('button', {
+            class: `btn sm ${cornerType === 'diagonal' ? 'primary' : 'ghost'}`,
+            onClick: () => { cornerType = 'diagonal'; renderContent(); },
+          }, 'Трапеция 45° 900×900 (скошенная дверь + мойка в углу)'),
+        ),
+      ) : null,
+    );
+
+    // 2. Размеры стен и глубина корпуса
     const wallLenWrap = h('div', { class: 'grp' },
-      h('h3', null, '1. Длина стены (мм)'),
-      h('div', { class: 'btn-bar', style: 'margin-bottom:8px;' },
+      h('h3', null, '2. Длины стен и глубина нижнего ряда'),
+      h('div', { class: 'btn-bar', style: 'margin-bottom:8px; flex-wrap:wrap; gap:6px;' },
         ...[2400, 3000, 3600, 4200].map((len) =>
           h('button', {
             class: `btn sm ${wallLength === len ? 'primary' : 'ghost'}`,
             onClick: () => { wallLength = len; renderContent(); },
-          }, `${len} мм`),
+          }, `Осн. ${len} мм`),
         ),
+        h('span', { style: 'margin:0 4px; color:#94a3b8;' }, '|'),
+        h('button', {
+          class: `btn sm ${baseDepth === 560 ? 'primary' : 'ghost'}`,
+          onClick: () => { baseDepth = 560; renderContent(); },
+        }, 'Глубина 560 (столешница 600)'),
+        h('button', {
+          class: `btn sm ${baseDepth === 500 ? 'primary' : 'ghost'}`,
+          onClick: () => { baseDepth = 500; renderContent(); },
+        }, 'Глубина 500 (компакт)'),
       ),
-      h('label', { class: 'fld' },
-        h('span', { class: 'fld-l' }, 'Точный размер стены'),
-        h('input', {
-          type: 'number', min: '1600', max: '6000', step: '50', value: String(wallLength),
-          onInput: (e: Event) => {
-            const val = (e.target as HTMLInputElement).valueAsNumber;
-            if (val >= 1600 && val <= 6000) wallLength = val;
-          },
-        }),
+      h('div', { class: 'grid2' },
+        h('label', { class: 'fld' },
+          h('span', { class: 'fld-l' }, 'Основная (задняя) стена, мм'),
+          h('input', {
+            type: 'number', min: '1600', max: '8000', step: '50', value: String(wallLength),
+            onInput: (e: Event) => {
+              const val = (e.target as HTMLInputElement).valueAsNumber;
+              if (val >= 1600 && val <= 8000) wallLength = val;
+            },
+          }),
+        ),
+        hasLeft ? h('label', { class: 'fld' },
+          h('span', { class: 'fld-l' }, 'Левое крыло (вдоль левой стены), мм'),
+          h('input', {
+            type: 'number', min: '1200', max: '6000', step: '50', value: String(leftLength),
+            onInput: (e: Event) => {
+              const val = (e.target as HTMLInputElement).valueAsNumber;
+              if (val >= 1200 && val <= 6000) leftLength = val;
+            },
+          }),
+        ) : null,
+        hasRight ? h('label', { class: 'fld' },
+          h('span', { class: 'fld-l' }, 'Правое крыло (вдоль правой стены), мм'),
+          h('input', {
+            type: 'number', min: '1200', max: '6000', step: '50', value: String(rightLength),
+            onInput: (e: Event) => {
+              const val = (e.target as HTMLInputElement).valueAsNumber;
+              if (val >= 1200 && val <= 6000) rightLength = val;
+            },
+          }),
+        ) : null,
       ),
     );
 
-    // Ярусы и верхняя планка
+    // 3. Ярусы, глубина антресолей и верхняя планка
     const tiersWrap = h('div', { class: 'grp' },
-      h('h3', null, '2. Конфигурация ярусов и верхней планки'),
-      h('div', { class: 'btn-bar', style: 'margin-bottom:10px;' },
+      h('h3', null, '3. Конфигурация ярусов, антресолей и карниза'),
+      h('div', { class: 'btn-bar', style: 'margin-bottom:8px; flex-wrap:wrap; gap:6px;' },
         h('button', {
           class: `btn sm ${tiers === 3 ? 'primary' : 'ghost'}`,
           onClick: () => { tiers = 3; renderContent(); },
-        }, '3 яруса (Низ + Верх 720 мм + Антресоли на газлифтах)'),
+        }, '3 яруса (Низ + Верх 720 мм + Антресоли)'),
         h('button', {
           class: `btn sm ${tiers === 2 ? 'primary' : 'ghost'}`,
           onClick: () => { tiers = 2; renderContent(); },
         }, '2 яруса (Низ + Верх 720 мм)'),
+        tiers === 3 ? h('button', {
+          class: `btn sm ${mezzDepthMode === 'flush' ? 'primary' : 'ghost'}`,
+          onClick: () => { mezzDepthMode = 'flush'; renderContent(); },
+        }, 'Антресоли вровень с верхними (320 мм)') : null,
+        tiers === 3 ? h('button', {
+          class: `btn sm ${mezzDepthMode === 'deep' ? 'primary' : 'ghost'}`,
+          onClick: () => { mezzDepthMode = 'deep'; renderContent(); },
+        }, `Глубокие антресоли (${baseDepth} мм)`) : null,
       ),
       h('div', { style: 'font-size:12px; color:#475569; margin-bottom:5px;' }, 'Верхняя доборная планка (цельный карниз под потолок):'),
       h('div', { class: 'btn-bar', style: 'flex-wrap:wrap; gap:6px;' },
@@ -1760,41 +1848,26 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
       ),
     );
 
-    // Компоновка
+    // Компоновка пенала
     const layoutWrap = h('div', { class: 'grp' },
-      h('h3', null, '5. Компоновка гарнитура'),
-      h('div', { class: 'btn-bar' },
+      h('h3', null, '6. Размещение пенала под духовку и СВЧ'),
+      h('div', { class: 'btn-bar', style: 'flex-wrap:wrap; gap:6px;' },
         h('button', {
           class: `btn sm ${layoutVariant === 0 ? 'primary' : 'ghost'}`,
           onClick: () => { layoutVariant = 0; renderContent(); },
-        }, 'Пенал слева → Мойка → Ящики → Варочная'),
+        }, isCornerAny ? 'Пенал в торце бокового крыла' : 'Пенал слева → Мойка → Ящики → Варочная'),
         h('button', {
           class: `btn sm ${layoutVariant === 1 ? 'primary' : 'ghost'}`,
           onClick: () => { layoutVariant = 1; renderContent(); },
-        }, 'Мойка → Ящики → Варочная → Пенал справа'),
+        }, 'Пенал справа на основной стене'),
         h('button', {
           class: `btn sm ${layoutVariant === 2 ? 'primary' : 'ghost'}`,
           onClick: () => { layoutVariant = 2; renderContent(); },
-        }, 'Без пенала (линейная рабочая зона)'),
+        }, 'Без пенала (больше рабочей столешницы)'),
       ),
     );
 
-    // Форма гарнитура
-    const shapeWrap = h('div', { class: 'grp' },
-      h('h3', null, '6. Форма гарнитура'),
-      h('div', { class: 'btn-bar' },
-        h('button', {
-          class: `btn sm ${shape === 'linear' ? 'primary' : 'ghost'}`,
-          onClick: () => { shape = 'linear'; renderContent(); },
-        }, 'Прямая (вдоль стены)'),
-        h('button', {
-          class: `btn sm ${shape === 'corner-left' ? 'primary' : 'ghost'}`,
-          onClick: () => { shape = 'corner-left'; renderContent(); },
-        }, 'Угловая (Г-образная, угол слева 900×900)'),
-      ),
-    );
-
-    container.append(desc, wallLenWrap, shapeWrap, tiersWrap, millingWrap, matsWrap, layoutWrap);
+    container.append(desc, shapeWrap, wallLenWrap, tiersWrap, millingWrap, matsWrap, layoutWrap);
   };
 
   renderContent();
@@ -1803,6 +1876,8 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
   const applyKitchen = () => {
     const { modules, notes } = planKitchen({
       wallLength,
+      leftLength,
+      rightLength,
       tiers,
       facadeMat,
       corpusMat,
@@ -1811,6 +1886,9 @@ export function kitchenWizardDialog(store: Store, viewer: Viewer): void {
       millingMix,
       layoutVariant,
       shape,
+      cornerType,
+      baseDepth,
+      mezzDepthMode,
       topTrimH,
     }, room);
 

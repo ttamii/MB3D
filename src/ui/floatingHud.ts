@@ -187,7 +187,8 @@ export function createFloatingHud(container: HTMLElement, store: Store, _viewer:
     card.append(
       stepper('Ширина', 'X', m.w, 50, 4000, 50, (v) => {
         store.commit((p) => {
-          resizeModuleCascading(p.modules, m.id, v, p.room?.w);
+          const span = (m.wall === 'left' || m.wall === 'right') ? p.room?.d : p.room?.w;
+          resizeModuleCascading(p.modules, m.id, v, span);
         }, 'hud-width');
       }),
       stepper('Высота', 'Y', m.h, 150, 2800, 20, (v) => {
