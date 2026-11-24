@@ -463,7 +463,7 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
       mk({ name: 'Нижний шкаф 320 (левое крыло)', kind: 'base', wall: 'left', x: 500, w: 320, h: 820, d: 500, countertop: true, blindSide: 'right', blindW: 50, blindFillerW: 50, hinge: 'left', handlePos: 'top-horiz', sections: [sec({ shelves: 1 })] }),
       mk({ name: 'Верхний шкаф (левое крыло, 2 полки)', kind: 'wall', wall: 'left', x: 350, w: 470, h: 800, d: 300, lift: 1420, hinge: 'left', handles: false, sections: [sec({ shelves: 2 })] }),
       mk({ name: 'Антресоль (левое крыло)', kind: 'wall', wall: 'left', x: 350, w: 470, h: 460, d: 300, lift: 2220, hinge: 'top', topTrim: 60, handles: false, sections: [sec({ shelves: 0 })] }),
-      mk({ name: 'Пенал 600 с нишей под духовку и СВЧ', kind: 'tall', wall: 'left', x: 820, w: 600, h: 2680, d: 500, plinth: 100, drawerH: 360, ovenH: 600, mwH: 380, topTrim: 60, handlePos: 'side', sections: [sec({ drawers: 1, shelves: 2 })] }),
+      mk({ name: 'Пенал 600 с нишей под духовку и СВЧ', kind: 'tall', wall: 'left', x: 820, w: 600, h: 2680, d: 500, plinth: 100, drawerH: 360, ovenH: 600, mwH: 380, topTrim: 60, handlePos: 'top-horiz', upperHandles: false, sections: [sec({ drawers: 1, shelves: 2 })] }),
       mk({
         name: 'Пенал-витрина 500: Стекло Бронза в профиле Золото + LED',
         kind: 'tall', wall: 'left', x: 1420, w: 500, h: 2680, d: 500, plinth: 100, topTrim: 60,
@@ -550,7 +550,7 @@ export function parseFurniturePrompt(prompt: string): AiPromptResult {
       mk({ name: 'Нижний шкаф (левое крыло)', kind: 'base', wall: 'left', x: 500, w: 320, h: 820, d: 500, countertop: true, blindSide: 'right', blindW: 50, blindFillerW: 50, hinge: 'left', sections: [sec({ shelves: 1 })] }),
       mk({ name: 'Верхний шкаф (левое крыло, 2 полки)', kind: 'wall', wall: 'left', x: 350, w: 470, h: 800, d: 300, lift: 1400, hinge: 'left', handles: false, sections: [sec({ shelves: 2 })] }),
       mk({ name: 'Антресоль (левое крыло)', kind: 'wall', wall: 'left', x: 350, w: 470, h: 400, d: 300, lift: 2200, hinge: 'top', topTrim: 60, handles: false, sections: [sec({ shelves: 0 })] }),
-      mk({ name: 'Пенал с нишей под духовку/СВЧ', kind: 'tall', wall: 'left', x: 820, w: 600, h: 2600, d: 500, plinth: 100, drawerH: 360, ovenH: 600, mwH: 380, topTrim: 60, sections: [sec({ drawers: 1, shelves: 2 })] }),
+      mk({ name: 'Пенал с нишей под духовку/СВЧ', kind: 'tall', wall: 'left', x: 820, w: 600, h: 2600, d: 500, plinth: 100, drawerH: 360, ovenH: 600, mwH: 380, topTrim: 60, handlePos: 'top-horiz', upperHandles: false, sections: [sec({ drawers: 1, shelves: 2 })] }),
       mk({ name: 'Пенал 500 (полки)', kind: 'tall', wall: 'left', x: 1420, w: 500, h: 2600, d: 500, plinth: 100, topTrim: 60, sections: [sec({ shelves: 6 })] }),
     ];
 

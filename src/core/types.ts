@@ -64,6 +64,8 @@ export interface Module {
   handlePos?: 'side' | 'top-horiz' | 'edge-top';
   /** Цвет лицевой фурнитуры / ручек ('silver' | 'black' | 'gold'). */
   handleColor?: 'silver' | 'black' | 'gold';
+  /** Ручка на верхнем фасаде пенала с техникой (над СВЧ / духовкой). По умолчанию false = Push-to-Open (без ручки). */
+  upperHandles?: boolean;
   /** Высота ниши под духовой шкаф в пенале, мм (по умолчанию 600). */
   ovenH?: number;
   /** Высота ниши под встроенную СВЧ в пенале, мм (по умолчанию 380, 0 = без СВЧ). */

@@ -135,7 +135,13 @@ export function showModuleContextMenu(
       pill('Сверху (горизонт.)', m.handles && curHandlePos === 'top-horiz', () => {
         store.commit((p) => {
           const target = p.modules.find((item) => item.id === moduleId);
-          if (target) { target.handles = true; target.handlePos = 'top-horiz'; }
+          if (target) {
+            target.handles = true;
+            target.handlePos = 'top-horiz';
+            if (target.kind === 'tall' && /духов|свч/i.test(target.name)) {
+              target.upperHandles = false;
+            }
+          }
         }, 'handles-top');
       }),
       pill('Торцевая', m.handles && curHandlePos === 'edge-top', () => {
@@ -188,6 +194,20 @@ export function showModuleContextMenu(
               }, 'toggle-mirror');
             },
           ),
+    ] : []),
+    ...(m.kind === 'tall' && /духов|свч/i.test(m.name) ? [
+      item(
+        m.upperHandles === true
+          ? 'Убрать ручку над СВЧ (Push-to-Open)'
+          : 'Поставить ручку на шкаф над СВЧ',
+        'sliders',
+        () => {
+          store.commit((p) => {
+            const target = p.modules.find((it) => it.id === moduleId);
+            if (target) target.upperHandles = !(target.upperHandles === true);
+          }, 'toggle-upper-handle');
+        },
+      ),
     ] : []),
     ...(m.kind === 'base' && m.w >= 450 ? [
       item(

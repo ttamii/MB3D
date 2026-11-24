@@ -47,9 +47,9 @@ function isVitrineFacade(m: Module): 'gold' | 'black' | null {
 /** Ручка на фасаде двери: сбоку вертикально, сверху горизонтально (в одну линию с ящиками!) или торцевая сверху. */
 function doorHandle(
   b: Builder, m: Module, anim: PartAnim, x0: number, x1: number, y0: number, y1: number,
-  hinge: 'left' | 'right' | 'top', zFront: number,
+  hinge: 'left' | 'right' | 'top', zFront: number, allowHandle = m.handles,
 ): void {
-  if (!m.handles) return;
+  if (!allowHandle) return;
   const hMat = resolveHandleMat(m);
   const dw = x1 - x0;
   const dh = y1 - y0;
@@ -72,10 +72,10 @@ function doorHandle(
     return;
   }
 
-  // Горизонтальная ручка по центру фасада (на тумбах строго на y1 - 38 в линию с ящиками, на верхних створках — снизу у руки!)
-  if (m.handlePos === 'top-horiz') {
+  // Горизонтальная ручка по центру фасада — ТОЛЬКО для нижних тумб и шкафчика ПОД духовкой! На верхних дверях пенала всегда аккуратная вертикальная сбоку
+  if (m.handlePos === 'top-horiz' && !isUpperDoor) {
     const hw = Math.min(220, Math.max(96, dw * 0.5));
-    const hy = isUpperDoor ? y0 + 24 : (y1 > 1400 ? Math.max(y0 + 24, Math.min(y1 - 38, 1000)) : y1 - 38);
+    const hy = y1 > 1400 ? Math.max(y0 + 24, Math.min(y1 - 38, 1000)) : y1 - 38;
     b.decor('Ручка', hMat, [(x0 + x1 - hw) / 2, hy, zFront], [hw, 14, 22], anim);
     b.add('handle');
     return;
@@ -85,8 +85,8 @@ function doorHandle(
   const hl = Math.max(100, Math.min(320, dh * 0.25));
   const hx = hinge === 'left' ? x1 - 38 : x0 + 24;
   let y: number;
-  if (isWall(m.kind)) y = y0 + 30;
-  else if (m.kind === 'base' || m.kind === 'corner') y = y1 - 30 - hl;
+  if (isUpperDoor) y = y0 + 30;
+  else if (m.kind === 'base' || m.kind === 'corner' || y1 <= 950) y = y1 - 30 - hl;
   else y = Math.max(y0 + 20, Math.min(y1 - hl - 20, 1000 - hl / 2));
   b.decor('Ручка', hMat, [hx, y, zFront], [14, hl, 22], anim);
   b.add('handle');
@@ -138,7 +138,7 @@ export function getTallOvenZones(m: Module): TallOvenZones {
 
 function frontDoor(
   b: Builder, m: Module, label: string, x0: number, x1: number, y0: number, y1: number,
-  hinge: 'left' | 'right' | 'top', D: number, key: string,
+  hinge: 'left' | 'right' | 'top', D: number, key: string, allowHandle = m.handles,
 ): void {
   const isFlap = hinge === 'top';
   // Ограничитель угла открывания 85° (Blum Clip Top 86° / Aventos), чтобы створки не бились о соседние модули, пеналы и стены
@@ -203,7 +203,7 @@ function frontDoor(
   } else {
     doorHinges(b, m, anim, x0, x1, y0, y1, hinge, D);
   }
-  doorHandle(b, m, anim, x0, x1, y0, y1, hinge, D + FACADE_T);
+  doorHandle(b, m, anim, x0, x1, y0, y1, hinge, D + FACADE_T, allowHandle);
 }
 
 /** Четырехшарнирные мебельные петли (Blum/Hettich) с монтажными планками, плечом и чашкой Ø35. */
@@ -705,34 +705,52 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
 
     // распашные и подъёмные двери
     if (m.doorMode === 'hinged' && sec.door) {
-      const y0 = isTallOven && i === 0 && upperZoneBottom > zoneTop
+      const segW = fx1 - fx0;
+      const nDoors = isDoubleDoorSection(m, segW) ? 2 : 1;
+      const gap = 3;
+      const dw = (segW - gap * (nDoors - 1)) / nDoors;
+      const resolveDoorHinge = (k: number, allowTop: boolean): 'left' | 'right' | 'top' => {
+        if (nDoors === 1) {
+          if (allowTop && m.hinge === 'top') return 'top';
+          let desired: 'left' | 'right';
+          if (n > 1) desired = i < n / 2 ? 'left' : 'right';
+          else desired = m.hinge === 'right' ? 'right' : m.hinge === 'left' ? 'left' : (m.blindSide === 'left' ? 'right' : 'left');
+          return m.mirror ? (desired === 'left' ? 'right' : 'left') : desired;
+        }
+        return k === 0 ? 'left' : 'right';
+      };
+
+      // Нижний распашной шкафчик ПОД духовкой в пенале (если под духовкой не ящик, а дверца nd === 0) — С ручкой!
+      if (isTallOven && i === 0 && nd === 0 && zones.hasOven) {
+        const yLow0 = P + 2;
+        const yLow1 = zones.yHor1 + Math.round(t / 2) - 1;
+        if (yLow1 - yLow0 > 120) {
+          for (let k = 0; k < nDoors; k++) {
+            const a = fx0 + k * (dw + gap);
+            frontDoor(
+              b, m,
+              nDoors > 1 ? `Фасад нижний под духовкой (${k + 1})` : 'Фасад нижний (под духовкой)',
+              a, a + dw, yLow0, yLow1, resolveDoorHinge(k, false), D, `${m.id}-door-low-${i}-${k}`, m.handles,
+            );
+          }
+        }
+      }
+
+      const isTallUpperAboveAppliance = isTallOven && i === 0 && upperZoneBottom > zoneTop;
+      const y0 = isTallUpperAboveAppliance
         ? upperZoneBottom - Math.round(t / 2) + 1
         : (nd > 0 ? P + 2 + Math.round(nd * fhStep) : P + 2);
       const y1 = H - 2;
+      // В пенале с духовкой/СВЧ верхний шкаф над СВЧ по умолчанию Push-to-Open (без ручки!), чтобы ручка под духовкой не дублировалась наверх
+      const allowDoorHandle = isTallUpperAboveAppliance ? (m.upperHandles === true) : m.handles;
       if (y1 - y0 > 100) {
-        const segW = fx1 - fx0;
-        const nDoors = isDoubleDoorSection(m, segW) ? 2 : 1;
-        const gap = 3;
-        const dw = (segW - gap * (nDoors - 1)) / nDoors;
         for (let k = 0; k < nDoors; k++) {
           const a = fx0 + k * (dw + gap);
-          let hinge: 'left' | 'right' | 'top';
-          if (nDoors === 1) {
-            if (m.hinge === 'top') {
-              hinge = 'top';
-            } else {
-              let desired: 'left' | 'right';
-              if (n > 1) {
-                desired = i < n / 2 ? 'left' : 'right';
-              } else {
-                desired = m.hinge ? (m.hinge === 'right' ? 'right' : 'left') : (m.blindSide === 'left' ? 'right' : 'left');
-              }
-              hinge = m.mirror ? (desired === 'left' ? 'right' : 'left') : desired;
-            }
-          } else {
-            hinge = k === 0 ? 'left' : 'right';
-          }
-          frontDoor(b, m, nDoors > 1 ? `Фасад (дверь ${k + 1})` : 'Фасад (дверь)', a, a + dw, y0, y1, hinge, D, `${m.id}-door-${i}-${k}`);
+          frontDoor(
+            b, m,
+            nDoors > 1 ? `Фасад (дверь ${k + 1})` : 'Фасад (дверь)',
+            a, a + dw, y0, y1, resolveDoorHinge(k, true), D, `${m.id}-door-${i}-${k}`, allowDoorHandle,
+          );
         }
       }
     }

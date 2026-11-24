@@ -990,17 +990,34 @@ export function renderProps(root: HTMLElement, store: Store): void {
         }, 'top-trim-row');
       }),
     );
-    facadeNodes.push(toggle('Лицевые ручки', 'handles', m.handles, (v) => set((t) => { t.handles = v; })));
-    if (m.handles) {
+    const isTallAppliance = m.kind === 'tall' && /духов|свч/i.test(m.name);
+    facadeNodes.push(toggle(
+      isTallAppliance ? 'Ручка снизу (под духовкой)' : 'Лицевые ручки',
+      'handles',
+      m.handles,
+      (v) => set((t) => { t.handles = v; }),
+    ));
+    if (isTallAppliance) {
+      facadeNodes.push(toggle(
+        'Ручка сверху над СВЧ (иначе Push-to-Open)',
+        'upperHandles',
+        m.upperHandles === true,
+        (v) => set((t) => { t.upperHandles = v; }),
+      ));
+    }
+    if (m.handles || (isTallAppliance && m.upperHandles === true)) {
       facadeNodes.push(
         h('div', { style: 'background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:8px 10px; display:flex; flex-direction:column; gap:7px;' },
-          segmented('Расположение ручки на двери', [
+          segmented(isTallAppliance ? 'Расположение ручки под духовкой' : 'Расположение ручки на двери', [
             ['side', 'Сбоку (вертик.)'],
-            ['top-horiz', 'Сверху (под ящики)'],
+            ['top-horiz', 'Сверху (горизонт.)'],
             ['edge-top', 'Торцевая сверху'],
           ] as ['side' | 'top-horiz' | 'edge-top', string][], m.handlePos ?? 'side', (v) => set((t) => {
             if (v === 'side') delete t.handlePos;
             else t.handlePos = v;
+            if (isTallAppliance && v === 'top-horiz' && t.upperHandles === undefined) {
+              t.upperHandles = false;
+            }
           }, 'handle-pos')),
           segmented('Цвет ручек и профиля', [
             ['silver', 'Хром / Сатин'],
@@ -1018,6 +1035,11 @@ export function renderProps(root: HTMLElement, store: Store): void {
                 for (const mod of p.modules) {
                   if (!isWall(mod.kind) && mod.kind !== 'tall') {
                     mod.handles = true;
+                    if (m.handlePos) mod.handlePos = m.handlePos;
+                    else delete mod.handlePos;
+                  } else if (mod.kind === 'tall' && /духов|свч/i.test(mod.name)) {
+                    mod.handles = true;
+                    mod.upperHandles = false;
                     if (m.handlePos) mod.handlePos = m.handlePos;
                     else delete mod.handlePos;
                   }

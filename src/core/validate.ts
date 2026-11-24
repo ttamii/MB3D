@@ -47,6 +47,7 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
   const cooktop = kind === 'base' && typeof r.cooktop === 'boolean' ? r.cooktop : undefined;
   const handlePos = r.handlePos === 'top-horiz' || r.handlePos === 'edge-top' || r.handlePos === 'side' ? r.handlePos : undefined;
   const handleColor = r.handleColor === 'black' || r.handleColor === 'gold' || r.handleColor === 'silver' ? r.handleColor : undefined;
+  const upperHandles = kind === 'tall' && typeof r.upperHandles === 'boolean' ? r.upperHandles : undefined;
   const h = int(r.h, 720, ...LIMITS.h);
   const plinth = wall ? 0 : Math.min(int(r.plinth, 0, ...LIMITS.plinth), h - 200);
 
@@ -104,6 +105,7 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
     ...(cooktop !== undefined ? { cooktop } : {}),
     ...(handlePos && handlePos !== 'side' ? { handlePos } : {}),
     ...(handleColor && handleColor !== 'silver' ? { handleColor } : {}),
+    ...(upperHandles !== undefined ? { upperHandles } : {}),
     ...(ovenH !== undefined ? { ovenH } : {}),
     ...(mwH !== undefined ? { mwH } : {}),
   };
