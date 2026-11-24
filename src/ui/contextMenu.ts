@@ -189,6 +189,24 @@ export function showModuleContextMenu(
             },
           ),
     ] : []),
+    ...(m.kind === 'base' && m.w >= 450 ? [
+      item(
+        (m.cooktop === true || (m.cooktop !== false && /духов|варочн|плит|индукц/i.test(m.name)))
+          ? 'Убрать варочную панель со столешницы'
+          : 'Поставить варочную панель на столешницу',
+        'grid',
+        () => {
+          store.commit((p) => {
+            const target = p.modules.find((it) => it.id === moduleId);
+            if (target) {
+              const cur = target.cooktop === true || (target.cooktop !== false && /духов|варочн|плит|индукц/i.test(target.name));
+              target.cooktop = !cur;
+              target.countertop = true;
+            }
+          }, 'toggle-cooktop');
+        },
+      ),
+    ] : []),
     item('Сделать модулем мойки', 'check', () => {
       store.commit((p) => {
         const target = p.modules.find((item) => item.id === moduleId);

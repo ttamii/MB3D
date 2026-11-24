@@ -1033,6 +1033,10 @@ export function renderProps(root: HTMLElement, store: Store): void {
     if (m.kind === 'base' || m.kind === 'corner') {
       facadeNodes.push(toggle('Столешница 38 мм', 'top', m.countertop, (v) => set((t) => { t.countertop = v; })));
     }
+    if (m.kind === 'base' && m.countertop && m.w >= 450) {
+      const hasHob = m.cooktop === true || (m.cooktop !== false && /духов|варочн|плит|индукц/i.test(m.name));
+      facadeNodes.push(toggle('Варочная панель на столешнице', 'cooktop', hasHob, (v) => set((t) => { t.cooktop = v; })));
+    }
     if (!corner && m.kind !== 'wardrobe') {
       const curBlind = m.blindSide ?? 'none';
       const defaultBlindW = wall ? 350 : 550;

@@ -44,6 +44,7 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
   const cornerW2 = corner ? Math.max(d + 180, int(r.cornerW2, w, ...LIMITS.w)) : undefined;
   const cornerMode = corner ? (r.cornerMode === 'diagonal' ? 'diagonal' : 'l-shape') : undefined;
   const cornerSink = corner && kind === 'corner' && r.cornerSink === true ? true : undefined;
+  const cooktop = kind === 'base' && typeof r.cooktop === 'boolean' ? r.cooktop : undefined;
   const handlePos = r.handlePos === 'top-horiz' || r.handlePos === 'edge-top' || r.handlePos === 'side' ? r.handlePos : undefined;
   const handleColor = r.handleColor === 'black' || r.handleColor === 'gold' || r.handleColor === 'silver' ? r.handleColor : undefined;
   const h = int(r.h, 720, ...LIMITS.h);
@@ -100,6 +101,7 @@ export function normalizeModule(raw: unknown, materials: Material[] = DEFAULT_MA
     ...(cornerMode ? { cornerMode } : {}),
     ...(cornerW2 !== undefined ? { cornerW2 } : {}),
     ...(cornerSink ? { cornerSink } : {}),
+    ...(cooktop !== undefined ? { cooktop } : {}),
     ...(handlePos && handlePos !== 'side' ? { handlePos } : {}),
     ...(handleColor && handleColor !== 'silver' ? { handleColor } : {}),
     ...(ovenH !== undefined ? { ovenH } : {}),

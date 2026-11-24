@@ -16,6 +16,11 @@ import { grainTexture, stoneTexture } from './textures';
 
 export type ViewName = 'front' | 'iso' | 'top' | 'side';
 
+export interface SnapshotOptions {
+  preset?: 'day' | 'evening' | 'studio';
+  led?: 'warm' | 'neutral' | 'off';
+}
+
 const MM = 0.001;
 const TEX_SCALE = 0.8;
 
@@ -126,6 +131,7 @@ export class Viewer {
   private amb: AmbientLight;
   private envTex: Texture | null = null;
   private vLights: PointLight[] = [];
+  private apronLights: PointLight[] = [];
   private helper: Box3Helper | null = null;
   private pickables: Mesh[] = [];
   private lines: LineSegments[] = [];
@@ -532,20 +538,41 @@ export class Viewer {
         const b = spanBuckets.get(mat.uuid) ?? { mat, geos: [] };
         b.geos.push(partGeo(sp.part, [0, 0, 0]));
         spanBuckets.set(mat.uuid, b);
+
+        // Добавляем точечные источники LED-подсветки рабочей зоны вдоль светодиодной ленты под верхними шкафами
+        if (sp.part.mat === 'led-warm') {
+          const [px, py, pz] = sp.part.pos;
+          const [sx, , sz] = sp.part.size;
+          const isAlongX = sx >= sz;
+          const spanMm = isAlongX ? sx : sz;
+          const count = Math.max(1, Math.min(5, Math.round(spanMm / 850)));
+          for (let li = 0; li < count; li++) {
+            const frac = (li + 0.5) / count;
+            const lx = isAlongX ? px + sx * frac : px + sx / 2;
+            const lz = isAlongX ? pz + sz / 2 : pz + sz * frac;
+            const pLight = new PointLight(0xffcf72, 0, 1.35, 1.5);
+            pLight.position.set(lx * MM, (py - 32) * MM, lz * MM);
+            spanGroup.add(pLight);
+            this.apronLights.push(pLight);
+          }
+        }
       }
       spanBuckets.forEach((b) => {
         const merged = mergeGeometries(b.geos, false);
         b.geos.forEach((x) => x.dispose());
         if (!merged) return;
+        const isLed = b.mat.emissiveIntensity > 0.5;
         const meshMat = this.isXray ? this.xrayMat : b.mat;
         const mesh = new Mesh(merged, meshMat);
         mesh.userData.origMat = b.mat;
-        mesh.castShadow = !this.isXray;
-        mesh.receiveShadow = !this.isXray;
+        mesh.castShadow = !this.isXray && !isLed;
+        mesh.receiveShadow = !this.isXray && !isLed;
         spanGroup.add(mesh);
-        const edges = new LineSegments(new EdgesGeometry(merged, 25), this.lineMat);
-        spanGroup.add(edges);
-        this.lines.push(edges);
+        if (!isLed) {
+          const edges = new LineSegments(new EdgesGeometry(merged, 25), this.lineMat);
+          spanGroup.add(edges);
+          this.lines.push(edges);
+        }
       });
       this.modules.add(spanGroup);
     }
@@ -643,7 +670,38 @@ export class Viewer {
     this.moveCamera(pos, target, animate);
   }
 
-  snapshot(width: number, height: number): string {
+  /** Устанавливает интерьерный ракурс камеры с уровня глаз человека (для красивой презентации клиенту). */
+  frameShowroom(angle: 'hero' | 'workzone' | 'front', animate = false): void {
+    const c = this.bounds.getCenter(new Vector3());
+    const s = this.bounds.getSize(new Vector3());
+    const tanV = Math.tan(MathUtils.degToRad(this.camera.fov / 2));
+    const aspect = Math.max(0.55, this.camera.aspect);
+    const fitH = (s.y * 0.56) / tanV;
+    const fitW = (s.x * 0.56) / (tanV * aspect);
+    const dist = Math.max(fitH, fitW, 1.8) + s.z * 0.52;
+    const eyeY = Math.min(1.52, Math.max(1.25, s.y * 0.54));
+
+    if (angle === 'workzone') {
+      const target = new Vector3(c.x * 0.88, 1.18, Math.min(0.45, s.z * 0.22));
+      const pos = new Vector3(c.x + dist * 0.34, 1.38, target.z + dist * 0.62);
+      this.moveCamera(pos, target, animate);
+      return;
+    }
+    if (angle === 'front') {
+      const target = new Vector3(c.x, c.y * 0.96, s.z * 0.25);
+      const pos = new Vector3(c.x, eyeY, target.z + dist * 0.96);
+      this.moveCamera(pos, target, animate);
+      return;
+    }
+    // 'hero' — благородный дизайнерский ракурс 3/4 с уровня глаз (охватывает и основную стену, и левое крыло с витриной!)
+    const target = new Vector3(c.x * 0.92, c.y * 0.94, s.z * 0.32);
+    const pos = new Vector3(target.x + dist * 0.54, eyeY + 0.12, target.z + dist * 0.82);
+    this.moveCamera(pos, target, animate);
+  }
+
+  snapshot(width: number, height: number, opts?: SnapshotOptions): string {
+    const preset = opts?.preset ?? 'day';
+    const ledMode = opts?.led ?? 'warm';
     const el = this.renderer.domElement;
     const prevPR = this.renderer.getPixelRatio();
     const prevSize = new Vector2();
@@ -653,20 +711,67 @@ export class Viewer {
     const helperVis = this.helper?.visible ?? false;
     const dimVis = this.dimGroup.visible;
     const prevLineOp = this.lineMat.opacity;
+    const prevBg = (this.scene.background as Color).clone();
+
+    const ledMat = this.mats.get('led-warm');
+    const prevLedEmissive = ledMat ? ledMat.emissive.clone() : null;
+    const prevLedInt = ledMat ? ledMat.emissiveIntensity : 2.3;
 
     // Включаем полноценный студийный фото-рендер строго на момент генерации кадра «Рендер»
     if (this.helper) this.helper.visible = false;
     this.dimGroup.visible = false;
-    this.lineMat.opacity = 0.14; // тонкие реалистичные теневые зазоры между фасадами
+    this.lineMat.opacity = preset === 'evening' ? 0.1 : 0.15;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.needsUpdate = true;
     this.renderer.toneMapping = ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.92;
     this.scene.environment = this.envTex;
-    this.hemi.intensity = 0.42;
-    this.amb.intensity = 0.1;
-    this.sun.intensity = 1.65;
-    this.vLights.forEach((l) => (l.intensity = 1.05));
+
+    const ledColorHex = ledMode === 'neutral' ? 0xfff5e4 : 0xffca63;
+    if (ledMat) {
+      if (ledMode === 'off') {
+        ledMat.emissiveIntensity = 0;
+      } else {
+        ledMat.emissive.setHex(ledColorHex);
+        ledMat.emissiveIntensity = preset === 'evening' ? 3.4 : 2.5;
+      }
+    }
+
+    if (preset === 'evening') {
+      // Вечерний атмосферный интерьер: мягкий сумрак комнаты и яркий тёплый акцент LED на фартуке, столешнице и в бронзовых витринах!
+      this.scene.background = new Color('#cfc9bf');
+      this.renderer.toneMappingExposure = 0.96;
+      this.scene.environmentIntensity = 0.22;
+      this.hemi.intensity = 0.22;
+      this.amb.intensity = 0.06;
+      this.sun.intensity = 0.38;
+      const vInt = ledMode === 'off' ? 0 : 1.75;
+      const aInt = ledMode === 'off' ? 0 : 1.05;
+      this.vLights.forEach((l) => { l.color.setHex(ledColorHex); l.intensity = vInt; });
+      this.apronLights.forEach((l) => { l.color.setHex(ledColorHex); l.intensity = aInt; });
+    } else if (preset === 'studio') {
+      this.scene.background = new Color('#edece8');
+      this.renderer.toneMappingExposure = 0.95;
+      this.scene.environmentIntensity = 0.48;
+      this.hemi.intensity = 0.56;
+      this.amb.intensity = 0.14;
+      this.sun.intensity = 1.45;
+      const vInt = ledMode === 'off' ? 0 : 0.95;
+      const aInt = ledMode === 'off' ? 0 : 0.45;
+      this.vLights.forEach((l) => { l.color.setHex(ledColorHex); l.intensity = vInt; });
+      this.apronLights.forEach((l) => { l.color.setHex(ledColorHex); l.intensity = aInt; });
+    } else {
+      // Дневной мягкий интерьер + тёплая LED-подсветка
+      this.scene.background = new Color('#e6e3dc');
+      this.renderer.toneMappingExposure = 0.93;
+      this.scene.environmentIntensity = 0.42;
+      this.hemi.intensity = 0.42;
+      this.amb.intensity = 0.1;
+      this.sun.intensity = 1.55;
+      const vInt = ledMode === 'off' ? 0 : 1.25;
+      const aInt = ledMode === 'off' ? 0 : 0.68;
+      this.vLights.forEach((l) => { l.color.setHex(ledColorHex); l.intensity = vInt; });
+      this.apronLights.forEach((l) => { l.color.setHex(ledColorHex); l.intensity = aInt; });
+    }
 
     this.sun.shadow.mapSize.set(4096, 4096);
     this.sun.shadow.map?.dispose();
@@ -679,14 +784,21 @@ export class Viewer {
     const url = el.toDataURL('image/png');
 
     // Возвращаем чёткий рабочий CAD-режим конструктора
+    this.scene.background = prevBg;
     this.renderer.shadowMap.enabled = false;
     this.renderer.toneMapping = NoToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.scene.environment = null;
+    this.scene.environmentIntensity = 0.45;
     this.hemi.intensity = 0.72;
     this.amb.intensity = 0.22;
     this.sun.intensity = 0.85;
     this.vLights.forEach((l) => (l.intensity = 0));
+    this.apronLights.forEach((l) => (l.intensity = 0));
+    if (ledMat && prevLedEmissive) {
+      ledMat.emissive.copy(prevLedEmissive);
+      ledMat.emissiveIntensity = prevLedInt;
+    }
     this.lineMat.opacity = prevLineOp;
     this.dimGroup.visible = dimVis;
 
@@ -801,6 +913,7 @@ export class Viewer {
     this.lines = [];
     this.anims = [];
     this.vLights = [];
+    this.apronLights = [];
     this.clearFasteners();
   }
 

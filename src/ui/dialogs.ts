@@ -1488,39 +1488,101 @@ create policy "Public access" on public.mebel_projects for all using (true) with
   );
 }
 
-// ——— фото-рендер ———
+// ——— фото-рендер (студия визуализации для заказчика) ———
 
 export function renderDialog(store: Store, viewer: Viewer): void {
-  const d = openDialog('Фото-рендер', { wide: true });
+  const d = openDialog('Фото-студия рендера для заказчика', { wide: true });
   const small = Math.min(screen.width, screen.height) < 700;
-  const [W, H] = small ? [1600, 900] : [2560, 1440];
-  const status = h('p', { class: 'hint' }, 'Готовим изображение…');
-  const holder = h('div', { class: 'render-box' });
-  d.body.append(status, holder);
 
-  requestAnimationFrame(() => setTimeout(() => {
-    try {
-      const url = viewer.snapshot(W, H);
-      const img = new Image();
-      img.onload = () => {
-        const c = document.createElement('canvas');
-        c.width = W; c.height = H;
-        const g = c.getContext('2d')!;
-        g.drawImage(img, 0, 0);
-        g.font = `600 ${Math.round(H / 48)}px Inter, system-ui, sans-serif`;
-        g.fillStyle = 'rgba(30,30,34,.55)';
-        g.textAlign = 'right';
-        g.fillText(store.settings.company.name, W - H / 40, H - H / 40);
-        const out = c.toDataURL('image/png');
-        holder.append(h('img', { src: out, alt: 'Фото-рендер проекта' }));
-        status.textContent = `Готово: ${W}×${H}px. Откройте двери кнопкой «Открыть» и сделайте рендер ещё раз, если нужен ракурс с открытыми фасадами.`;
-        d.foot.append(btn('Скачать PNG', 'primary', () => c.toBlob((b) => b && downloadBlob(b, `${fileName(store.project.name)}-render.png`), 'image/png'), 'download'));
-      };
-      img.src = url;
-    } catch {
-      status.textContent = 'Не удалось создать изображение на этом устройстве. Попробуйте на компьютере.';
-    }
-  }, 30));
+  let preset: 'day' | 'evening' | 'studio' = 'day';
+  let ledMode: 'warm' | 'neutral' | 'off' = 'warm';
+  let aspectMode: '16:9' | '4:5' = '16:9';
+  let activeCam: 'current' | 'hero' | 'workzone' | 'front' = 'current';
+  let lastCanvas: HTMLCanvasElement | null = null;
+
+  const controlsWrap = h('div', {
+    style: 'display:flex; flex-direction:column; gap:8px; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:10px;',
+  });
+  const status = h('p', { class: 'hint', style: 'margin:0 0 8px 0;' }, 'Готовим студийный рендер…');
+  const holder = h('div', { class: 'render-box' });
+
+  const renderShot = () => {
+    status.textContent = 'Рендерим студийный свет, тени 4K и LED-подсветку…';
+    requestAnimationFrame(() => setTimeout(() => {
+      try {
+        const [W, H] = aspectMode === '4:5'
+          ? (small ? [1120, 1400] : [1600, 2000])
+          : (small ? [1600, 900] : [2560, 1440]);
+        const url = viewer.snapshot(W, H, { preset, led: ledMode });
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = W;
+          c.height = H;
+          const g = c.getContext('2d')!;
+          g.drawImage(img, 0, 0);
+          g.font = `600 ${Math.round(Math.min(W, H) / 46)}px Inter, system-ui, sans-serif`;
+          g.fillStyle = preset === 'evening' ? 'rgba(255,255,255,0.68)' : 'rgba(30,30,34,0.52)';
+          g.textAlign = 'right';
+          g.fillText(store.settings.company.name, W - 28, H - 24);
+          lastCanvas = c;
+          const out = c.toDataURL('image/png');
+          clear(holder);
+          holder.append(h('img', { src: out, alt: 'Фото-рендер проекта', style: 'max-height:58vh; width:auto; margin:0 auto; display:block; border-radius:6px;' }));
+          status.textContent = `Готово (${W}×${H} px). Переключайте свет, LED-подсветку и ракурс кнопками выше — кадр обновится автоматически.`;
+        };
+        img.src = url;
+      } catch {
+        status.textContent = 'Не удалось создать изображение на этом устройстве.';
+      }
+    }, 25));
+  };
+
+  const renderToolbar = () => {
+    clear(controlsWrap);
+    const pillRow = (label: string, buttons: HTMLElement[]) =>
+      h('div', { style: 'display:flex; align-items:center; gap:8px; flex-wrap:wrap;' },
+        h('span', { style: 'font-size:11.5px; font-weight:700; color:var(--ink-2); min-width:118px;' }, label),
+        h('div', { style: 'display:flex; gap:5px; flex-wrap:wrap;' }, ...buttons),
+      );
+    const pBtn = (txt: string, on: boolean, click: () => void) =>
+      h('button', { type: 'button', class: `btn sm ${on ? 'primary' : 'ghost'}`, onClick: click }, txt);
+
+    controlsWrap.append(
+      pillRow('1. Свет сцены:', [
+        pBtn('Дневной интерьер + LED', preset === 'day', () => { preset = 'day'; renderToolbar(); renderShot(); }),
+        pBtn('Вечерний уют (яркий акцент LED)', preset === 'evening', () => { preset = 'evening'; if (ledMode === 'off') ledMode = 'warm'; renderToolbar(); renderShot(); }),
+        pBtn('Светлая студия', preset === 'studio', () => { preset = 'studio'; renderToolbar(); renderShot(); }),
+      ]),
+      pillRow('2. LED-подсветка:', [
+        pBtn('Тёплая 3000K (Золото)', ledMode === 'warm', () => { ledMode = 'warm'; renderToolbar(); renderShot(); }),
+        pBtn('Дневная 4000K (Белая)', ledMode === 'neutral', () => { ledMode = 'neutral'; renderToolbar(); renderShot(); }),
+        pBtn('Выключена', ledMode === 'off', () => { ledMode = 'off'; renderToolbar(); renderShot(); }),
+      ]),
+      pillRow('3. Ракурс камеры:', [
+        pBtn('Текущий (как в 3D)', activeCam === 'current', () => { activeCam = 'current'; renderToolbar(); renderShot(); }),
+        pBtn('Дизайнерский 3/4 (с уровня глаз)', activeCam === 'hero', () => { activeCam = 'hero'; viewer.frameShowroom('hero', false); renderToolbar(); renderShot(); }),
+        pBtn('Крупно: Рабочая зона + LED', activeCam === 'workzone', () => { activeCam = 'workzone'; viewer.frameShowroom('workzone', false); renderToolbar(); renderShot(); }),
+        pBtn('Фронтально ровно', activeCam === 'front', () => { activeCam = 'front'; viewer.frameShowroom('front', false); renderToolbar(); renderShot(); }),
+      ]),
+      pillRow('4. Формат кадра:', [
+        pBtn('Альбомный 16:9 (Презентация)', aspectMode === '16:9', () => { aspectMode = '16:9'; renderToolbar(); renderShot(); }),
+        pBtn('Вертикальный 4:5 (WhatsApp / Телефон)', aspectMode === '4:5', () => { aspectMode = '4:5'; renderToolbar(); renderShot(); }),
+      ]),
+    );
+  };
+
+  renderToolbar();
+  d.body.append(controlsWrap, status, holder);
+  renderShot();
+
+  d.foot.append(
+    btn('Скачать PNG для клиента', 'primary', () => {
+      if (lastCanvas) {
+        lastCanvas.toBlob((b) => b && downloadBlob(b, `${fileName(store.project.name)}-${preset}-render.png`), 'image/png');
+      }
+    }, 'download'),
+  );
 }
 
 // ——— AR ———

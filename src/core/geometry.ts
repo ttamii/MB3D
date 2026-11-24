@@ -61,19 +61,21 @@ function doorHandle(
     return;
   }
 
-  // Торцевая накладная ручка-профиль по верхнему торцу фасада
+  const isUpperDoor = isWall(m.kind) || y0 >= 1100;
+
+  // Торцевая накладная ручка-профиль по торцу фасада
   if (m.handlePos === 'edge-top') {
     const hw = Math.max(100, Math.min(260, dw * 0.45));
-    const hy = isWall(m.kind) ? y0 : y1 - 4;
+    const hy = isUpperDoor ? y0 : (y1 > 1400 ? Math.min(y1 - 4, 1050) : y1 - 4);
     b.decor('Ручка торцевая', hMat, [(x0 + x1 - hw) / 2, hy, zFront - FACADE_T], [hw, 4, FACADE_T + 18], anim);
     b.add('handle');
     return;
   }
 
-  // Горизонтальная ручка сверху по центру фасада (строго на высоте y1 - 38 в одну линию с верхними ящиками!)
+  // Горизонтальная ручка по центру фасада (на тумбах строго на y1 - 38 в линию с ящиками, на верхних створках — снизу у руки!)
   if (m.handlePos === 'top-horiz') {
     const hw = Math.min(220, Math.max(96, dw * 0.5));
-    const hy = isWall(m.kind) ? y0 + 24 : y1 - 38;
+    const hy = isUpperDoor ? y0 + 24 : (y1 > 1400 ? Math.max(y0 + 24, Math.min(y1 - 38, 1000)) : y1 - 38);
     b.decor('Ручка', hMat, [(x0 + x1 - hw) / 2, hy, zFront], [hw, 14, 22], anim);
     b.add('handle');
     return;
@@ -346,6 +348,7 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
 
   const isSink = m.kind === 'base' && (m.name.toLowerCase().includes('мойк') || m.name.toLowerCase().includes('раковин') || (n === 1 && m.sections[0].shelves === 0 && m.sections[0].drawers === 0 && m.doorMode === 'hinged'));
   const isOven = m.kind === 'base' && (m.name.toLowerCase().includes('духов') || (n === 1 && m.sections[0].drawers === 1 && m.sections[0].shelves === 1 && m.doorMode === 'none'));
+  const hasCooktop = m.kind === 'base' && (m.cooktop === true || (m.cooktop !== false && (isOven || /варочн|плит|индукц|конфорк/i.test(m.name))));
   const isTallOven = m.kind === 'tall' && /духов|свч/i.test(m.name);
 
   b.box('Боковина левая', 'corpus', [0, P, BK], [t, bodyH, D - BK], bodyH);
@@ -772,23 +775,32 @@ function rectCabinet(b: Builder, m: Module, skipContinuous = false): void {
       const sd = Math.min(430, D - 110);
       const sx = Math.round(openX0 + (openW - sw) / 2);
       const sz = Math.round((D - sd) / 2) + 10;
+      const tapMat = resolveHandleMat(m);
       b.decor('Мойка врезная: бортик', 'metal', [sx, H + COUNTERTOP_T - 1, sz], [sw, 2, sd]);
-      b.decor('Мойка врезная: чаша', 'black', [sx + 22, H + COUNTERTOP_T - 0.5, sz + 44], [sw - 44, 2, sd - 64]);
-      b.decor('Мойка: сливной клапан', 'metal', [sx + sw / 2 - 22, H + COUNTERTOP_T, sz + sd / 2], [44, 2, 44], undefined, 'cyl');
-      b.decor('Смеситель: база', 'metal', [sx + sw / 2 - 18, H + COUNTERTOP_T, sz + 8], [36, 2, 30]);
+      b.decor('Мойка врезная: чаша', 'black', [sx + 22, H + COUNTERTOP_T - 0.5, sz + 44], [sw - 44, 2.2, sd - 64]);
+      b.decor('Мойка: сливной клапан', 'metal', [sx + sw / 2 - 22, H + COUNTERTOP_T, sz + sd / 2], [44, 2.5, 44], undefined, 'cyl');
+      // Объёмный высокий кухонный смеситель (в цвет фурнитуры: Золото / Чёрный / Хром)
+      const tx = sx + Math.round(sw / 2);
+      const tz = sz + 18;
+      b.decor('Смеситель: база', tapMat, [tx - 21, H + COUNTERTOP_T, tz - 21], [42, 18, 42], undefined, 'cyl');
+      b.decor('Смеситель: стойка', tapMat, [tx - 11, H + COUNTERTOP_T + 16, tz - 11], [22, 250, 22], undefined, 'cyl');
+      b.decor('Смеситель: излив', tapMat, [tx - 10, H + COUNTERTOP_T + 252, tz - 10], [20, 18, 175]);
+      b.decor('Смеситель: аэратор', tapMat, [tx - 10, H + COUNTERTOP_T + 224, tz + 145], [20, 30, 20], undefined, 'cyl');
+      b.decor('Смеситель: рычаг', tapMat, [tx + 11, H + COUNTERTOP_T + 52, tz - 6], [42, 10, 12]);
     }
-    // Встроенная индукционная варочная панель над духовкой
-    if (isOven && W >= 450 && D >= 450) {
-      const cwTop = Math.min(560, W - 70);
-      const cdTop = Math.min(460, D - 90);
+    // Встроенная индукционная варочная панель (работает как над духовкой, так и на модуле с выдвижными ящиками!)
+    if (hasCooktop && W >= 450 && D >= 450) {
+      const cwTop = Math.min(560, W - 60);
+      const cdTop = Math.min(450, D - 70);
       const cxTop = Math.round((W - cwTop) / 2);
-      const czTop = Math.round((D - cdTop) / 2) + 10;
-      b.decor('Варочная панель: стеклокерамика', 'black', [cxTop, H + COUNTERTOP_T - 0.5, czTop], [cwTop, 2, cdTop]);
-      const rZone = Math.min(145, Math.floor(Math.min(cwTop, cdTop) * 0.34));
-      b.decor('Варочная панель: конфорка 1', 'metal', [cxTop + 36, H + COUNTERTOP_T, czTop + 32], [rZone, 1.5, rZone], undefined, 'cyl');
-      b.decor('Варочная панель: конфорка 2', 'metal', [cxTop + cwTop - rZone - 36, H + COUNTERTOP_T, czTop + 32], [rZone, 1.5, rZone], undefined, 'cyl');
-      b.decor('Варочная панель: конфорка 3', 'metal', [cxTop + 36, H + COUNTERTOP_T, czTop + cdTop - rZone - 42], [rZone, 1.5, rZone], undefined, 'cyl');
-      b.decor('Варочная панель: конфорка 4', 'metal', [cxTop + cwTop - rZone - 36, H + COUNTERTOP_T, czTop + cdTop - rZone - 42], [rZone, 1.5, rZone], undefined, 'cyl');
+      const czTop = Math.round((D + 20 - cdTop) / 2);
+      b.decor('Варочная панель: стеклокерамика', 'black', [cxTop, H + COUNTERTOP_T - 0.5, czTop], [cwTop, 4, cdTop]);
+      const rZone = Math.min(140, Math.floor(Math.min(cwTop, cdTop) * 0.33));
+      b.decor('Варочная панель: конфорка 1', 'metal', [cxTop + 36, H + COUNTERTOP_T + 3.2, czTop + 30], [rZone, 1.2, rZone], undefined, 'cyl');
+      b.decor('Варочная панель: конфорка 2', 'metal', [cxTop + cwTop - rZone - 36, H + COUNTERTOP_T + 3.2, czTop + 30], [rZone, 1.2, rZone], undefined, 'cyl');
+      b.decor('Варочная панель: конфорка 3', 'metal', [cxTop + 36, H + COUNTERTOP_T + 3.2, czTop + cdTop - rZone - 42], [rZone, 1.2, rZone], undefined, 'cyl');
+      b.decor('Варочная панель: конфорка 4', 'metal', [cxTop + cwTop - rZone - 36, H + COUNTERTOP_T + 3.2, czTop + cdTop - rZone - 42], [rZone, 1.2, rZone], undefined, 'cyl');
+      b.decor('Варочная панель: сенсор', 'metal', [cxTop + cwTop / 2 - 65, H + COUNTERTOP_T + 3.2, czTop + cdTop - 22], [130, 1.2, 10]);
     }
   }
 
@@ -1315,12 +1327,20 @@ export function buildContinuousSpans(modules: Module[], splitForCutlist = false,
       const totalW = Math.round((last.x + last.w) - first.x);
       const botY = first.lift ?? 0;
       if (botY >= 1000 && totalW >= 300) {
-        const wbLed = wallBox(wall, first.x + 8, botY - 5, Math.max(40, first.d - 65), totalW - 16, 5, 16);
+        const zLed = Math.max(40, first.d - 75);
+        const wbHousing = wallBox(wall, first.x + 8, botY - 4, zLed, totalW - 16, 4, 18);
+        const wbDiffuser = wallBox(wall, first.x + 10, botY - 6.5, zLed + 3, totalW - 20, 3, 12);
         spans.push({
           refModule: first,
           groupName: (run.length > 1 ? `LED-профиль (${run.length} мод.)` : first.name) + wSuffix,
           groupId: `span-led-${wall}-${first.id}`,
-          part: { name: 'Профиль LED-подсветки рабочей зоны', mat: 'metal', pos: wbLed.pos, size: wbLed.size, edgeMm: 0, sheet: false, shape: 'box' },
+          part: { name: 'Алюминиевый профиль LED-подсветки', mat: 'metal', pos: wbHousing.pos, size: wbHousing.size, edgeMm: 0, sheet: false, shape: 'box' },
+        });
+        spans.push({
+          refModule: first,
+          groupName: (run.length > 1 ? `LED-профиль (${run.length} мод.)` : first.name) + wSuffix,
+          groupId: `span-led-glow-${wall}-${first.id}`,
+          part: { name: 'Светодиодная лента рабочей зоны', mat: 'led-warm', pos: wbDiffuser.pos, size: wbDiffuser.size, edgeMm: 0, sheet: false, shape: 'box' },
         });
       }
     }
